@@ -1,0 +1,41 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Java
+target/
+*.class
+*.jar
+*.war
+.mvn/timing.properties
+
+# Node.js
+node_modules/
+dist/
+.pnpm-store/
+*.tsbuildinfo
+
+# IDE and OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Logs and runtime files
+logs/
+*.log
+*.pid
+
+# Test and coverage output
+coverage/
+test-results/
+playwright-report/
+
+# Local infrastructure data
+.data/
+data/
+tmp/
