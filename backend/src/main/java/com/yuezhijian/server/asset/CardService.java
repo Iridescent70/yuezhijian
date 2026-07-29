@@ -246,6 +246,119 @@ public class CardService {
                 request.reason().trim(), now, request.idempotencyKey(), currentUserId(username)));
     }
 
+    public CardRefundQuote quoteRefund(
+            long cardId, CardRefundQuoteRequest request, String username) {
+        MemberCardDetail card = memberCard(cardId);
+        if (!"ACTIVE".equals(card.card().status()) || card.card().expiresAt().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("只有正常有效的次卡可以申请退卡");
+        }
+        if (card.balances().stream().anyMatch(item -> item.frozenTimes().signum() > 0)) {
+            throw new IllegalArgumentException("次卡存在冻结次数，不能申请退卡");
+        }
+        BigDecimal remainingTimes = card.balances().stream().map(MemberCardBalanceItem::remainingTimes)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (remainingTimes.signum() <= 0) throw new IllegalArgumentException("次卡没有可退的剩余次数");
+        BigDecimal originalAmount = money(card.card().purchasePrice());
+        List<CardConsumptionRepriceItem> items = repository.consumptionRepriceItems(cardId);
+        BigDecimal consumed = money(items.stream().map(CardConsumptionRepriceItem::originalAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+        BigDecimal baseRefund = originalAmount.subtract(consumed).max(BigDecimal.ZERO).setScale(4, RoundingMode.HALF_UP);
+        BigDecimal fee = money(request.feeAmount());
+        if (fee.compareTo(baseRefund) > 0) throw new IllegalArgumentException("手续费不能超过重计后的可退金额");
+        return repository.createRefundQuote(new CardRefundQuoteDraft(
+                numbers.cardRefundQuoteNo(), card.card(), originalAmount, consumed, fee,
+                baseRefund.subtract(fee), items, LocalDateTime.now().plusMinutes(10), currentUserId(username)));
+    }
+
+    @Transactional
+    public CardRefundRequestDetail submitRefund(
+            long cardId, SubmitCardRefundRequest request, String username) {
+        CardRefundRequestDetail existing = repository.findRefundRequestByRequestKey(request.idempotencyKey())
+                .orElse(null);
+        if (existing != null) {
+            if (existing.request().memberCardId() != cardId) {
+                throw new IllegalArgumentException("幂等键已用于其他退卡申请");
+            }
+            return existing;
+        }
+        CardRefundQuote quote = repository.findRefundQuote(request.quoteNo())
+                .orElseThrow(() -> new ResourceNotFoundException("退卡试算不存在"));
+        if (quote.memberCardId() != cardId) throw new IllegalArgumentException("退卡试算与次卡不匹配");
+        if (quote.used() || quote.expiresAt().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("退卡试算已失效，请重新试算");
+        }
+        if (repository.findActiveRefundRequest(cardId).isPresent()) {
+            throw new DuplicateResourceException("当前次卡已有待处理或已执行的退卡申请");
+        }
+        MemberDetail refundMember = requireMember(quote.memberId(), true);
+        validateStore(request.storeId());
+        if (request.employeeId() != null) validateSalesEmployee(request.storeId(), request.employeeId());
+        PaymentMethodOption refundMethod = null;
+        if (quote.refundAmount().signum() > 0) {
+            if (request.refundMethodId() == null) throw new IllegalArgumentException("请选择退款方式");
+            refundMethod = trades.paymentMethods(request.storeId()).stream()
+                    .filter(item -> item.id() == request.refundMethodId()).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("退款方式未在当前门店启用"));
+            if ("STORED_VALUE".equals(refundMethod.type())) {
+                throw new IllegalArgumentException("退卡退款暂不支持退入会员储值");
+            }
+        } else if (request.refundMethodId() != null) {
+            throw new IllegalArgumentException("退款金额为0时不需要选择退款方式");
+        }
+        return repository.submitRefundRequest(new CardRefundSubmission(
+                numbers.cardRefundRequestNo(), quote, refundMember.fullName(),
+                refundMethod == null ? null : refundMethod.id(),
+                refundMethod == null ? null : refundMethod.name(),
+                refundMethod != null && refundMethod.needsExternalReference(),
+                request.storeId(), storeName(request.storeId()), request.employeeId(), request.reason().trim(),
+                request.idempotencyKey(), currentUserId(username)));
+    }
+
+    public List<CardRefundRequestSummary> refundRequests(String status) {
+        return repository.refundRequests(normalizeStatus(
+                status, Set.of("SUBMITTED", "APPROVED", "REJECTED", "EXECUTED"), "退卡状态不正确"));
+    }
+
+    public CardRefundRequestDetail refundRequest(long id) {
+        return repository.findRefundRequest(id)
+                .orElseThrow(() -> new ResourceNotFoundException("退卡申请不存在"));
+    }
+
+    @Transactional
+    public CardRefundRequestDetail reviewRefund(
+            long id, ReviewCardRefundRequest request, String username) {
+        CardRefundRequestDetail current = refundRequest(id);
+        if (!"SUBMITTED".equals(current.request().status())) {
+            throw new IllegalArgumentException("只有待审批的退卡申请可以审核");
+        }
+        String comment = trimToNull(request.comment());
+        if (!request.approved() && comment == null) throw new IllegalArgumentException("驳回时必须填写原因");
+        return repository.reviewRefundRequest(new CardRefundReviewCommand(
+                current, request.approved(), comment, request.version(), currentUserId(username)));
+    }
+
+    @Transactional
+    public CardRefundRequestDetail executeRefund(
+            long id, ExecuteCardRefundRequest request, String username) {
+        CardRefundRequestDetail existing = repository.findRefundRequestByExecutionKey(request.idempotencyKey())
+                .orElse(null);
+        if (existing != null) return existing;
+        CardRefundRequestDetail current = refundRequest(id);
+        if (!"APPROVED".equals(current.request().status())) {
+            throw new IllegalArgumentException("退卡申请审批通过后才能执行");
+        }
+        if (!current.request().version().equals(request.version())) {
+            throw new DuplicateResourceException("退卡申请已被他人处理，请刷新后重试");
+        }
+        String externalReference = trimToNull(request.externalRefundReference());
+        if (current.request().refundAmount().signum() > 0
+                && current.request().refundMethodRequiresReference() && externalReference == null) {
+            throw new IllegalArgumentException(current.request().refundMethodName() + "必须填写外部退款凭证号");
+        }
+        return repository.executeRefund(new CardRefundExecutionCommand(
+                current, request.version(), externalReference, request.idempotencyKey(), currentUserId(username)));
+    }
+
     private List<CardServiceRule> validateRules(List<CardServiceRuleRequest> requests, List<Long> storeIds) {
         Set<Long> seen = new HashSet<>();
         List<CardServiceRule> result = new ArrayList<>();

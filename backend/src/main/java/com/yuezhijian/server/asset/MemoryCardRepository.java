@@ -23,6 +23,11 @@ public class MemoryCardRepository implements CardRepository {
     private final Map<String, CardExchangeQuote> exchangeQuotes = new LinkedHashMap<>();
     private final Map<String, CardExchangeResult> exchanges = new LinkedHashMap<>();
     private final Map<String, CardTransferResult> transfers = new LinkedHashMap<>();
+    private final Map<Long, CardConsumptionRepriceItem> consumptionReprices = new LinkedHashMap<>();
+    private final Map<String, CardRefundQuote> refundQuotes = new LinkedHashMap<>();
+    private final Map<Long, CardRefundRequestDetail> refundRequests = new LinkedHashMap<>();
+    private final Map<String, Long> refundRequestKeys = new LinkedHashMap<>();
+    private final Map<String, Long> refundExecutionKeys = new LinkedHashMap<>();
     private final AtomicLong typeIds = new AtomicLong(501);
     private final AtomicLong orderIds = new AtomicLong(600);
     private final AtomicLong cardIds = new AtomicLong(700);
@@ -31,6 +36,8 @@ public class MemoryCardRepository implements CardRepository {
     private final AtomicLong exchangeQuoteIds = new AtomicLong(1000);
     private final AtomicLong exchangeIds = new AtomicLong(1100);
     private final AtomicLong transferIds = new AtomicLong(1200);
+    private final AtomicLong refundQuoteIds = new AtomicLong(1300);
+    private final AtomicLong refundRequestIds = new AtomicLong(1400);
     private final AssetNumberGenerator numbers;
 
     public MemoryCardRepository(AssetNumberGenerator numbers) {
@@ -166,11 +173,16 @@ public class MemoryCardRepository implements CardRepository {
         List<MemberCardBalanceItem> balances = detail.balances().stream()
                 .map(item -> item.id() == updated.id() ? updated : item).toList();
         List<MemberCardLedgerItem> ledgers = new ArrayList<>(detail.ledgers());
+        long ledgerId = ledgerIds.incrementAndGet();
+        LocalDateTime consumedAt = LocalDateTime.now();
         ledgers.add(new MemberCardLedgerItem(
-                ledgerIds.incrementAndGet(), numbers.cardLedgerNo(), command.serviceId(), current.serviceName(),
+                ledgerId, numbers.cardLedgerNo(), command.serviceId(), current.serviceName(),
                 "CONSUME", current.remainingTimes(), command.times().negate(), after, command.amount(),
-                "BILL", command.billId(), LocalDateTime.now(),
+                "BILL", command.billId(), consumedAt,
                 "bill:" + command.billId() + ":line:" + command.billLineId(), null, command.displayName()));
+        consumptionReprices.put(ledgerId, new CardConsumptionRepriceItem(
+                ledgerId, command.billId(), "BILL-" + command.billId(), command.serviceId(),
+                current.serviceName(), consumedAt, command.originalAmount()));
         BigDecimal remainingTotal = balances.stream().map(MemberCardBalanceItem::remainingTimes)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         MemberCardSummary old = detail.card();
@@ -180,6 +192,21 @@ public class MemoryCardRepository implements CardRepository {
                 remainingTotal, old.frozenTimes(), old.startedAt(), old.expiresAt(),
                 remainingTotal.signum() == 0 ? "EXHAUSTED" : old.status(), nextVersion(old.version()));
         cards.put(card.id(), new MemberCardDetail(card, balances, List.copyOf(ledgers)));
+    }
+
+    @Override
+    public synchronized List<CardConsumptionRepriceItem> consumptionRepriceItems(long memberCardId) {
+        MemberCardDetail detail = cards.get(memberCardId);
+        if (detail == null) return List.of();
+        java.util.Set<Long> reversed = detail.ledgers().stream()
+                .map(MemberCardLedgerItem::reversedLedgerId).filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+        return detail.ledgers().stream()
+                .filter(item -> "CONSUME".equals(item.transactionType()) && !reversed.contains(item.id()))
+                .map(item -> consumptionReprices.get(item.id())).filter(java.util.Objects::nonNull)
+                .sorted(Comparator.comparing(CardConsumptionRepriceItem::consumedAt)
+                        .thenComparing(CardConsumptionRepriceItem::cardLedgerId))
+                .toList();
     }
 
     @Override
@@ -408,6 +435,199 @@ public class MemoryCardRepository implements CardRepository {
                 command.remainingValue(), source.expiresAt(), command.newExpiresAt(), command.reason(),
                 command.executedAt());
         transfers.put(command.idempotencyKey(), result);
+        return result;
+    }
+
+    @Override
+    public synchronized CardRefundQuote createRefundQuote(CardRefundQuoteDraft draft) {
+        long id = refundQuoteIds.incrementAndGet();
+        CardRefundQuote result = new CardRefundQuote(
+                id, draft.quoteNo(), draft.card().id(), draft.card().cardNo(), draft.card().cardTypeName(),
+                draft.card().memberId(), draft.originalAmount(), draft.consumedRepriceAmount(),
+                draft.feeAmount(), draft.refundAmount(), draft.card().version(), draft.items(),
+                draft.expiresAt(), false);
+        refundQuotes.put(result.quoteNo(), result);
+        return result;
+    }
+
+    @Override
+    public synchronized Optional<CardRefundQuote> findRefundQuote(String quoteNo) {
+        return Optional.ofNullable(refundQuotes.get(quoteNo));
+    }
+
+    @Override
+    public synchronized List<CardRefundRequestSummary> refundRequests(String status) {
+        return refundRequests.values().stream().map(CardRefundRequestDetail::request)
+                .filter(item -> status == null || status.equals(item.status()))
+                .sorted(Comparator.comparing(CardRefundRequestSummary::requestedAt).reversed()
+                        .thenComparing(CardRefundRequestSummary::id, Comparator.reverseOrder()))
+                .toList();
+    }
+
+    @Override
+    public synchronized Optional<CardRefundRequestDetail> findRefundRequest(long id) {
+        return Optional.ofNullable(refundRequests.get(id));
+    }
+
+    @Override
+    public synchronized Optional<CardRefundRequestDetail> findRefundRequestByRequestKey(String key) {
+        Long id = key == null ? null : refundRequestKeys.get(key);
+        return id == null ? Optional.empty() : findRefundRequest(id);
+    }
+
+    @Override
+    public synchronized Optional<CardRefundRequestDetail> findRefundRequestByExecutionKey(String key) {
+        Long id = key == null ? null : refundExecutionKeys.get(key);
+        return id == null ? Optional.empty() : findRefundRequest(id);
+    }
+
+    @Override
+    public synchronized Optional<CardRefundRequestDetail> findActiveRefundRequest(long memberCardId) {
+        return refundRequests.values().stream()
+                .filter(item -> item.request().memberCardId() == memberCardId)
+                .filter(item -> List.of("SUBMITTED", "APPROVED", "EXECUTED").contains(item.request().status()))
+                .findFirst();
+    }
+
+    @Override
+    public synchronized CardRefundRequestDetail submitRefundRequest(CardRefundSubmission submission) {
+        Optional<CardRefundRequestDetail> existing = findRefundRequestByRequestKey(submission.idempotencyKey());
+        if (existing.isPresent()) return existing.get();
+        CardRefundQuote quote = refundQuotes.get(submission.quote().quoteNo());
+        if (quote == null || quote.used() || quote.expiresAt().isBefore(LocalDateTime.now())) {
+            throw new DuplicateResourceException("退卡试算已失效或已被使用，请重新试算");
+        }
+        if (findActiveRefundRequest(quote.memberCardId()).isPresent()) {
+            throw new DuplicateResourceException("当前次卡已有待处理或已执行的退卡申请");
+        }
+        MemberCardDetail cardDetail = cards.get(quote.memberCardId());
+        if (cardDetail == null || !"ACTIVE".equals(cardDetail.card().status())
+                || !cardDetail.card().version().equals(quote.cardVersion())) {
+            throw new DuplicateResourceException("次卡状态已发生变化，请重新试算");
+        }
+        MemberCardSummary card = cardDetail.card();
+        MemberCardSummary frozen = new MemberCardSummary(
+                card.id(), card.cardNo(), card.memberId(), card.cardTypeId(), card.cardTypeCode(), card.cardTypeName(),
+                card.purchaseStoreId(), card.purchaseStoreName(), card.purchasePrice(), card.totalTimes(),
+                card.remainingTimes(), card.frozenTimes(), card.startedAt(), card.expiresAt(),
+                "FROZEN", nextVersion(card.version()));
+        cards.put(card.id(), new MemberCardDetail(frozen, cardDetail.balances(), cardDetail.ledgers()));
+        long id = refundRequestIds.incrementAndGet();
+        LocalDateTime now = LocalDateTime.now();
+        CardRefundRequestSummary summary = new CardRefundRequestSummary(
+                id, quote.id(), submission.requestNo(), quote.memberCardId(), quote.cardNo(), quote.cardTypeName(),
+                quote.memberId(), submission.memberName(), submission.storeName(), quote.originalAmount(),
+                quote.consumedRepriceAmount(), quote.feeAmount(), quote.refundAmount(), submission.refundMethodId(),
+                submission.refundMethodName(), submission.refundMethodRequiresReference(), "SUBMITTED",
+                "PENDING_MODULE", submission.reason(), now, submission.operatorId(), null, null, null, null,
+                frozen.version(), "1");
+        CardRefundRequestDetail result = new CardRefundRequestDetail(summary, quote.items(), null);
+        refundRequests.put(id, result);
+        refundRequestKeys.put(submission.idempotencyKey(), id);
+        refundQuotes.put(quote.quoteNo(), new CardRefundQuote(
+                quote.id(), quote.quoteNo(), quote.memberCardId(), quote.cardNo(), quote.cardTypeName(), quote.memberId(),
+                quote.originalAmount(), quote.consumedRepriceAmount(), quote.feeAmount(), quote.refundAmount(),
+                quote.cardVersion(), quote.items(), quote.expiresAt(), true));
+        return result;
+    }
+
+    @Override
+    public synchronized CardRefundRequestDetail reviewRefundRequest(CardRefundReviewCommand command) {
+        CardRefundRequestDetail current = refundRequests.get(command.request().request().id());
+        if (current == null || !"SUBMITTED".equals(current.request().status())
+                || !current.request().version().equals(command.version())) {
+            throw new DuplicateResourceException("退卡申请已被他人处理，请刷新后重试");
+        }
+        CardRefundRequestSummary old = current.request();
+        if (!command.approved()) {
+            MemberCardDetail cardDetail = cards.get(old.memberCardId());
+            if (cardDetail == null || !"FROZEN".equals(cardDetail.card().status())
+                    || !cardDetail.card().version().equals(old.cardVersion())) {
+                throw new DuplicateResourceException("次卡状态已发生变化，无法驳回并恢复");
+            }
+            MemberCardSummary card = cardDetail.card();
+            MemberCardSummary active = new MemberCardSummary(
+                    card.id(), card.cardNo(), card.memberId(), card.cardTypeId(), card.cardTypeCode(),
+                    card.cardTypeName(), card.purchaseStoreId(), card.purchaseStoreName(), card.purchasePrice(),
+                    card.totalTimes(), card.remainingTimes(), card.frozenTimes(), card.startedAt(), card.expiresAt(),
+                    "ACTIVE", nextVersion(card.version()));
+            cards.put(card.id(), new MemberCardDetail(active, cardDetail.balances(), cardDetail.ledgers()));
+        }
+        CardRefundRequestSummary reviewed = new CardRefundRequestSummary(
+                old.id(), old.quoteId(), old.requestNo(), old.memberCardId(), old.cardNo(), old.cardTypeName(),
+                old.memberId(), old.memberName(), old.storeName(), old.originalAmount(), old.consumedRepriceAmount(),
+                old.feeAmount(), old.refundAmount(), old.refundMethodId(), old.refundMethodName(),
+                old.refundMethodRequiresReference(), command.approved() ? "APPROVED" : "REJECTED",
+                old.commissionAdjustmentStatus(), old.reason(), old.requestedAt(), old.requestedBy(),
+                LocalDateTime.now(), command.operatorId(), command.comment(), null, old.cardVersion(),
+                nextVersion(old.version()));
+        CardRefundRequestDetail result = new CardRefundRequestDetail(reviewed, current.consumedItems(), null);
+        refundRequests.put(old.id(), result);
+        return result;
+    }
+
+    @Override
+    public synchronized CardRefundRequestDetail executeRefund(CardRefundExecutionCommand command) {
+        Optional<CardRefundRequestDetail> existing = findRefundRequestByExecutionKey(command.idempotencyKey());
+        if (existing.isPresent()) return existing.get();
+        CardRefundRequestDetail current = refundRequests.get(command.request().request().id());
+        if (current == null || !"APPROVED".equals(current.request().status())
+                || !current.request().version().equals(command.version())) {
+            throw new DuplicateResourceException("退卡申请已被他人处理，请刷新后重试");
+        }
+        CardRefundRequestSummary old = current.request();
+        MemberCardDetail cardDetail = cards.get(old.memberCardId());
+        if (cardDetail == null || !"FROZEN".equals(cardDetail.card().status())
+                || !cardDetail.card().version().equals(old.cardVersion())) {
+            throw new DuplicateResourceException("次卡状态已发生变化，无法执行退卡");
+        }
+        List<MemberCardBalanceItem> remaining = cardDetail.balances().stream()
+                .filter(item -> item.remainingTimes().signum() > 0).toList();
+        BigDecimal totalTimes = remaining.stream().map(MemberCardBalanceItem::remainingTimes)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (totalTimes.signum() <= 0) throw new DuplicateResourceException("次卡已无可退剩余次数");
+        List<MemberCardBalanceItem> balances = cardDetail.balances().stream().map(item ->
+                new MemberCardBalanceItem(
+                        item.id(), item.serviceId(), item.serviceCode(), item.serviceName(), item.totalTimes(),
+                        BigDecimal.ZERO.setScale(4), item.frozenTimes(), item.deductTimes(), nextVersion(item.version())))
+                .toList();
+        List<MemberCardLedgerItem> ledgers = new ArrayList<>(cardDetail.ledgers());
+        BigDecimal allocated = BigDecimal.ZERO.setScale(4);
+        for (int index = 0; index < remaining.size(); index++) {
+            MemberCardBalanceItem balance = remaining.get(index);
+            BigDecimal value = index == remaining.size() - 1
+                    ? old.refundAmount().subtract(allocated)
+                    : old.refundAmount().multiply(balance.remainingTimes())
+                            .divide(totalTimes, 4, java.math.RoundingMode.HALF_UP);
+            value = value.setScale(4, java.math.RoundingMode.HALF_UP);
+            allocated = allocated.add(value);
+            ledgers.add(new MemberCardLedgerItem(
+                    ledgerIds.incrementAndGet(), numbers.cardLedgerNo(), balance.serviceId(), balance.serviceName(),
+                    "REFUND_OUT", balance.remainingTimes(), balance.remainingTimes().negate(),
+                    BigDecimal.ZERO.setScale(4), value, "CARD_REFUND", old.id(), LocalDateTime.now(),
+                    "card-refund:" + old.id() + ":balance:" + balance.id(), null, "退卡清零剩余次数"));
+        }
+        MemberCardSummary card = cardDetail.card();
+        MemberCardSummary refunded = new MemberCardSummary(
+                card.id(), card.cardNo(), card.memberId(), card.cardTypeId(), card.cardTypeCode(), card.cardTypeName(),
+                card.purchaseStoreId(), card.purchaseStoreName(), card.purchasePrice(), card.totalTimes(),
+                BigDecimal.ZERO.setScale(4), card.frozenTimes(), card.startedAt(), card.expiresAt(),
+                "REFUNDED", nextVersion(card.version()));
+        cards.put(card.id(), new MemberCardDetail(refunded, balances, List.copyOf(ledgers)));
+        LocalDateTime executedAt = LocalDateTime.now();
+        CardRefundPayment payment = old.refundAmount().signum() == 0 ? null : new CardRefundPayment(
+                old.refundMethodId(), old.refundMethodName(), old.refundAmount(), "SUCCESS",
+                command.externalRefundReference(), executedAt);
+        CardRefundRequestSummary executed = new CardRefundRequestSummary(
+                old.id(), old.quoteId(), old.requestNo(), old.memberCardId(), old.cardNo(), old.cardTypeName(),
+                old.memberId(), old.memberName(), old.storeName(), old.originalAmount(), old.consumedRepriceAmount(),
+                old.feeAmount(), old.refundAmount(), old.refundMethodId(), old.refundMethodName(),
+                old.refundMethodRequiresReference(), "EXECUTED", old.commissionAdjustmentStatus(), old.reason(),
+                old.requestedAt(), old.requestedBy(), old.reviewedAt(), old.reviewedBy(), old.reviewComment(),
+                executedAt, old.cardVersion(), nextVersion(old.version()));
+        CardRefundRequestDetail result = new CardRefundRequestDetail(executed, current.consumedItems(), payment);
+        refundRequests.put(old.id(), result);
+        refundExecutionKeys.put(command.idempotencyKey(), old.id());
         return result;
     }
 

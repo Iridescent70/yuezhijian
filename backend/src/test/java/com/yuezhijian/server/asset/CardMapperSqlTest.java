@@ -76,4 +76,19 @@ class CardMapperSqlTest {
                 "status = 'TRANSFERRED'", "status = 'ACTIVE'",
                 "row_version = CONVERT(binary(8), #{version}, 1)");
     }
+
+    @Test
+    void refundUsesBillOriginalAmountAndVersionedFrozenCard() throws Exception {
+        Method reprice = CardMapper.class.getMethod("findConsumptionRepriceItems", long.class);
+        Method freeze = CardMapper.class.getMethod("freezeCardForRefund", long.class, String.class, long.class);
+        Method close = CardMapper.class.getMethod("markCardRefunded", long.class, String.class, long.class);
+        String repriceSql = String.join(" ", reprice.getAnnotation(Select.class).value());
+        String freezeSql = String.join(" ", freeze.getAnnotation(Update.class).value());
+        String closeSql = String.join(" ", close.getAnnotation(Update.class).value());
+
+        assertThat(repriceSql).contains(
+                "line.original_amount AS originalAmount", "reversed.reversed_ledger_id = ledger.id");
+        assertThat(freezeSql).contains("status = 'FROZEN'", "status = 'ACTIVE'", "row_version");
+        assertThat(closeSql).contains("status = 'REFUNDED'", "status = 'FROZEN'", "row_version");
+    }
 }

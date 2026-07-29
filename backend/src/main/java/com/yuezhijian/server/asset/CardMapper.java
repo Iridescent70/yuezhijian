@@ -352,6 +352,24 @@ public interface CardMapper {
             @Param("memberCardId") long memberCardId,
             @Param("operatorId") long operatorId);
 
+    @Select("""
+            SELECT ledger.id AS cardLedgerId, ledger.source_id AS billId, bill.bill_no AS billNo,
+                   ledger.service_id AS serviceId, service.service_name AS serviceName,
+                   ledger.occurred_at AS consumedAt, line.original_amount AS originalAmount
+            FROM dbo.ast_member_card_ledger ledger
+            JOIN dbo.trd_bill bill ON bill.id = ledger.source_id
+            JOIN dbo.trd_bill_line line ON line.id = ledger.source_line_id
+            JOIN dbo.cat_service service ON service.id = ledger.service_id
+            WHERE ledger.member_card_id = #{memberCardId}
+              AND ledger.transaction_type = 'CONSUME'
+              AND NOT EXISTS (
+                  SELECT 1 FROM dbo.ast_member_card_ledger reversed
+                  WHERE reversed.reversed_ledger_id = ledger.id
+              )
+            ORDER BY ledger.occurred_at, ledger.id
+            """)
+    List<CardConsumptionRepriceItem> findConsumptionRepriceItems(long memberCardId);
+
     @Select(value = """
             INSERT INTO dbo.ast_card_exchange_quote (
                 quote_no, old_card_id, target_card_type_id, old_remaining_times,
@@ -653,4 +671,244 @@ public interface CardMapper {
             WHERE transfer.idempotency_key = #{key}
             """)
     CardTransferRow findTransferByIdempotencyKey(String key);
+
+    @Select(value = """
+            INSERT INTO dbo.ast_card_refund_quote (
+                quote_no, member_card_id, original_amount, consumed_reprice_amount,
+                fee_amount, refund_amount, card_row_version, expires_at, created_by
+            )
+            OUTPUT INSERTED.id
+            VALUES (
+                #{quoteNo}, #{card.id}, #{originalAmount}, #{consumedRepriceAmount},
+                #{feeAmount}, #{refundAmount}, CONVERT(binary(8), #{card.version}, 1),
+                #{expiresAt}, #{operatorId}
+            )
+            """, affectData = true)
+    long insertRefundQuote(CardRefundQuoteDraft draft);
+
+    @Insert("""
+            INSERT INTO dbo.ast_card_refund_quote_item (
+                quote_id, card_ledger_id, bill_id, bill_no_snapshot, service_id,
+                service_name_snapshot, consumed_at, original_amount, sort_no
+            ) VALUES (
+                #{quoteId}, #{item.cardLedgerId}, #{item.billId}, #{item.billNo}, #{item.serviceId},
+                #{item.serviceName}, #{item.consumedAt}, #{item.originalAmount}, #{sortNo}
+            )
+            """)
+    void insertRefundQuoteItem(
+            @Param("quoteId") long quoteId,
+            @Param("item") CardConsumptionRepriceItem item,
+            @Param("sortNo") int sortNo);
+
+    @Select("""
+            SELECT quote.id, quote.quote_no AS quoteNo, quote.member_card_id AS memberCardId,
+                   card.card_no AS cardNo, card.card_type_name_snapshot AS cardTypeName,
+                   card.member_id AS memberId, quote.original_amount AS originalAmount,
+                   quote.consumed_reprice_amount AS consumedRepriceAmount,
+                   quote.fee_amount AS feeAmount, quote.refund_amount AS refundAmount,
+                   CONVERT(varchar(18), quote.card_row_version, 1) AS cardVersion,
+                   quote.expires_at AS expiresAt,
+                   CASE WHEN quote.used_at IS NULL THEN CAST(0 AS bit) ELSE CAST(1 AS bit) END AS used
+            FROM dbo.ast_card_refund_quote quote
+            JOIN dbo.ast_member_card card ON card.id = quote.member_card_id
+            WHERE quote.quote_no = #{quoteNo}
+            """)
+    CardRefundQuoteRow findRefundQuote(String quoteNo);
+
+    @Select("""
+            SELECT item.card_ledger_id AS cardLedgerId, item.bill_id AS billId,
+                   item.bill_no_snapshot AS billNo, item.service_id AS serviceId,
+                   item.service_name_snapshot AS serviceName, item.consumed_at AS consumedAt,
+                   item.original_amount AS originalAmount
+            FROM dbo.ast_card_refund_quote_item item
+            WHERE item.quote_id = #{quoteId}
+            ORDER BY item.sort_no
+            """)
+    List<CardConsumptionRepriceItem> findRefundQuoteItems(long quoteId);
+
+    @Update("""
+            UPDATE dbo.ast_card_refund_quote SET used_at = sysdatetime()
+            WHERE id = #{id} AND used_at IS NULL AND expires_at >= sysdatetime()
+              AND card_row_version = CONVERT(binary(8), #{cardVersion}, 1)
+            """)
+    int markRefundQuoteUsed(
+            @Param("id") long id,
+            @Param("cardVersion") String cardVersion);
+
+    @Update("""
+            UPDATE dbo.ast_member_card
+            SET status = 'FROZEN', updated_at = sysdatetime(), updated_by = #{operatorId}
+            WHERE id = #{cardId} AND status = 'ACTIVE'
+              AND row_version = CONVERT(binary(8), #{version}, 1)
+            """)
+    int freezeCardForRefund(
+            @Param("cardId") long cardId,
+            @Param("version") String version,
+            @Param("operatorId") long operatorId);
+
+    @Select(value = """
+            INSERT INTO dbo.ast_card_refund_request (
+                request_no, quote_id, member_card_id, member_id,
+                original_amount, consumed_reprice_amount, fee_amount, refund_amount,
+                refund_method_id, refund_method_name_snapshot, refund_method_requires_reference,
+                handled_store_id, handled_employee_id, reason, card_row_version,
+                request_idempotency_key, requested_by
+            )
+            OUTPUT INSERTED.id
+            VALUES (
+                #{submission.requestNo}, #{submission.quote.id}, #{submission.quote.memberCardId},
+                #{submission.quote.memberId}, #{submission.quote.originalAmount},
+                #{submission.quote.consumedRepriceAmount}, #{submission.quote.feeAmount},
+                #{submission.quote.refundAmount}, #{submission.refundMethodId},
+                #{submission.refundMethodName}, #{submission.refundMethodRequiresReference},
+                #{submission.storeId}, #{submission.employeeId}, #{submission.reason},
+                CONVERT(binary(8), #{frozenCardVersion}, 1), #{submission.idempotencyKey},
+                #{submission.operatorId}
+            )
+            """, affectData = true)
+    long insertRefundRequest(
+            @Param("submission") CardRefundSubmission submission,
+            @Param("frozenCardVersion") String frozenCardVersion);
+
+    String REFUND_SUMMARY_SELECT = """
+            SELECT request.id, request.quote_id AS quoteId, request.request_no AS requestNo,
+                   request.member_card_id AS memberCardId, card.card_no AS cardNo,
+                   card.card_type_name_snapshot AS cardTypeName, request.member_id AS memberId,
+                   member.full_name AS memberName, store.store_name AS storeName,
+                   request.original_amount AS originalAmount,
+                   request.consumed_reprice_amount AS consumedRepriceAmount,
+                   request.fee_amount AS feeAmount, request.refund_amount AS refundAmount,
+                   request.refund_method_id AS refundMethodId,
+                   request.refund_method_name_snapshot AS refundMethodName,
+                   request.refund_method_requires_reference AS refundMethodRequiresReference,
+                   request.status, request.commission_adjustment_status AS commissionAdjustmentStatus,
+                   request.reason, request.requested_at AS requestedAt, request.requested_by AS requestedBy,
+                   request.reviewed_at AS reviewedAt, request.reviewed_by AS reviewedBy,
+                   request.review_comment AS reviewComment, request.executed_at AS executedAt,
+                   CONVERT(varchar(18), request.card_row_version, 1) AS cardVersion,
+                   CONVERT(varchar(18), request.row_version, 1) AS version
+            FROM dbo.ast_card_refund_request request
+            JOIN dbo.ast_member_card card ON card.id = request.member_card_id
+            JOIN dbo.mem_member member ON member.id = request.member_id
+            JOIN dbo.org_store store ON store.id = request.handled_store_id
+            """;
+
+    @Select("""
+            <script>
+            """ + REFUND_SUMMARY_SELECT + """
+            WHERE 1 = 1
+            <if test="status != null">AND request.status = #{status}</if>
+            ORDER BY request.requested_at DESC, request.id DESC
+            </script>
+            """)
+    List<CardRefundRequestSummary> findRefundRequests(@Param("status") String status);
+
+    @Select(REFUND_SUMMARY_SELECT + " WHERE request.id = #{id}")
+    CardRefundRequestSummary findRefundRequest(long id);
+
+    @Select(REFUND_SUMMARY_SELECT + " WHERE request.request_idempotency_key = #{key}")
+    CardRefundRequestSummary findRefundRequestByRequestKey(String key);
+
+    @Select(REFUND_SUMMARY_SELECT + " WHERE request.execution_idempotency_key = #{key}")
+    CardRefundRequestSummary findRefundRequestByExecutionKey(String key);
+
+    @Select(REFUND_SUMMARY_SELECT + " WHERE request.member_card_id = #{cardId} AND request.status IN ('SUBMITTED','APPROVED','EXECUTED')")
+    CardRefundRequestSummary findActiveRefundRequest(long cardId);
+
+    @Select("""
+            SELECT payment.payment_method_id AS paymentMethodId,
+                   method.method_name AS paymentMethodName, payment.refund_amount AS amount,
+                   payment.refund_status AS status,
+                   payment.external_refund_reference AS externalRefundReference,
+                   payment.completed_at AS completedAt
+            FROM dbo.ast_card_refund_payment payment
+            JOIN dbo.cat_payment_method method ON method.id = payment.payment_method_id
+            WHERE payment.request_id = #{requestId}
+            """)
+    CardRefundPayment findCardRefundPayment(long requestId);
+
+    @Update("""
+            UPDATE dbo.ast_card_refund_request
+            SET status = #{status}, reviewed_at = sysdatetime(), reviewed_by = #{operatorId},
+                review_comment = #{comment}
+            WHERE id = #{id} AND status = 'SUBMITTED'
+              AND row_version = CONVERT(binary(8), #{version}, 1)
+            """)
+    int reviewCardRefund(
+            @Param("id") long id,
+            @Param("status") String status,
+            @Param("comment") String comment,
+            @Param("version") String version,
+            @Param("operatorId") long operatorId);
+
+    @Update("""
+            UPDATE dbo.ast_member_card
+            SET status = 'ACTIVE', updated_at = sysdatetime(), updated_by = #{operatorId}
+            WHERE id = #{cardId} AND status = 'FROZEN'
+              AND row_version = CONVERT(binary(8), #{cardVersion}, 1)
+            """)
+    int unfreezeRejectedCard(
+            @Param("cardId") long cardId,
+            @Param("cardVersion") String cardVersion,
+            @Param("operatorId") long operatorId);
+
+    @Update("""
+            UPDATE dbo.ast_card_refund_request
+            SET status = 'EXECUTED', execution_idempotency_key = #{key},
+                executed_at = sysdatetime(), executed_by = #{operatorId}
+            WHERE id = #{id} AND status = 'APPROVED'
+              AND row_version = CONVERT(binary(8), #{version}, 1)
+            """)
+    int markCardRefundExecuted(
+            @Param("id") long id,
+            @Param("version") String version,
+            @Param("key") String key,
+            @Param("operatorId") long operatorId);
+
+    @Insert("""
+            INSERT INTO dbo.ast_member_card_ledger (
+                ledger_no, member_card_id, service_id, transaction_type,
+                before_times, change_times, after_times, value_amount,
+                source_type, source_id, occurred_at, correlation_id, note, created_by
+            ) VALUES (
+                #{ledgerNo}, #{balance.memberCardId}, #{balance.serviceId}, 'REFUND_OUT',
+                #{balance.remainingTimes}, -#{balance.remainingTimes}, 0, #{valueAmount},
+                'CARD_REFUND', #{requestId}, sysdatetime(),
+                CONCAT('card-refund:', #{requestId}, ':balance:', #{balance.id}),
+                N'退卡清零剩余次数', #{operatorId}
+            )
+            """)
+    void insertCardRefundOutLedger(
+            @Param("ledgerNo") String ledgerNo,
+            @Param("requestId") long requestId,
+            @Param("balance") MemberCardBalanceRow balance,
+            @Param("valueAmount") BigDecimal valueAmount,
+            @Param("operatorId") long operatorId);
+
+    @Update("""
+            UPDATE dbo.ast_member_card
+            SET status = 'REFUNDED', updated_at = sysdatetime(), updated_by = #{operatorId}
+            WHERE id = #{cardId} AND status = 'FROZEN'
+              AND row_version = CONVERT(binary(8), #{cardVersion}, 1)
+            """)
+    int markCardRefunded(
+            @Param("cardId") long cardId,
+            @Param("cardVersion") String cardVersion,
+            @Param("operatorId") long operatorId);
+
+    @Insert("""
+            INSERT INTO dbo.ast_card_refund_payment (
+                refund_no, request_id, payment_method_id, refund_amount, refund_status,
+                external_refund_reference, idempotency_key, completed_at, created_by
+            ) VALUES (
+                #{refundNo}, #{request.id}, #{request.refundMethodId}, #{request.refundAmount}, 'SUCCESS',
+                #{externalReference}, #{idempotencyKey}, sysdatetime(), #{operatorId}
+            )
+            """)
+    void insertCardRefundPayment(
+            @Param("refundNo") String refundNo,
+            @Param("request") CardRefundRequestSummary request,
+            @Param("externalReference") String externalReference,
+            @Param("idempotencyKey") String idempotencyKey,
+            @Param("operatorId") long operatorId);
 }

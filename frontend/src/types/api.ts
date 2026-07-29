@@ -373,6 +373,80 @@ export interface CardTransferResult {
   executedAt: string
 }
 
+export interface CardConsumptionRepriceItem {
+  cardLedgerId: number
+  billId: number
+  billNo: string
+  serviceId: number
+  serviceName: string
+  consumedAt: string
+  originalAmount: number
+}
+
+export interface CardRefundQuote {
+  id: number
+  quoteNo: string
+  memberCardId: number
+  cardNo: string
+  cardTypeName: string
+  memberId: number
+  originalAmount: number
+  consumedRepriceAmount: number
+  feeAmount: number
+  refundAmount: number
+  cardVersion: string
+  items: CardConsumptionRepriceItem[]
+  expiresAt: string
+  used: boolean
+}
+
+export type CardRefundStatus = 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'EXECUTED'
+
+export interface CardRefundRequestSummary {
+  id: number
+  quoteId: number
+  requestNo: string
+  memberCardId: number
+  cardNo: string
+  cardTypeName: string
+  memberId: number
+  memberName: string
+  storeName: string
+  originalAmount: number
+  consumedRepriceAmount: number
+  feeAmount: number
+  refundAmount: number
+  refundMethodId?: number
+  refundMethodName?: string
+  refundMethodRequiresReference: boolean
+  status: CardRefundStatus
+  commissionAdjustmentStatus: string
+  reason: string
+  requestedAt: string
+  requestedBy: number
+  reviewedAt?: string
+  reviewedBy?: number
+  reviewComment?: string
+  executedAt?: string
+  cardVersion: string
+  version: string
+}
+
+export interface CardRefundPayment {
+  paymentMethodId: number
+  paymentMethodName: string
+  amount: number
+  status: string
+  externalRefundReference?: string
+  completedAt?: string
+}
+
+export interface CardRefundRequestDetail {
+  request: CardRefundRequestSummary
+  consumedItems: CardConsumptionRepriceItem[]
+  payment?: CardRefundPayment
+}
+
 export interface CreateMemberPayload {
   fullName: string
   nickname?: string

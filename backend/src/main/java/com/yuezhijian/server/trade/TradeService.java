@@ -403,6 +403,8 @@ public class TradeService {
                 case "CARD" -> cards.consumeCard(new CardSettlementConsumption(
                         billId, asset.memberId(), asset.memberCardId(), asset.memberCardBalanceId(),
                         asset.billLineId(), asset.serviceId(), asset.quantity(), asset.amount(),
+                        bill.lines().stream().filter(line -> line.id() == asset.billLineId())
+                                .findFirst().orElseThrow().originalAmount(),
                         asset.assetVersion(), asset.displayName(), operatorId));
                 default -> throw new IllegalArgumentException("不支持的会员资产类型");
             }

@@ -96,4 +96,54 @@ public class CardController {
             Principal principal) {
         return ApiResponse.ok(service.transfer(id, request, principal.getName()));
     }
+
+    @PostMapping("/member-cards/{id}/refund-requests/quote")
+    @PreAuthorize("hasAuthority('member:card:refund:manage')")
+    public ApiResponse<CardRefundQuote> quoteRefund(
+            @PathVariable long id,
+            @Valid @RequestBody CardRefundQuoteRequest request,
+            Principal principal) {
+        return ApiResponse.ok(service.quoteRefund(id, request, principal.getName()));
+    }
+
+    @PostMapping("/member-cards/{id}/refund-requests")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAuthority('member:card:refund:manage')")
+    public ApiResponse<CardRefundRequestDetail> submitRefund(
+            @PathVariable long id,
+            @Valid @RequestBody SubmitCardRefundRequest request,
+            Principal principal) {
+        return ApiResponse.ok(service.submitRefund(id, request, principal.getName()));
+    }
+
+    @GetMapping("/card-refund-requests")
+    @PreAuthorize("hasAuthority('member:card:refund:view')")
+    public ApiResponse<List<CardRefundRequestSummary>> refundRequests(
+            @RequestParam(required = false) String status) {
+        return ApiResponse.ok(service.refundRequests(status));
+    }
+
+    @GetMapping("/card-refund-requests/{id}")
+    @PreAuthorize("hasAuthority('member:card:refund:view')")
+    public ApiResponse<CardRefundRequestDetail> refundRequest(@PathVariable long id) {
+        return ApiResponse.ok(service.refundRequest(id));
+    }
+
+    @PostMapping("/card-refund-requests/{id}/review")
+    @PreAuthorize("hasAuthority('member:card:refund:approve')")
+    public ApiResponse<CardRefundRequestDetail> reviewRefund(
+            @PathVariable long id,
+            @Valid @RequestBody ReviewCardRefundRequest request,
+            Principal principal) {
+        return ApiResponse.ok(service.reviewRefund(id, request, principal.getName()));
+    }
+
+    @PostMapping("/card-refund-requests/{id}/execute")
+    @PreAuthorize("hasAuthority('member:card:refund:manage')")
+    public ApiResponse<CardRefundRequestDetail> executeRefund(
+            @PathVariable long id,
+            @Valid @RequestBody ExecuteCardRefundRequest request,
+            Principal principal) {
+        return ApiResponse.ok(service.executeRefund(id, request, principal.getName()));
+    }
 }

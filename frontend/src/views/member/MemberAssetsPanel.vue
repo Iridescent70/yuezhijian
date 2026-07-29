@@ -18,6 +18,8 @@ import {
   getMemberCards,
   purchaseMemberCard,
   quoteCardExchange,
+  quoteCardRefund,
+  submitCardRefund,
   transferMemberCard,
 } from '@/api/card'
 import { searchMembers } from '@/api/member'
@@ -27,6 +29,7 @@ import type {
   BalanceAccount,
   BalanceLedgerItem,
   CardExchangeQuote,
+  CardRefundQuote,
   CardTypeDetail,
   EmployeeSummary,
   MemberCardSummary,
@@ -63,17 +66,23 @@ const transferVisible = ref(false)
 const transferSourceCard = ref<MemberCardSummary>()
 const recipientLoading = ref(false)
 const recipientMembers = ref<MemberSummary[]>([])
+const refundVisible = ref(false)
+const refundQuoteLoading = ref(false)
+const refundSourceCard = ref<MemberCardSummary>()
+const refundQuote = ref<CardRefundQuote>()
 const rechargeForm = reactive({ rechargeAmount: 0, giftAmount: 0, paymentMethodId: 0, externalReference: '' })
 const pointForm = reactive({ changePoints: 0, reason: '' })
 const cardForm = reactive({ cardTypeId: 0, quantity: 1, salesEmployeeId: undefined as number | undefined, paymentMethodId: 0, externalReference: '' })
 const exchangeForm = reactive({ targetCardTypeId: 0, employeeId: undefined as number | undefined, paymentMethodId: 0, externalReference: '' })
 const transferForm = reactive({ recipientMemberId: undefined as number | undefined, expiresAt: '', employeeId: undefined as number | undefined, reason: '' })
+const refundForm = reactive({ feeAmount: 0, refundMethodId: 0, employeeId: undefined as number | undefined, reason: '' })
 const selectedMethod = computed(() => paymentMethods.value.find((item) => item.id === rechargeForm.paymentMethodId))
 const selectedCardMethod = computed(() => paymentMethods.value.find((item) => item.id === cardForm.paymentMethodId))
 const selectedCardType = computed(() => cardTypes.value.find((item) => item.id === cardForm.cardTypeId))
 const selectedExchangeMethod = computed(() => paymentMethods.value.find((item) => item.id === exchangeForm.paymentMethodId))
 const exchangeCardTypes = computed(() => cardTypes.value.filter((item) => item.id !== exchangeSourceCard.value?.cardTypeId))
 const selectedRecipient = computed(() => recipientMembers.value.find((item) => item.id === transferForm.recipientMemberId))
+const selectedRefundMethod = computed(() => paymentMethods.value.find((item) => item.id === refundForm.refundMethodId))
 const canManage = computed(() => auth.hasPermission('member:asset:manage'))
 
 const balanceTypeLabels: Record<string, string> = {
@@ -388,6 +397,75 @@ async function submitCardTransfer() {
   }
 }
 
+async function refreshCardRefundQuote() {
+  const card = refundSourceCard.value
+  if (!card || refundForm.feeAmount < 0) return
+  refundQuoteLoading.value = true
+  refundQuote.value = undefined
+  try {
+    refundQuote.value = await quoteCardRefund(card.id, refundForm.feeAmount)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '退卡试算失败')
+  } finally {
+    refundQuoteLoading.value = false
+  }
+}
+
+async function openCardRefund(row: unknown) {
+  const card = row as MemberCardSummary
+  try {
+    const [nextMethods, nextEmployees] = await Promise.all([
+      paymentMethods.value.length ? Promise.resolve(paymentMethods.value) : getPaymentMethods(props.storeId),
+      salesEmployees.value.length ? Promise.resolve(salesEmployees.value) : getEmployees({ storeId: props.storeId }),
+    ])
+    paymentMethods.value = nextMethods
+    salesEmployees.value = nextEmployees.filter((item) => item.canSell && item.status === 'ACTIVE')
+    const method = nextMethods.find((item) => item.type !== 'STORED_VALUE')
+    refundSourceCard.value = card
+    Object.assign(refundForm, {
+      feeAmount: 0,
+      refundMethodId: method?.id ?? 0,
+      employeeId: salesEmployees.value[0]?.id,
+      reason: '',
+    })
+    refundQuote.value = undefined
+    refundVisible.value = true
+    await refreshCardRefundQuote()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '退卡资料加载失败')
+  }
+}
+
+async function submitCardRefundRequest() {
+  const card = refundSourceCard.value
+  const quote = refundQuote.value
+  if (!card || !quote || !refundForm.reason.trim()) { ElMessage.warning('请完成试算并填写退卡原因'); return }
+  if (quote.refundAmount > 0 && !refundForm.refundMethodId) { ElMessage.warning('请选择退款方式'); return }
+  await ElMessageBox.confirm(
+    `确认提交退卡申请吗？预计退款 ${formatMoney(quote.refundAmount)}，提交后次卡将冻结等待审批。`,
+    '提交退卡申请',
+    { type: 'warning' },
+  )
+  submitting.value = true
+  try {
+    const result = await submitCardRefund(card.id, {
+      quoteNo: quote.quoteNo,
+      refundMethodId: quote.refundAmount > 0 ? refundForm.refundMethodId : undefined,
+      storeId: props.storeId,
+      employeeId: refundForm.employeeId,
+      reason: refundForm.reason.trim(),
+      idempotencyKey: crypto.randomUUID(),
+    })
+    refundVisible.value = false
+    ElMessage.success(`退卡申请 ${result.request.requestNo} 已提交，次卡已冻结`)
+    await load()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '退卡申请失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
 function formatTime(value?: string) { return value ? value.replace('T', ' ').slice(0, 19) : '—' }
 
 onMounted(load)
@@ -462,8 +540,8 @@ onMounted(load)
           <el-table-column prop="purchaseStoreName" label="购卡门店" min-width="140" />
           <el-table-column label="到期日期" width="120"><template #default="scope">{{ scope.row.expiresAt.slice(0, 10) }}</template></el-table-column>
           <el-table-column label="状态" width="100"><template #default="scope"><el-tag :type="scope.row.status === 'ACTIVE' ? 'success' : 'info'">{{ cardStatusLabels[scope.row.status] ?? scope.row.status }}</el-tag></template></el-table-column>
-          <el-table-column v-if="auth.hasPermission('member:card:manage')" label="操作" width="130" fixed="right">
-            <template #default="scope"><template v-if="scope.row.status === 'ACTIVE'"><el-button link type="primary" @click="openCardExchange(scope.row)">换卡</el-button><el-button link type="primary" @click="openCardTransfer(scope.row)">转赠</el-button></template></template>
+          <el-table-column v-if="auth.hasPermission('member:card:manage') || auth.hasPermission('member:card:refund:manage')" label="操作" width="180" fixed="right">
+            <template #default="scope"><template v-if="scope.row.status === 'ACTIVE'"><el-button v-if="auth.hasPermission('member:card:manage')" link type="primary" @click="openCardExchange(scope.row)">换卡</el-button><el-button v-if="auth.hasPermission('member:card:manage')" link type="primary" @click="openCardTransfer(scope.row)">转赠</el-button><el-button v-if="auth.hasPermission('member:card:refund:manage')" link type="danger" @click="openCardRefund(scope.row)">退卡</el-button></template></template>
           </el-table-column>
         </el-table>
       </el-tab-pane>
@@ -540,6 +618,33 @@ onMounted(load)
         <el-form-item label="转赠原因" required><el-input v-model="transferForm.reason" type="textarea" maxlength="500" show-word-limit /></el-form-item>
       </el-form>
       <template #footer><el-button @click="transferVisible = false">取消</el-button><el-button type="primary" :loading="submitting" @click="submitCardTransfer">确认转赠</el-button></template>
+    </el-dialog>
+
+    <el-dialog v-model="refundVisible" title="申请退卡" width="680px" destroy-on-close>
+      <el-alert title="提交后次卡会立即冻结；退款按已消费项目的原价重新计价，审批通过后才会清零并退款。" type="warning" :closable="false" />
+      <el-form v-loading="refundQuoteLoading" label-width="110px" style="margin-top: 20px">
+        <el-form-item label="退卡次卡"><span>{{ refundSourceCard?.cardTypeName }} · 剩余 {{ refundSourceCard?.remainingTimes }} 次</span></el-form-item>
+        <el-form-item label="手续费"><el-input-number v-model="refundForm.feeAmount" :min="0" :max="1000000" :precision="2" /><el-button style="margin-left: 12px" @click="refreshCardRefundQuote">重新试算</el-button></el-form-item>
+        <template v-if="refundQuote">
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="办卡金额">{{ formatMoney(refundQuote.originalAmount) }}</el-descriptions-item>
+            <el-descriptions-item label="消费原价重计">-{{ formatMoney(refundQuote.consumedRepriceAmount) }}</el-descriptions-item>
+            <el-descriptions-item label="手续费">-{{ formatMoney(refundQuote.feeAmount) }}</el-descriptions-item>
+            <el-descriptions-item label="预计退款"><strong class="asset-in">{{ formatMoney(refundQuote.refundAmount) }}</strong></el-descriptions-item>
+          </el-descriptions>
+          <el-table v-if="refundQuote.items.length" :data="refundQuote.items" size="small" style="margin: 16px 0">
+            <el-table-column prop="billNo" label="消费账单" min-width="160" />
+            <el-table-column prop="serviceName" label="消费项目" min-width="160" />
+            <el-table-column label="项目原价" width="120" align="right"><template #default="scope">{{ formatMoney(scope.row.originalAmount) }}</template></el-table-column>
+          </el-table>
+          <el-form-item v-if="refundQuote.refundAmount > 0" label="退款方式" required><el-select v-model="refundForm.refundMethodId" style="width: 100%"><el-option v-for="item in paymentMethods.filter((method) => method.type !== 'STORED_VALUE')" :key="item.id" :label="item.name" :value="item.id" /></el-select></el-form-item>
+          <el-form-item v-if="refundQuote.refundAmount > 0 && selectedRefundMethod?.needsExternalReference" label="执行凭证"><span class="muted">审批执行时填写外部退款凭证</span></el-form-item>
+          <el-form-item label="经办员工"><el-select v-model="refundForm.employeeId" clearable style="width: 100%"><el-option v-for="item in salesEmployees" :key="item.id" :label="item.name" :value="item.id" /></el-select></el-form-item>
+          <el-form-item label="退卡原因" required><el-input v-model="refundForm.reason" type="textarea" maxlength="1000" show-word-limit /></el-form-item>
+          <el-alert title="售卡技师和店长提成冲回将在提成模块中处理；当前申请会明确标记为待处理。" type="info" :closable="false" />
+        </template>
+      </el-form>
+      <template #footer><el-button @click="refundVisible = false">取消</el-button><el-button type="danger" :disabled="!refundQuote" :loading="submitting" @click="submitCardRefundRequest">提交退卡申请</el-button></template>
     </el-dialog>
   </div>
 </template>

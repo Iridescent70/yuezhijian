@@ -138,6 +138,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '冲销管理', permission: 'trade:reversal:view' },
       },
       {
+        path: 'assets/card-refunds',
+        name: 'card-refunds',
+        component: () => import('@/views/asset/CardRefundListView.vue'),
+        meta: { title: '退卡管理', permission: 'member:card:refund:view' },
+      },
+      {
         path: 'forbidden',
         name: 'forbidden',
         component: () => import('@/views/ForbiddenView.vue'),

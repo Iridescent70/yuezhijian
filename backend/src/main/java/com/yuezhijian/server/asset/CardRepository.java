@@ -14,6 +14,7 @@ public interface CardRepository {
     CardSaleResult purchase(PurchaseMemberCardDraft draft);
     void consumeCard(CardSettlementConsumption command);
     void refundCard(CardRefundCommand command);
+    List<CardConsumptionRepriceItem> consumptionRepriceItems(long memberCardId);
 
     Optional<CardExchangeQuote> findExchangeQuote(String quoteNo);
 
@@ -26,4 +27,15 @@ public interface CardRepository {
     Optional<CardTransferResult> findTransferByIdempotencyKey(String key);
 
     CardTransferResult transfer(CardTransferCommand command);
+
+    CardRefundQuote createRefundQuote(CardRefundQuoteDraft draft);
+    Optional<CardRefundQuote> findRefundQuote(String quoteNo);
+    List<CardRefundRequestSummary> refundRequests(String status);
+    Optional<CardRefundRequestDetail> findRefundRequest(long id);
+    Optional<CardRefundRequestDetail> findRefundRequestByRequestKey(String key);
+    Optional<CardRefundRequestDetail> findRefundRequestByExecutionKey(String key);
+    Optional<CardRefundRequestDetail> findActiveRefundRequest(long memberCardId);
+    CardRefundRequestDetail submitRefundRequest(CardRefundSubmission submission);
+    CardRefundRequestDetail reviewRefundRequest(CardRefundReviewCommand command);
+    CardRefundRequestDetail executeRefund(CardRefundExecutionCommand command);
 }

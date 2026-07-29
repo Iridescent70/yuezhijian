@@ -191,9 +191,9 @@
 | API-AST-011 | `POST /member-cards/{id}/exchange/quote` | `targetCardTypeId`；按原办卡金额÷原总次数×剩余次数折算，报价10分钟有效 | 原卡余次/余值、目标卡售价、补差、原卡及卡种版本；`member:card:manage` | 次卡管理-02 |
 | API-AST-012 | `POST /member-cards/{id}/exchange` | `quoteNo`、门店、经办员工、补差支付明细、幂等键 | 原卡`EXCHANGED`、新卡、双向流水和换卡单；`member:card:manage` | 次卡管理-02 |
 | API-AST-013 | `POST /member-cards/{id}/transfer` | 接收会员、转赠后有效期、经办门店/员工、原因、原卡版本、幂等键 | 原卡`TRANSFERRED`、接收会员新卡、双方流水和转赠单；`member:card:manage` | 次卡管理-03 |
-| API-AST-014 | `POST /member-cards/{id}/refund-requests` | 重计规则、退款方式、手续费、原因 | 退卡申请 id | 次卡管理-04 |
-| API-AST-015 | `POST /card-refund-requests/{id}/approve`、`/reject` | 意见 | 审批结果 | 次卡管理-04 |
-| API-AST-016 | `POST /card-refund-requests/{id}/execute` | 支付退款确认 | 卡清零、退款和提成冲回 | 次卡管理-04 |
+| API-AST-014 | `POST /member-cards/{id}/refund-requests/quote`、`POST /member-cards/{id}/refund-requests` | 手续费试算；quoteNo、退款方式、经办门店/员工、原因、幂等键 | 消费项目原价重计明细；提交后卡冻结并生成申请；`member:card:refund:manage` | 次卡管理-04 |
+| API-AST-015 | `GET /card-refund-requests`、`GET /card-refund-requests/{id}`、`POST /card-refund-requests/{id}/review` | 状态筛选；通过/驳回、意见、version | 申请详情和审批结果；驳回恢复卡；查看/审批权限分离 | 次卡管理-04 |
+| API-AST-016 | `POST /card-refund-requests/{id}/execute` | version、外部退款凭证、执行幂等键 | 卡清零、`REFUND_OUT`流水和退款事实；提成冲回状态保留为待处理 | 次卡管理-04 |
 | API-AST-017 | `GET /member-cards/{id}/ledgers` | 类型、日期 | 扣次、换卡、转赠、退卡流水 | 次卡管理-02~04 |
 | API-AST-018 | `POST /members/{id}/points/adjustments` | 正负积分、原因、幂等键 | 最新积分账户；`member:asset:manage` | 会员资产人工调账 |
 | API-BEN-001 | `POST /points/redemptions/quote` | memberId、giftLines | 积分和库存校验 | 快捷入口-07 |

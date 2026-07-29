@@ -154,6 +154,11 @@ public class SqlServerCardRepository implements CardRepository {
     }
 
     @Override
+    public List<CardConsumptionRepriceItem> consumptionRepriceItems(long memberCardId) {
+        return mapper.findConsumptionRepriceItems(memberCardId);
+    }
+
+    @Override
     public Optional<CardExchangeQuote> findExchangeQuote(String quoteNo) {
         if (quoteNo == null) return Optional.empty();
         return Optional.ofNullable(mapper.findExchangeQuote(quoteNo));
@@ -296,6 +301,137 @@ public class SqlServerCardRepository implements CardRepository {
             throw new DuplicateResourceException("原次卡状态已发生变化，请刷新后重试");
         }
         return findTransferByIdempotencyKey(command.idempotencyKey()).orElseThrow();
+    }
+
+    @Override
+    @Transactional
+    public CardRefundQuote createRefundQuote(CardRefundQuoteDraft draft) {
+        long quoteId = mapper.insertRefundQuote(draft);
+        for (int index = 0; index < draft.items().size(); index++) {
+            mapper.insertRefundQuoteItem(quoteId, draft.items().get(index), (index + 1) * 10);
+        }
+        return findRefundQuote(draft.quoteNo()).orElseThrow();
+    }
+
+    @Override
+    public Optional<CardRefundQuote> findRefundQuote(String quoteNo) {
+        if (quoteNo == null) return Optional.empty();
+        CardRefundQuoteRow row = mapper.findRefundQuote(quoteNo);
+        if (row == null) return Optional.empty();
+        return Optional.of(new CardRefundQuote(
+                row.id(), row.quoteNo(), row.memberCardId(), row.cardNo(), row.cardTypeName(), row.memberId(),
+                row.originalAmount(), row.consumedRepriceAmount(), row.feeAmount(), row.refundAmount(),
+                row.cardVersion(), mapper.findRefundQuoteItems(row.id()), row.expiresAt(), row.used()));
+    }
+
+    @Override
+    public List<CardRefundRequestSummary> refundRequests(String status) {
+        return mapper.findRefundRequests(status);
+    }
+
+    @Override
+    public Optional<CardRefundRequestDetail> findRefundRequest(long id) {
+        return detail(mapper.findRefundRequest(id));
+    }
+
+    @Override
+    public Optional<CardRefundRequestDetail> findRefundRequestByRequestKey(String key) {
+        return key == null ? Optional.empty() : detail(mapper.findRefundRequestByRequestKey(key));
+    }
+
+    @Override
+    public Optional<CardRefundRequestDetail> findRefundRequestByExecutionKey(String key) {
+        return key == null ? Optional.empty() : detail(mapper.findRefundRequestByExecutionKey(key));
+    }
+
+    @Override
+    public Optional<CardRefundRequestDetail> findActiveRefundRequest(long memberCardId) {
+        return detail(mapper.findActiveRefundRequest(memberCardId));
+    }
+
+    @Override
+    @Transactional
+    public CardRefundRequestDetail submitRefundRequest(CardRefundSubmission submission) {
+        Optional<CardRefundRequestDetail> existing = findRefundRequestByRequestKey(submission.idempotencyKey());
+        if (existing.isPresent()) return existing.get();
+        if (mapper.markRefundQuoteUsed(
+                submission.quote().id(), submission.quote().cardVersion()) != 1) {
+            throw new DuplicateResourceException("退卡试算已失效或已被使用，请重新试算");
+        }
+        if (mapper.freezeCardForRefund(
+                submission.quote().memberCardId(), submission.quote().cardVersion(), submission.operatorId()) != 1) {
+            throw new DuplicateResourceException("次卡状态已发生变化，请重新试算");
+        }
+        String frozenVersion = findMemberCard(submission.quote().memberCardId()).orElseThrow().card().version();
+        long id = mapper.insertRefundRequest(submission, frozenVersion);
+        return findRefundRequest(id).orElseThrow();
+    }
+
+    @Override
+    @Transactional
+    public CardRefundRequestDetail reviewRefundRequest(CardRefundReviewCommand command) {
+        CardRefundRequestSummary request = command.request().request();
+        String status = command.approved() ? "APPROVED" : "REJECTED";
+        if (mapper.reviewCardRefund(
+                request.id(), status, command.comment(), command.version(), command.operatorId()) != 1) {
+            throw new DuplicateResourceException("退卡申请已被他人处理，请刷新后重试");
+        }
+        if (!command.approved() && mapper.unfreezeRejectedCard(
+                request.memberCardId(), request.cardVersion(), command.operatorId()) != 1) {
+            throw new DuplicateResourceException("次卡状态已发生变化，无法驳回并恢复");
+        }
+        return findRefundRequest(request.id()).orElseThrow();
+    }
+
+    @Override
+    @Transactional
+    public CardRefundRequestDetail executeRefund(CardRefundExecutionCommand command) {
+        Optional<CardRefundRequestDetail> existing = findRefundRequestByExecutionKey(command.idempotencyKey());
+        if (existing.isPresent()) return existing.get();
+        CardRefundRequestSummary request = command.request().request();
+        if (mapper.markCardRefundExecuted(
+                request.id(), command.version(), command.idempotencyKey(), command.operatorId()) != 1) {
+            throw new DuplicateResourceException("退卡申请已被他人处理，请刷新后重试");
+        }
+        List<MemberCardBalanceRow> balances = mapper.lockMemberCardBalances(request.memberCardId());
+        List<MemberCardBalanceRow> remaining = balances.stream()
+                .filter(item -> item.remainingTimes().signum() > 0).toList();
+        if (remaining.isEmpty()) throw new DuplicateResourceException("次卡已无可退剩余次数");
+        if (balances.stream().anyMatch(item -> item.frozenTimes().signum() > 0)) {
+            throw new IllegalArgumentException("次卡存在冻结次数，不能执行退卡");
+        }
+        BigDecimal totalTimes = remaining.stream().map(MemberCardBalanceRow::remainingTimes)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal allocated = BigDecimal.ZERO.setScale(4);
+        for (int index = 0; index < remaining.size(); index++) {
+            MemberCardBalanceRow balance = remaining.get(index);
+            BigDecimal value = index == remaining.size() - 1
+                    ? request.refundAmount().subtract(allocated)
+                    : request.refundAmount().multiply(balance.remainingTimes())
+                            .divide(totalTimes, 4, RoundingMode.HALF_UP);
+            value = value.setScale(4, RoundingMode.HALF_UP);
+            allocated = allocated.add(value);
+            if (mapper.clearCardBalance(balance.id(), balance.rowVersion()) != 1) {
+                throw new DuplicateResourceException("次卡次数已发生变化，无法执行退卡");
+            }
+            mapper.insertCardRefundOutLedger(
+                    numbers.cardLedgerNo(), request.id(), balance, value, command.operatorId());
+        }
+        if (mapper.markCardRefunded(request.memberCardId(), request.cardVersion(), command.operatorId()) != 1) {
+            throw new DuplicateResourceException("次卡状态已发生变化，无法执行退卡");
+        }
+        if (request.refundAmount().signum() > 0) {
+            mapper.insertCardRefundPayment(
+                    numbers.cardRefundPaymentNo(), request, command.externalRefundReference(),
+                    command.idempotencyKey(), command.operatorId());
+        }
+        return findRefundRequest(request.id()).orElseThrow();
+    }
+
+    private Optional<CardRefundRequestDetail> detail(CardRefundRequestSummary summary) {
+        if (summary == null) return Optional.empty();
+        return Optional.of(new CardRefundRequestDetail(
+                summary, mapper.findRefundQuoteItems(summary.quoteId()), mapper.findCardRefundPayment(summary.id())));
     }
 
     private CardTypeDetail toCardType(CardTypeRow row) {

@@ -2,6 +2,9 @@ import { apiRequest } from './http'
 import type {
   CardExchangeQuote,
   CardExchangeResult,
+  CardRefundQuote,
+  CardRefundRequestDetail,
+  CardRefundRequestSummary,
   CardTransferResult,
   CardSaleResult,
   CardTypeDetail,
@@ -68,5 +71,51 @@ export function transferMemberCard(cardId: number, payload: {
 }): Promise<CardTransferResult> {
   return apiRequest<CardTransferResult>({
     method: 'POST', url: `/member-cards/${cardId}/transfer`, data: payload,
+  })
+}
+
+export function quoteCardRefund(cardId: number, feeAmount: number): Promise<CardRefundQuote> {
+  return apiRequest<CardRefundQuote>({
+    method: 'POST', url: `/member-cards/${cardId}/refund-requests/quote`, data: { feeAmount },
+  })
+}
+
+export function submitCardRefund(cardId: number, payload: {
+  quoteNo: string
+  refundMethodId?: number
+  storeId: number
+  employeeId?: number
+  reason: string
+  idempotencyKey: string
+}): Promise<CardRefundRequestDetail> {
+  return apiRequest<CardRefundRequestDetail>({
+    method: 'POST', url: `/member-cards/${cardId}/refund-requests`, data: payload,
+  })
+}
+
+export function getCardRefundRequests(status?: string): Promise<CardRefundRequestSummary[]> {
+  return apiRequest<CardRefundRequestSummary[]>({
+    method: 'GET', url: '/card-refund-requests', params: { status },
+  })
+}
+
+export function getCardRefundRequest(id: number): Promise<CardRefundRequestDetail> {
+  return apiRequest<CardRefundRequestDetail>({ method: 'GET', url: `/card-refund-requests/${id}` })
+}
+
+export function reviewCardRefund(
+  id: number, approved: boolean, comment: string | undefined, version: string,
+): Promise<CardRefundRequestDetail> {
+  return apiRequest<CardRefundRequestDetail>({
+    method: 'POST', url: `/card-refund-requests/${id}/review`, data: { approved, comment, version },
+  })
+}
+
+export function executeCardRefund(
+  id: number, version: string, externalRefundReference: string | undefined, idempotencyKey: string,
+): Promise<CardRefundRequestDetail> {
+  return apiRequest<CardRefundRequestDetail>({
+    method: 'POST', url: `/card-refund-requests/${id}/execute`,
+    data: { version, externalRefundReference, idempotencyKey },
   })
 }
