@@ -33,11 +33,15 @@ class ProductMapperSqlTest {
         Select barcode = ProductMapper.class.getMethod("findByBarcode", String.class).getAnnotation(Select.class);
         Update product = ProductMapper.class.getMethod("update", ProductUpdate.class).getAnnotation(Update.class);
         Update store = ProductMapper.class.getMethod("updateStore", ProductUpdate.class).getAnnotation(Update.class);
+        Update batchStatus = ProductMapper.class.getMethod(
+                "updateSaleStatus", long.class, long.class, String.class, long.class).getAnnotation(Update.class);
 
         assertThat(String.join(" ", barcode.value())).contains("product.barcode = #{barcode}");
         assertThat(String.join(" ", product.value()))
                 .contains("row_version = CONVERT(binary(8), #{version}, 1)", "updated_by = #{updatedBy}");
         assertThat(String.join(" ", store.value()))
                 .contains("item_type = 'PRODUCT'", "item_id = #{update.id}", "store_id = #{update.storeId}");
+        assertThat(String.join(" ", batchStatus.value()))
+                .contains("sale_status = #{saleStatus}", "item_id = #{id}", "store_id = #{storeId}");
     }
 }

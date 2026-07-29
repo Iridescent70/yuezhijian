@@ -73,6 +73,16 @@ public class ProductController {
         return ApiResponse.ok(jobs.createProductImport(file, authentication.getName(), storeId));
     }
 
+    @PostMapping("/batch-status")
+    @PreAuthorize("hasAuthority('catalog:product:manage')")
+    public ApiResponse<ProductBatchResult> batchStatus(
+            @Valid @RequestBody BatchProductSaleStatusRequest request,
+            Authentication authentication,
+            HttpSession session) {
+        long storeId = currentStoreContext.currentStore(authentication, session).id();
+        return ApiResponse.ok(service.batchSaleStatus(request, storeId, authentication.getName()));
+    }
+
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('catalog:product:manage')")
     public ApiResponse<ProductDetail> update(

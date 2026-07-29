@@ -93,6 +93,30 @@ class ProductFlowTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void productsCanBePutOnAndOffSaleInBatchForTheCurrentStore() throws Exception {
+        MockHttpSession session = login();
+        mockMvc.perform(post("/api/v1/auth/current-store").with(csrf()).session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"storeId\":2}"))
+                .andExpect(status().isOk());
+        String request = "{\"productIds\":[401,999],\"saleStatus\":\"OFF_SALE\"}";
+        mockMvc.perform(post("/api/v1/products/batch-status").with(csrf()).session(session)
+                        .contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.succeeded").value(1))
+                .andExpect(jsonPath("$.data.failed").value(1));
+        mockMvc.perform(post("/api/v1/products/batch-status").with(csrf()).session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productIds\":[401],\"saleStatus\":\"OFF_SALE\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.skipped").value(1));
+        mockMvc.perform(get("/api/v1/products?storeId=2&saleStatus=OFF_SALE").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(401));
+    }
+
     private MockHttpSession login() throws Exception {
         return (MockHttpSession) mockMvc.perform(post("/api/v1/auth/login").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)

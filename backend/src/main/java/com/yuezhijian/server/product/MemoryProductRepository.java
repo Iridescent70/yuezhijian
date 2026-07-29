@@ -93,6 +93,22 @@ public class MemoryProductRepository implements ProductRepository {
         return saved;
     }
 
+    @Override
+    public synchronized boolean updateSaleStatus(long id, long storeId, String saleStatus, long operatorId) {
+        ProductDetail current = products.get(id);
+        if (current == null || current.stores().stream().noneMatch(store -> store.storeId() == storeId)) return false;
+        List<ProductStoreConfig> stores = current.stores().stream()
+                .map(store -> store.storeId() == storeId
+                        ? new ProductStoreConfig(store.storeId(), store.storeName(), store.storePrice(), saleStatus)
+                        : store)
+                .toList();
+        products.put(id, new ProductDetail(
+                current.id(), current.code(), current.name(), current.categoryId(), current.categoryName(),
+                current.unitId(), current.unitName(), current.barcode(), current.costPrice(), current.salePrice(),
+                current.trackStock(), current.description(), current.status(), stores, current.version()));
+        return true;
+    }
+
     private ProductSummary summary(ProductDetail item, Long storeId) {
         ProductStoreConfig store = item.stores().stream()
                 .filter(value -> storeId == null || value.storeId() == storeId).findFirst().orElse(null);

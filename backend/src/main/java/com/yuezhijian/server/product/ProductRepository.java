@@ -15,4 +15,6 @@ public interface ProductRepository {
     long create(NewProduct product);
 
     ProductDetail update(ProductUpdate update);
+
+    boolean updateSaleStatus(long id, long storeId, String saleStatus, long operatorId);
 }

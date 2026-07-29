@@ -52,6 +52,11 @@ public class SqlServerProductRepository implements ProductRepository {
         return find(update.id()).orElseThrow();
     }
 
+    @Override
+    public boolean updateSaleStatus(long id, long storeId, String saleStatus, long operatorId) {
+        return mapper.updateSaleStatus(id, storeId, saleStatus, operatorId) == 1;
+    }
+
     private Optional<ProductDetail> detail(ProductRow row) {
         if (row == null) return Optional.empty();
         return Optional.of(new ProductDetail(

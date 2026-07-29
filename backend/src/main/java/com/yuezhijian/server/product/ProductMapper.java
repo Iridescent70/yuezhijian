@@ -119,4 +119,15 @@ public interface ProductMapper {
             WHERE item_type = 'PRODUCT' AND item_id = #{update.id} AND store_id = #{update.storeId}
             """)
     int updateStore(@Param("update") ProductUpdate update);
+
+    @Update("""
+            UPDATE dbo.cat_item_store
+            SET sale_status = #{saleStatus}, updated_at = sysdatetime(), updated_by = #{operatorId}
+            WHERE item_type = 'PRODUCT' AND item_id = #{id} AND store_id = #{storeId}
+            """)
+    int updateSaleStatus(
+            @Param("id") long id,
+            @Param("storeId") long storeId,
+            @Param("saleStatus") String saleStatus,
+            @Param("operatorId") long operatorId);
 }

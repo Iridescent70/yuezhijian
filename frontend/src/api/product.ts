@@ -5,6 +5,7 @@ import type {
   CreateProductPayload,
   CreatedResource,
   ProductDetail,
+  ProductBatchResult,
   ProductSummary,
   UnitOption,
   UpdateProductPayload,
@@ -43,4 +44,11 @@ export function importProducts(file: File): Promise<AsyncJobItem> {
   const data = new FormData()
   data.append('file', file)
   return apiRequest<AsyncJobItem>({ method: 'POST', url: '/products/import', data })
+}
+
+export function batchProductSaleStatus(payload: {
+  productIds: number[]
+  saleStatus: 'ON_SALE' | 'OFF_SALE'
+}): Promise<ProductBatchResult> {
+  return apiRequest<ProductBatchResult>({ method: 'POST', url: '/products/batch-status', data: payload })
 }

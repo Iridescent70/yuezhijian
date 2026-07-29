@@ -121,7 +121,7 @@
 | API-CAT-003 | `GET/POST /units` | 当前支持查询启用单位；单位维护待后续 | 单位列表；查询已实现 | 系统管理-12 |
 | API-CAT-004 | `GET/POST /products` | 门店、分类、销售状态、关键词/产品、单位、成本、售价、门店配置 | 基础列表/id；`catalog:product:view/manage`；已实现 | 系统管理-11 |
 | API-CAT-005 | `GET/PUT /products/{id}` | 详情/产品资料、门店价格和状态、version | 详情/并发安全更新；已实现 | 系统管理-11 |
-| API-CAT-006 | `POST /products/batch-status` | ids、ON_SALE/OFF_SALE | 批量结果 | 优化系统管理-01 |
+| API-CAT-006 | `POST /products/batch-status` | 当前页1~100个产品id、ON_SALE/OFF_SALE | 固定当前门店，逐条成功/跳过/失败；`catalog:product:manage`；已实现 | 优化系统管理-01 |
 | API-CAT-007 | `POST /products/import`、`POST /exports` | 当前门店UTF-8 CSV导入；`exportType=PRODUCT_CATALOG`及编号/名称/条码关键词导出 | 导入最多5000行并生成逐行结果；导出需`catalog:product:export`；均已实现 | 系统管理-11 |
 | API-CAT-008 | `GET/POST /services` | 查询/项目、时长、售价、成本、分类 | 分页/id | 系统管理-21、优化系统管理-01 |
 | API-CAT-009 | `GET/PUT /services/{id}` | 基础详情、门店价格和状态、version；标签和物料消耗待后续 | 基础资料与单门店配置更新已实现；`catalog:service:view/manage` | 系统管理-21、优化系统管理-01 |

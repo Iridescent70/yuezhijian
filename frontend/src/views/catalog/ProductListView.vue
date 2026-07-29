@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { createExport } from '@/api/jobs'
-import { createProduct, getProduct, getProductCategories, getProducts, getUnits, importProducts, updateProduct } from '@/api/product'
+import { batchProductSaleStatus, createProduct, getProduct, getProductCategories, getProducts, getUnits, importProducts, updateProduct } from '@/api/product'
 import { useAuthStore } from '@/stores/auth'
-import type { CategoryOption, ProductStoreConfig, ProductSummary, UnitOption } from '@/types/api'
+import type { CategoryOption, ProductBatchResult, ProductStoreConfig, ProductSummary, UnitOption } from '@/types/api'
 import { formatMoney } from '@/utils/formatMoney'
 
 const auth = useAuthStore()
@@ -14,6 +14,10 @@ const loading = ref(false)
 const exporting = ref(false)
 const importing = ref(false)
 const importInput = ref<HTMLInputElement>()
+const batchSubmitting = ref(false)
+const selectedProducts = ref<ProductSummary[]>([])
+const batchResult = ref<ProductBatchResult>()
+const resultVisible = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref<number>()
@@ -96,6 +100,41 @@ async function uploadImport(event: Event) {
     ElMessage.error(error instanceof Error ? error.message : '产品资料导入任务创建失败')
   } finally {
     importing.value = false
+  }
+}
+
+function selectionChanged(value: unknown) {
+  selectedProducts.value = value as ProductSummary[]
+}
+
+async function batchSaleStatus(saleStatus: 'ON_SALE' | 'OFF_SALE') {
+  if (!selectedProducts.value.length) {
+    ElMessage.warning('请先选择产品')
+    return
+  }
+  if (filters.storeId !== auth.user?.currentStoreId) {
+    ElMessage.warning('批量上下架固定使用当前登录门店，请先将门店筛选切换为当前门店')
+    return
+  }
+  const action = saleStatus === 'ON_SALE' ? '上架' : '下架'
+  await ElMessageBox.confirm(
+    `确认在当前门店${action}已选择的 ${selectedProducts.value.length} 个产品吗？`,
+    `批量${action}`,
+    { type: saleStatus === 'ON_SALE' ? 'success' : 'warning' },
+  )
+  batchSubmitting.value = true
+  try {
+    batchResult.value = await batchProductSaleStatus({
+      productIds: selectedProducts.value.map(item => item.id),
+      saleStatus,
+    })
+    resultVisible.value = true
+    selectedProducts.value = []
+    await load()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : `批量${action}失败`)
+  } finally {
+    batchSubmitting.value = false
   }
 }
 
@@ -214,7 +253,15 @@ onMounted(() => {
       </el-form>
     </el-card>
     <el-card class="data-card" shadow="never">
-      <el-table v-loading="loading" :data="rows" stripe row-key="id">
+      <div v-if="auth.hasPermission('catalog:product:manage')" class="product-batch-toolbar">
+        <span>已选择 {{ selectedProducts.length }} 个</span>
+        <div>
+          <el-button :disabled="!selectedProducts.length" :loading="batchSubmitting" @click="batchSaleStatus('ON_SALE')">批量上架</el-button>
+          <el-button type="warning" plain :disabled="!selectedProducts.length" :loading="batchSubmitting" @click="batchSaleStatus('OFF_SALE')">批量下架</el-button>
+        </div>
+      </div>
+      <el-table v-loading="loading" :data="rows" stripe row-key="id" @selection-change="selectionChanged">
+        <el-table-column v-if="auth.hasPermission('catalog:product:manage')" type="selection" width="48" />
         <el-table-column prop="code" label="产品编号" width="140" /><el-table-column prop="name" label="产品名称" min-width="180" />
         <el-table-column prop="categoryName" label="分类" width="120" /><el-table-column prop="unitName" label="单位" width="80" />
         <el-table-column prop="barcode" label="条码" width="150" /><el-table-column label="成本" width="110" align="right"><template #default="scope">{{ formatMoney(scope.row.costPrice) }}</template></el-table-column>
@@ -236,9 +283,40 @@ onMounted(() => {
       </el-form>
       <template #footer><el-button @click="dialogVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="submit">保存</el-button></template>
     </el-dialog>
+    <el-dialog v-model="resultVisible" title="批量上下架结果" width="720px">
+      <template v-if="batchResult">
+        <div class="product-batch-summary">
+          <strong>总计 {{ batchResult.total }}</strong>
+          <span class="batch-success">成功 {{ batchResult.succeeded }}</span>
+          <span>跳过 {{ batchResult.skipped }}</span>
+          <span class="batch-failed">失败 {{ batchResult.failed }}</span>
+        </div>
+        <el-table :data="batchResult.items" max-height="420" stripe>
+          <el-table-column prop="productCode" label="产品编号" width="150">
+            <template #default="scope">{{ scope.row.productCode ?? `ID ${scope.row.productId}` }}</template>
+          </el-table-column>
+          <el-table-column prop="productName" label="产品名称" width="160">
+            <template #default="scope">{{ scope.row.productName ?? '未找到' }}</template>
+          </el-table-column>
+          <el-table-column label="结果" width="90">
+            <template #default="scope">
+              <el-tag :type="scope.row.status === 'SUCCESS' ? 'success' : scope.row.status === 'FAILED' ? 'danger' : 'info'">
+                {{ scope.row.status === 'SUCCESS' ? '成功' : scope.row.status === 'FAILED' ? '失败' : '跳过' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="message" label="说明" min-width="220" />
+        </el-table>
+      </template>
+      <template #footer><el-button type="primary" @click="resultVisible = false">关闭</el-button></template>
+    </el-dialog>
   </section>
 </template>
 
 <style scoped>
 .file-input { display: none; }
+.product-batch-toolbar, .product-batch-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.product-batch-summary { justify-content: flex-start; }
+.batch-success { color: var(--el-color-success); }
+.batch-failed { color: var(--el-color-danger); }
 </style>

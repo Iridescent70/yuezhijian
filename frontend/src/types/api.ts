@@ -666,6 +666,23 @@ export interface ProductDetail {
   version: string
 }
 
+export interface ProductBatchItemResult {
+  productId: number
+  productCode?: string
+  productName?: string
+  status: 'SUCCESS' | 'SKIPPED' | 'FAILED'
+  message: string
+}
+
+export interface ProductBatchResult {
+  operation: 'BATCH_SALE_STATUS'
+  total: number
+  succeeded: number
+  skipped: number
+  failed: number
+  items: ProductBatchItemResult[]
+}
+
 export interface CreateProductPayload {
   code: string
   name: string

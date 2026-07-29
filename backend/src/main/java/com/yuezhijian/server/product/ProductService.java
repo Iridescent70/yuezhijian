@@ -8,6 +8,7 @@ import com.yuezhijian.server.masterdata.CategoryOption;
 import com.yuezhijian.server.masterdata.MasterDataRepository;
 import com.yuezhijian.server.masterdata.UnitOption;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -122,6 +123,40 @@ public class ProductService {
         return new ProductImportOutcome(id, true, "已新建");
     }
 
+    public ProductBatchResult batchSaleStatus(
+            BatchProductSaleStatusRequest request, long storeId, String username) {
+        storeDataScope.require(storeId);
+        String saleStatus = normalize(
+                request.saleStatus(), Set.of("ON_SALE", "OFF_SALE"), "销售状态无效");
+        long operatorId = operatorId(username);
+        List<ProductBatchItemResult> results = new ArrayList<>();
+        for (Long id : new LinkedHashSet<>(request.productIds())) {
+            ProductDetail product = repository.find(id).orElse(null);
+            if (product == null) {
+                results.add(new ProductBatchItemResult(
+                        id, null, null, "FAILED", "产品不存在或当前门店未配置"));
+                continue;
+            }
+            ProductStoreConfig store = product.stores().stream()
+                    .filter(item -> item.storeId() == storeId).findFirst().orElse(null);
+            if (store == null) {
+                results.add(new ProductBatchItemResult(
+                        id, null, null, "FAILED", "产品不存在或当前门店未配置"));
+                continue;
+            }
+            if (saleStatus.equals(store.saleStatus())) {
+                results.add(batchItem(product, "SKIPPED", "已经是目标销售状态"));
+                continue;
+            }
+            if (repository.updateSaleStatus(id, storeId, saleStatus, operatorId)) {
+                results.add(batchItem(product, "SUCCESS", "ON_SALE".equals(saleStatus) ? "已上架" : "已下架"));
+            } else {
+                results.add(batchItem(product, "FAILED", "产品门店配置已变化，请刷新后重试"));
+            }
+        }
+        return ProductBatchResult.of("BATCH_SALE_STATUS", results);
+    }
+
     private ProductDetail requireProduct(long id) {
         ProductDetail item = repository.find(id).orElseThrow(() -> new ResourceNotFoundException("产品不存在"));
         storeDataScope.requireAny(item.stores().stream().map(ProductStoreConfig::storeId).toList());
@@ -155,6 +190,10 @@ public class ProductService {
         if (existing != null && (currentId == null || existing.id() != currentId)) {
             throw new DuplicateResourceException("产品条码已存在");
         }
+    }
+
+    private ProductBatchItemResult batchItem(ProductDetail product, String status, String message) {
+        return new ProductBatchItemResult(product.id(), product.code(), product.name(), status, message);
     }
 
     private void requireReferences(long categoryId, long unitId) {
