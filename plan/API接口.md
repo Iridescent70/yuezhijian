@@ -99,11 +99,11 @@
 | API-ORG-012 | `POST /employee-loans/{id}/approve`、`/reject` | 意见 | 审批结果 | 系统管理-37、薪酬-03 |
 | API-ORG-013 | `GET/POST /workstations` | 门店、状态/名称、容量 | 工位列表/id | 系统管理-14 |
 | API-ORG-014 | `GET/POST /terminals` | 门店/设备指纹、名称、状态 | 终端列表/id | 系统管理-15 |
-| API-COM-001 | `POST /files` | multipart 文件、用途 | fileId和元数据；通用独立入口待任务中心，业务专用上传已落地 | 通用-导入导出 |
-| API-COM-002 | `GET /files/{id}` | fileId | 鉴权文件流；通用独立入口待任务中心，不提供公开URL | 通用-导入导出 |
-| API-COM-003 | `POST /exports` | exportType、filters、columns | 异步任务 id | 系统管理-01 |
-| API-COM-004 | `GET /jobs/{id}` | 任务 id | 进度、成功/失败数、文件 id | 系统管理-01 |
-| API-COM-005 | `GET /jobs` | 类型、状态、创建人、日期 | 下载中心分页 | 系统管理-01 |
+| API-COM-001 | `POST /files` | multipart 文件、用途 | 通用独立入口尚未开放；服务反馈和任务结果已使用业务专用入口 | 通用-导入导出 |
+| API-COM-002 | `GET /files/{id}` | fileId | 通用独立入口尚未开放；文件只能从已授权业务或本人任务下载，不提供公开URL | 通用-导入导出 |
+| API-COM-003 | `POST /exports` | `exportType=SERVICE_FEEDBACK`、`status/overdue` | 当前门店导出任务；`system:job:create`；202；已实现 | 系统管理-01 |
+| API-COM-004 | `GET /jobs/{id}`、`POST /jobs/{id}/cancel`、`GET /jobs/{id}/result` | 本人任务id | 详情、等待任务取消、7天内私有结果文件；`system:job:view/cancel`；已实现 | 系统管理-01 |
+| API-COM-005 | `GET /jobs` | `jobType/status/page/size` | 只返回当前创建人的任务分页；`system:job:view`；已实现 | 系统管理-01 |
 | API-COM-006 | `GET /audit-logs` | 用户、模块、动作、对象、日期 | 审计分页 | 系统管理-07 |
 | API-COM-007 | `GET /audit-logs/{id}` | 日志 id | 前后值摘要、结果、traceId | 系统管理-07 |
 | API-COM-008 | `GET /system-parameters`、`PUT /system-parameters/{id}` | `group`/`value/status/version` | 非密钥参数列表/更新结果；`system:parameter:view/manage`；已实现 | 系统管理-17 |

@@ -17,6 +17,11 @@ public class SqlServerFileObjectRepository implements FileObjectRepository {
     }
 
     @Override
+    public FileObjectItem create(FileObjectDraft file) {
+        return mapper.findFileItem(mapper.insertFileObject(file));
+    }
+
+    @Override
     public int countActive(String businessType, long businessId) {
         return mapper.countActive(businessType, businessId);
     }
@@ -29,6 +34,11 @@ public class SqlServerFileObjectRepository implements FileObjectRepository {
     @Override
     public Optional<StoredFileObject> findActive(String businessType, long businessId, long attachmentId) {
         return Optional.ofNullable(mapper.findActive(businessType, businessId, attachmentId));
+    }
+
+    @Override
+    public Optional<StoredFileObject> findActiveFile(long fileId) {
+        return Optional.ofNullable(mapper.findActiveFile(fileId));
     }
 
     @Override

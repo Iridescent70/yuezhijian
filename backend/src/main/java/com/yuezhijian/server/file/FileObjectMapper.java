@@ -9,6 +9,14 @@ import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface FileObjectMapper {
+    String FILE_SELECT = """
+            SELECT 0 AS attachmentId, id AS fileId, object_key AS objectKey,
+                   original_name AS originalName, content_type AS contentType,
+                   size_bytes AS sizeBytes, sha256, purpose, NULL AS category
+            FROM dbo.sys_file_object
+            WHERE status = 'ACTIVE'
+            """;
+
     String ACTIVE_SELECT = """
             SELECT attachment.id AS attachmentId, file_object.id AS fileId,
                    file_object.object_key AS objectKey, file_object.original_name AS originalName,
@@ -51,6 +59,18 @@ public interface FileObjectMapper {
             @Param("businessType") String businessType,
             @Param("businessId") long businessId,
             @Param("attachmentId") long attachmentId);
+
+    @Select(FILE_SELECT + " AND id = #{fileId}")
+    StoredFileObject findActiveFile(long fileId);
+
+    @Select("""
+            SELECT id, original_name AS originalName, content_type AS contentType,
+                   size_bytes AS sizeBytes, sha256, purpose, created_at AS createdAt,
+                   owner_user_id AS ownerUserId
+            FROM dbo.sys_file_object
+            WHERE id = #{fileId} AND status = 'ACTIVE'
+            """)
+    FileObjectItem findFileItem(long fileId);
 
     @Select(value = """
             INSERT INTO dbo.sys_file_object (

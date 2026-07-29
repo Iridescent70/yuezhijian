@@ -72,4 +72,15 @@ class FileObjectServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("最多上传2个");
     }
+
+    @Test
+    void generatedCsvUsesTheSamePrivateStorageAndIntegrityCheck() {
+        byte[] content = "\ufeff\"标题\"\r\n\"结果\"\r\n".getBytes(StandardCharsets.UTF_8);
+        FileObjectItem file = service.storeGenerated(
+                "ASYNC_JOB_RESULT", "反馈导出.csv", "text/csv", content, 1);
+
+        assertThat(file.originalName()).isEqualTo("反馈导出.csv");
+        assertThat(file.contentType()).isEqualTo("text/csv");
+        assertThat(service.downloadGenerated(file.id()).content()).isEqualTo(content);
+    }
 }

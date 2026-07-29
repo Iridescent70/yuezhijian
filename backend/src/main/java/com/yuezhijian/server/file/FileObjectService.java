@@ -16,11 +16,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class FileObjectService {
-    private static final Map<String, String> EXTENSIONS = Map.of(
+    private static final Map<String, String> UPLOAD_EXTENSIONS = Map.of(
             "image/jpeg", ".jpg",
             "image/png", ".png",
             "image/webp", ".webp",
             "application/pdf", ".pdf");
+    private static final Map<String, String> GENERATED_EXTENSIONS = Map.of("text/csv", ".csv");
 
     private final FileObjectRepository repository;
     private final ObjectStorage storage;
@@ -69,14 +70,45 @@ public class FileObjectService {
         }
     }
 
+    public FileObjectItem storeGenerated(
+            String purpose, String originalName, String contentType, byte[] content, long operatorId) {
+        if (!GENERATED_EXTENSIONS.containsKey(contentType)) {
+            throw new IllegalArgumentException("暂不支持该任务结果文件类型");
+        }
+        if (content == null || content.length == 0) throw new IllegalArgumentException("任务结果文件不能为空");
+        if (content.length > properties.maxUploadBytes()) {
+            throw new IllegalArgumentException("任务结果文件超过当前存储上限");
+        }
+        String name = normalizeName(originalName);
+        if (!name.toLowerCase(Locale.ROOT).endsWith(GENERATED_EXTENSIONS.get(contentType))) {
+            throw new IllegalArgumentException("任务结果文件扩展名与内容类型不一致");
+        }
+        String objectKey = generatedObjectKey(purpose, contentType);
+        FileObjectDraft file = new FileObjectDraft(
+                objectKey, name, contentType, content.length, sha256(content), purpose, operatorId);
+        storage.put(objectKey, content, contentType);
+        try {
+            return repository.create(file);
+        } catch (RuntimeException exception) {
+            try {
+                storage.delete(objectKey);
+            } catch (RuntimeException cleanupFailure) {
+                exception.addSuppressed(cleanupFailure);
+            }
+            throw exception;
+        }
+    }
+
     public StoredFileDownload download(String businessType, long businessId, long attachmentId) {
         StoredFileObject file = repository.findActive(businessType, businessId, attachmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("附件不存在或已删除"));
-        byte[] content = storage.get(file.objectKey());
-        if (!sha256(content).equals(file.sha256())) {
-            throw new FileStorageException("附件完整性校验失败", null);
-        }
-        return new StoredFileDownload(file, content);
+        return verifiedDownload(file);
+    }
+
+    public StoredFileDownload downloadGenerated(long fileId) {
+        StoredFileObject file = repository.findActiveFile(fileId)
+                .orElseThrow(() -> new ResourceNotFoundException("任务结果文件不存在或已删除"));
+        return verifiedDownload(file);
     }
 
     public void remove(String businessType, long businessId, long attachmentId, long operatorId) {
@@ -123,7 +155,7 @@ public class FileObjectService {
         String lower = name.toLowerCase(Locale.ROOT);
         boolean valid = switch (contentType) {
             case "image/jpeg" -> lower.endsWith(".jpg") || lower.endsWith(".jpeg");
-            default -> lower.endsWith(EXTENSIONS.get(contentType));
+            default -> lower.endsWith(UPLOAD_EXTENSIONS.get(contentType));
         };
         if (!valid) throw new IllegalArgumentException("附件扩展名与文件内容不一致");
     }
@@ -138,7 +170,21 @@ public class FileObjectService {
     private static String objectKey(String purpose, String contentType) {
         String path = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
         return purpose.toLowerCase(Locale.ROOT).replace('_', '-') + "/" + path + "/"
-                + UUID.randomUUID() + EXTENSIONS.get(contentType);
+                + UUID.randomUUID() + UPLOAD_EXTENSIONS.get(contentType);
+    }
+
+    private static String generatedObjectKey(String purpose, String contentType) {
+        String path = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
+        return "generated/" + purpose.toLowerCase(Locale.ROOT).replace('_', '-') + "/" + path + "/"
+                + UUID.randomUUID() + GENERATED_EXTENSIONS.get(contentType);
+    }
+
+    private StoredFileDownload verifiedDownload(StoredFileObject file) {
+        byte[] content = storage.get(file.objectKey());
+        if (!sha256(content).equals(file.sha256())) {
+            throw new FileStorageException("文件完整性校验失败", null);
+        }
+        return new StoredFileDownload(file, content);
     }
 
     private static String sha256(byte[] content) {

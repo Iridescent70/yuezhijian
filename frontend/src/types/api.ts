@@ -67,6 +67,30 @@ export interface PageResult<T> {
   total: number
 }
 
+export type AsyncJobStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'PARTIAL' | 'FAILED' | 'CANCELLED'
+
+export interface AsyncJobItem {
+  id: number
+  jobNo: string
+  jobName: string
+  jobType: string
+  status: AsyncJobStatus
+  progress: number
+  successCount: number
+  failureCount: number
+  resultFileId?: number
+  resultFileName?: string
+  errorFileId?: number
+  errorFileName?: string
+  errorMessage?: string
+  startedAt?: string
+  finishedAt?: string
+  expiresAt: string
+  createdAt: string
+  createdBy: number
+  createdByName: string
+}
+
 export interface MemberSummary {
   id: number
   memberNo: string

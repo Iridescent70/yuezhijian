@@ -20,6 +20,7 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             "visit:task:view", "visit:task:manage", "visit:feedback:view", "visit:feedback:manage",
             "visit:satisfaction:view", "visit:satisfaction:manage",
             "system:parameter:view", "system:parameter:manage",
+            "system:job:view", "system:job:create", "system:job:cancel",
             "org:employee:view", "org:employee:manage",
             "org:workstation:view", "org:workstation:manage",
             "catalog:service:view", "catalog:service:manage",
@@ -36,7 +37,8 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             new RoleSummary(2L, "STORE_MANAGER", "店长", "STORE", "ACTIVE",
                     List.of("workbench:view", "org:store:view", "member:member:view", "member:member:manage",
                             "member:tag:view", "member:tag:manage", "member:ownership:view",
-                            "member:ownership:manage", "trade:bill:view")));
+                            "member:ownership:manage", "trade:bill:view",
+                            "system:job:view", "system:job:create", "system:job:cancel")));
 
     private static final List<MenuItem> MENUS = List.of(
             new MenuItem(1L, "workbench", "工作台", "/app/workbench", "HomeFilled", 10,
@@ -84,7 +86,9 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
                             new MenuItem(54L, "workstations", "工位管理", "/app/system/workstations", "OfficeBuilding", 40,
                                     "org:workstation:view", List.of()),
                             new MenuItem(55L, "system-parameters", "系统参数", "/app/system/parameters", "Operation", 50,
-                                    "system:parameter:view", List.of()))),
+                                    "system:parameter:view", List.of()),
+                            new MenuItem(56L, "download-center", "下载中心", "/app/system/downloads", "Download", 60,
+                                    "system:job:view", List.of()))),
             new MenuItem(6L, "catalog", "基础资料", "/app/catalog", "Collection", 60, null,
                     List.of(
                             new MenuItem(61L, "services", "服务项目", "/app/catalog/services", "Service", 10,

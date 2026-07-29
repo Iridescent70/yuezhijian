@@ -198,6 +198,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '系统参数', permission: 'system:parameter:view' },
       },
       {
+        path: 'system/downloads',
+        name: 'download-center',
+        component: () => import('@/views/system/DownloadCenterView.vue'),
+        meta: { title: '下载中心', permission: 'system:job:view' },
+      },
+      {
         path: 'forbidden',
         name: 'forbidden',
         component: () => import('@/views/ForbiddenView.vue'),

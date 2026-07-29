@@ -61,3 +61,6 @@ app:
     access-key: ${MINIO_ACCESS_KEY:}
     secret-key: ${MINIO_SECRET_KEY:}
     bucket: ${MINIO_BUCKET:yuezhijian-dev}
+  jobs:
+    initial-delay-ms: ${JOB_INITIAL_DELAY_MS:3000}
+    poll-delay-ms: ${JOB_POLL_DELAY_MS:2000}
