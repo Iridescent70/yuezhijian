@@ -203,6 +203,49 @@ public class CardService {
                 request.idempotencyKey(), currentUserId(username)));
     }
 
+    @Transactional
+    public CardTransferResult transfer(
+            long cardId, TransferMemberCardRequest request, String username) {
+        CardTransferResult existing = repository.findTransferByIdempotencyKey(request.idempotencyKey()).orElse(null);
+        if (existing != null) {
+            if (existing.sourceCard().id() != cardId
+                    || existing.recipientMemberId() != request.recipientMemberId()) {
+                throw new IllegalArgumentException("幂等键已用于其他转赠业务");
+            }
+            return existing;
+        }
+        MemberCardDetail source = memberCard(cardId);
+        if (!"ACTIVE".equals(source.card().status()) || source.card().expiresAt().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("只有正常有效的次卡可以转赠");
+        }
+        requireMember(source.card().memberId(), true);
+        if (source.card().memberId() == request.recipientMemberId()) {
+            throw new IllegalArgumentException("次卡不能转赠给原持卡会员");
+        }
+        MemberDetail recipient = requireMember(request.recipientMemberId(), true);
+        if (!source.card().version().equals(request.sourceCardVersion())) {
+            throw new DuplicateResourceException("原次卡状态已发生变化，请刷新后重试");
+        }
+        if (source.balances().stream().anyMatch(item -> item.frozenTimes().signum() > 0)) {
+            throw new IllegalArgumentException("原次卡存在冻结次数，不能转赠");
+        }
+        BigDecimal remainingTimes = source.balances().stream().map(MemberCardBalanceItem::remainingTimes)
+                .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(4, RoundingMode.HALF_UP);
+        if (remainingTimes.signum() <= 0) throw new IllegalArgumentException("原次卡没有可转赠的剩余次数");
+        LocalDateTime now = LocalDateTime.now();
+        if (!request.expiresAt().isAfter(now) || request.expiresAt().isAfter(now.plusDays(3650))) {
+            throw new IllegalArgumentException("转赠后有效期必须在当前时间之后且不超过10年");
+        }
+        validateStore(request.storeId());
+        if (request.employeeId() != null) validateSalesEmployee(request.storeId(), request.employeeId());
+        BigDecimal remainingValue = money(source.card().purchasePrice().multiply(remainingTimes)
+                .divide(source.card().totalTimes(), 8, RoundingMode.HALF_UP));
+        return repository.transfer(new CardTransferCommand(
+                numbers.cardTransferNo(), source.card(), recipient.id(), recipient.fullName(),
+                remainingTimes, remainingValue, request.expiresAt(), request.storeId(), request.employeeId(),
+                request.reason().trim(), now, request.idempotencyKey(), currentUserId(username)));
+    }
+
     private List<CardServiceRule> validateRules(List<CardServiceRuleRequest> requests, List<Long> storeIds) {
         Set<Long> seen = new HashSet<>();
         List<CardServiceRule> result = new ArrayList<>();

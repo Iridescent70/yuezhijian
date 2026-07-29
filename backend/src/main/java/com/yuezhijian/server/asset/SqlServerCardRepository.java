@@ -239,6 +239,65 @@ public class SqlServerCardRepository implements CardRepository {
         return findExchangeByIdempotencyKey(command.idempotencyKey()).orElseThrow();
     }
 
+    @Override
+    public Optional<CardTransferResult> findTransferByIdempotencyKey(String key) {
+        if (key == null) return Optional.empty();
+        CardTransferRow row = mapper.findTransferByIdempotencyKey(key);
+        if (row == null) return Optional.empty();
+        MemberCardSummary sourceCard = findMemberCard(row.sourceCardId()).orElseThrow().card();
+        MemberCardSummary targetCard = findMemberCard(row.targetCardId()).orElseThrow().card();
+        return Optional.of(new CardTransferResult(
+                row.id(), row.transferNo(), sourceCard, targetCard, row.sourceMemberId(), row.recipientMemberId(),
+                row.recipientMemberName(), row.remainingTimes(), row.remainingValue(), row.oldExpiresAt(),
+                row.newExpiresAt(), row.reason(), row.executedAt()));
+    }
+
+    @Override
+    @Transactional
+    public CardTransferResult transfer(CardTransferCommand command) {
+        Optional<CardTransferResult> existing = findTransferByIdempotencyKey(command.idempotencyKey());
+        if (existing.isPresent()) return existing.get();
+        List<MemberCardBalanceRow> balances = mapper.lockMemberCardBalances(command.sourceCard().id());
+        List<MemberCardBalanceRow> transferable = balances.stream()
+                .filter(item -> item.remainingTimes().signum() > 0).toList();
+        if (transferable.isEmpty()) throw new IllegalArgumentException("原次卡没有可转赠的剩余次数");
+        if (balances.stream().anyMatch(item -> item.frozenTimes().signum() > 0)) {
+            throw new IllegalArgumentException("原次卡存在冻结次数，不能转赠");
+        }
+        BigDecimal remaining = transferable.stream().map(MemberCardBalanceRow::remainingTimes)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (remaining.compareTo(command.remainingTimes()) != 0) {
+            throw new DuplicateResourceException("原次卡次数已发生变化，请刷新后重试");
+        }
+        Long targetCardId = mapper.insertTransferMemberCard(numbers.memberCardNo(), command);
+        if (targetCardId == null) throw new DuplicateResourceException("接收会员状态已发生变化，请重新选择");
+        long transferId = mapper.insertCardTransfer(command, targetCardId);
+        BigDecimal allocated = BigDecimal.ZERO.setScale(4);
+        for (int index = 0; index < transferable.size(); index++) {
+            MemberCardBalanceRow balance = transferable.get(index);
+            BigDecimal value = index == transferable.size() - 1
+                    ? command.remainingValue().subtract(allocated)
+                    : command.remainingValue().multiply(balance.remainingTimes())
+                            .divide(remaining, 4, RoundingMode.HALF_UP);
+            value = value.setScale(4, RoundingMode.HALF_UP);
+            allocated = allocated.add(value);
+            if (mapper.clearCardBalance(balance.id(), balance.rowVersion()) != 1) {
+                throw new DuplicateResourceException("原次卡次数已发生变化，请刷新后重试");
+            }
+            mapper.insertTransferBalance(targetCardId, balance);
+            mapper.insertTransferOutLedger(
+                    numbers.cardLedgerNo(), transferId, balance, value, command.executedAt(), command.operatorId());
+            mapper.insertTransferInLedger(
+                    numbers.cardLedgerNo(), transferId, targetCardId, balance, value,
+                    command.executedAt(), command.operatorId());
+        }
+        if (mapper.markCardTransferred(
+                command.sourceCard().id(), command.sourceCard().version(), command.operatorId()) != 1) {
+            throw new DuplicateResourceException("原次卡状态已发生变化，请刷新后重试");
+        }
+        return findTransferByIdempotencyKey(command.idempotencyKey()).orElseThrow();
+    }
+
     private CardTypeDetail toCardType(CardTypeRow row) {
         return new CardTypeDetail(
                 row.id(), row.code(), row.name(), row.salePrice(), row.listPrice(), row.totalTimes(),

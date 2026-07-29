@@ -535,4 +535,122 @@ public interface CardMapper {
             ORDER BY payment.sort_no
             """)
     List<CardExchangePayment> findExchangePayments(long exchangeId);
+
+    @Select(value = """
+            INSERT INTO dbo.ast_member_card (
+                card_no, member_id, card_type_id, card_type_code_snapshot, card_type_name_snapshot,
+                source_order_id, purchase_store_id, sale_employee_id, purchase_price,
+                started_at, expires_at, transfer_from_card_id, created_by, updated_by
+            )
+            OUTPUT INSERTED.id
+            SELECT
+                #{cardNo}, recipient.id, #{command.sourceCard.cardTypeId},
+                #{command.sourceCard.cardTypeCode}, #{command.sourceCard.cardTypeName}, NULL,
+                #{command.sourceCard.purchaseStoreId}, NULL, #{command.remainingValue},
+                #{command.executedAt}, #{command.newExpiresAt}, #{command.sourceCard.id},
+                #{command.operatorId}, #{command.operatorId}
+            FROM dbo.mem_member recipient WITH (UPDLOCK, HOLDLOCK)
+            WHERE recipient.id = #{command.recipientMemberId} AND recipient.status = 'ACTIVE'
+            """, affectData = true)
+    Long insertTransferMemberCard(@Param("cardNo") String cardNo, @Param("command") CardTransferCommand command);
+
+    @Select(value = """
+            INSERT INTO dbo.ast_card_transfer (
+                transfer_no, source_card_id, target_card_id, source_member_id, recipient_member_id,
+                remaining_times, remaining_value, old_expires_at, new_expires_at, reason,
+                handled_store_id, handled_employee_id, idempotency_key, executed_at, created_by
+            )
+            OUTPUT INSERTED.id
+            VALUES (
+                #{command.transferNo}, #{command.sourceCard.id}, #{targetCardId},
+                #{command.sourceCard.memberId}, #{command.recipientMemberId},
+                #{command.remainingTimes}, #{command.remainingValue}, #{command.sourceCard.expiresAt},
+                #{command.newExpiresAt}, #{command.reason}, #{command.storeId}, #{command.employeeId},
+                #{command.idempotencyKey}, #{command.executedAt}, #{command.operatorId}
+            )
+            """, affectData = true)
+    long insertCardTransfer(@Param("command") CardTransferCommand command, @Param("targetCardId") long targetCardId);
+
+    @Insert("""
+            INSERT INTO dbo.ast_member_card_balance (
+                member_card_id, service_id, total_times, remaining_times, frozen_times, deduct_times
+            ) VALUES (
+                #{targetCardId}, #{balance.serviceId}, #{balance.remainingTimes},
+                #{balance.remainingTimes}, 0, #{balance.deductTimes}
+            )
+            """)
+    void insertTransferBalance(
+            @Param("targetCardId") long targetCardId,
+            @Param("balance") MemberCardBalanceRow balance);
+
+    @Insert("""
+            INSERT INTO dbo.ast_member_card_ledger (
+                ledger_no, member_card_id, service_id, transaction_type,
+                before_times, change_times, after_times, value_amount,
+                source_type, source_id, occurred_at, correlation_id, note, created_by
+            ) VALUES (
+                #{ledgerNo}, #{balance.memberCardId}, #{balance.serviceId}, 'TRANSFER_OUT',
+                #{balance.remainingTimes}, -#{balance.remainingTimes}, 0, #{valueAmount},
+                'CARD_TRANSFER', #{transferId}, #{executedAt},
+                CONCAT('card-transfer:', #{transferId}, ':out:', #{balance.id}),
+                N'次卡转赠转出', #{operatorId}
+            )
+            """)
+    void insertTransferOutLedger(
+            @Param("ledgerNo") String ledgerNo,
+            @Param("transferId") long transferId,
+            @Param("balance") MemberCardBalanceRow balance,
+            @Param("valueAmount") BigDecimal valueAmount,
+            @Param("executedAt") java.time.LocalDateTime executedAt,
+            @Param("operatorId") long operatorId);
+
+    @Insert("""
+            INSERT INTO dbo.ast_member_card_ledger (
+                ledger_no, member_card_id, service_id, transaction_type,
+                before_times, change_times, after_times, value_amount,
+                source_type, source_id, occurred_at, correlation_id, note, created_by
+            ) VALUES (
+                #{ledgerNo}, #{targetCardId}, #{balance.serviceId}, 'TRANSFER_IN',
+                0, #{balance.remainingTimes}, #{balance.remainingTimes}, #{valueAmount},
+                'CARD_TRANSFER', #{transferId}, #{executedAt},
+                CONCAT('card-transfer:', #{transferId}, ':in:', #{balance.serviceId}),
+                N'次卡转赠转入', #{operatorId}
+            )
+            """)
+    void insertTransferInLedger(
+            @Param("ledgerNo") String ledgerNo,
+            @Param("transferId") long transferId,
+            @Param("targetCardId") long targetCardId,
+            @Param("balance") MemberCardBalanceRow balance,
+            @Param("valueAmount") BigDecimal valueAmount,
+            @Param("executedAt") java.time.LocalDateTime executedAt,
+            @Param("operatorId") long operatorId);
+
+    @Update("""
+            UPDATE dbo.ast_member_card
+            SET status = 'TRANSFERRED', updated_at = sysdatetime(), updated_by = #{operatorId}
+            WHERE id = #{cardId} AND status = 'ACTIVE'
+              AND row_version = CONVERT(binary(8), #{version}, 1)
+            """)
+    int markCardTransferred(
+            @Param("cardId") long cardId,
+            @Param("version") String version,
+            @Param("operatorId") long operatorId);
+
+    @Select("""
+            SELECT transfer.id, transfer.transfer_no AS transferNo,
+                   transfer.source_card_id AS sourceCardId, transfer.target_card_id AS targetCardId,
+                   transfer.source_member_id AS sourceMemberId,
+                   transfer.recipient_member_id AS recipientMemberId,
+                   recipient.full_name AS recipientMemberName,
+                   transfer.remaining_times AS remainingTimes,
+                   transfer.remaining_value AS remainingValue,
+                   transfer.old_expires_at AS oldExpiresAt,
+                   transfer.new_expires_at AS newExpiresAt,
+                   transfer.reason, transfer.executed_at AS executedAt
+            FROM dbo.ast_card_transfer transfer
+            JOIN dbo.mem_member recipient ON recipient.id = transfer.recipient_member_id
+            WHERE transfer.idempotency_key = #{key}
+            """)
+    CardTransferRow findTransferByIdempotencyKey(String key);
 }

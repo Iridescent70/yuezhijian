@@ -18,7 +18,9 @@ import {
   getMemberCards,
   purchaseMemberCard,
   quoteCardExchange,
+  transferMemberCard,
 } from '@/api/card'
+import { searchMembers } from '@/api/member'
 import { getEmployees } from '@/api/masterData'
 import { useAuthStore } from '@/stores/auth'
 import type {
@@ -28,6 +30,7 @@ import type {
   CardTypeDetail,
   EmployeeSummary,
   MemberCardSummary,
+  MemberSummary,
   PaymentMethodOption,
   PointAccount,
   PointLedgerItem,
@@ -56,15 +59,21 @@ const exchangeVisible = ref(false)
 const exchangeQuoteLoading = ref(false)
 const exchangeQuote = ref<CardExchangeQuote>()
 const exchangeSourceCard = ref<MemberCardSummary>()
+const transferVisible = ref(false)
+const transferSourceCard = ref<MemberCardSummary>()
+const recipientLoading = ref(false)
+const recipientMembers = ref<MemberSummary[]>([])
 const rechargeForm = reactive({ rechargeAmount: 0, giftAmount: 0, paymentMethodId: 0, externalReference: '' })
 const pointForm = reactive({ changePoints: 0, reason: '' })
 const cardForm = reactive({ cardTypeId: 0, quantity: 1, salesEmployeeId: undefined as number | undefined, paymentMethodId: 0, externalReference: '' })
 const exchangeForm = reactive({ targetCardTypeId: 0, employeeId: undefined as number | undefined, paymentMethodId: 0, externalReference: '' })
+const transferForm = reactive({ recipientMemberId: undefined as number | undefined, expiresAt: '', employeeId: undefined as number | undefined, reason: '' })
 const selectedMethod = computed(() => paymentMethods.value.find((item) => item.id === rechargeForm.paymentMethodId))
 const selectedCardMethod = computed(() => paymentMethods.value.find((item) => item.id === cardForm.paymentMethodId))
 const selectedCardType = computed(() => cardTypes.value.find((item) => item.id === cardForm.cardTypeId))
 const selectedExchangeMethod = computed(() => paymentMethods.value.find((item) => item.id === exchangeForm.paymentMethodId))
 const exchangeCardTypes = computed(() => cardTypes.value.filter((item) => item.id !== exchangeSourceCard.value?.cardTypeId))
+const selectedRecipient = computed(() => recipientMembers.value.find((item) => item.id === transferForm.recipientMemberId))
 const canManage = computed(() => auth.hasPermission('member:asset:manage'))
 
 const balanceTypeLabels: Record<string, string> = {
@@ -74,6 +83,10 @@ const balanceTypeLabels: Record<string, string> = {
 const pointTypeLabels: Record<string, string> = {
   EARN: '获得', REDEEM: '兑换', EXPIRE: '过期', REFUND: '退回',
   ADJUST_IN: '调增', ADJUST_OUT: '调减', REVERSAL: '冲销', MIGRATION: '数据迁移',
+}
+const cardStatusLabels: Record<string, string> = {
+  ACTIVE: '有效', EXHAUSTED: '已用完', EXPIRED: '已过期', FROZEN: '已冻结',
+  TRANSFERRED: '已转赠', EXCHANGED: '已换卡', REFUNDED: '已退卡',
 }
 
 async function load() {
@@ -304,6 +317,77 @@ async function submitCardExchange() {
   }
 }
 
+async function searchTransferRecipients(keyword: string) {
+  const requestedKeyword = keyword.trim()
+  recipientLoading.value = true
+  try {
+    const result = await searchMembers({
+      keyword: requestedKeyword || undefined,
+      status: 'ACTIVE',
+      page: 1,
+      size: 30,
+    })
+    recipientMembers.value = result.items.filter((item) => item.id !== props.memberId)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '接收会员查询失败')
+  } finally {
+    recipientLoading.value = false
+  }
+}
+
+async function openCardTransfer(row: unknown) {
+  const card = row as MemberCardSummary
+  try {
+    if (!salesEmployees.value.length) {
+      salesEmployees.value = (await getEmployees({ storeId: props.storeId }))
+        .filter((item) => item.canSell && item.status === 'ACTIVE')
+    }
+    transferSourceCard.value = card
+    Object.assign(transferForm, {
+      recipientMemberId: undefined,
+      expiresAt: card.expiresAt.slice(0, 19),
+      employeeId: salesEmployees.value[0]?.id,
+      reason: '',
+    })
+    recipientMembers.value = []
+    transferVisible.value = true
+    await searchTransferRecipients('')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '转赠资料加载失败')
+  }
+}
+
+async function submitCardTransfer() {
+  const card = transferSourceCard.value
+  if (!card || !transferForm.recipientMemberId || !transferForm.expiresAt || !transferForm.reason.trim()) {
+    ElMessage.warning('请选择接收会员、有效期并填写转赠原因'); return
+  }
+  await ElMessageBox.confirm(
+    `确认将 ${card.cardTypeName} 的剩余 ${card.remainingTimes} 次转赠给 ${selectedRecipient.value?.fullName ?? '所选会员'} 吗？原卡将立即失效。`,
+    '确认次卡转赠',
+    { type: 'warning' },
+  )
+  submitting.value = true
+  try {
+    const result = await transferMemberCard(card.id, {
+      recipientMemberId: transferForm.recipientMemberId,
+      expiresAt: transferForm.expiresAt,
+      storeId: props.storeId,
+      employeeId: transferForm.employeeId,
+      reason: transferForm.reason.trim(),
+      sourceCardVersion: card.version,
+      idempotencyKey: crypto.randomUUID(),
+    })
+    transferVisible.value = false
+    ElMessage.success(`转赠完成，接收会员新卡号：${result.targetCard.cardNo}`)
+    await load()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '次卡转赠失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
 function formatTime(value?: string) { return value ? value.replace('T', ' ').slice(0, 19) : '—' }
 
 onMounted(load)
@@ -377,9 +461,9 @@ onMounted(load)
           <el-table-column label="购卡金额" width="120" align="right"><template #default="scope">{{ formatMoney(scope.row.purchasePrice) }}</template></el-table-column>
           <el-table-column prop="purchaseStoreName" label="购卡门店" min-width="140" />
           <el-table-column label="到期日期" width="120"><template #default="scope">{{ scope.row.expiresAt.slice(0, 10) }}</template></el-table-column>
-          <el-table-column label="状态" width="100"><template #default="scope"><el-tag :type="scope.row.status === 'ACTIVE' ? 'success' : 'info'">{{ scope.row.status === 'ACTIVE' ? '有效' : scope.row.status }}</el-tag></template></el-table-column>
-          <el-table-column v-if="auth.hasPermission('member:card:manage')" label="操作" width="90" fixed="right">
-            <template #default="scope"><el-button v-if="scope.row.status === 'ACTIVE'" link type="primary" @click="openCardExchange(scope.row)">换卡</el-button></template>
+          <el-table-column label="状态" width="100"><template #default="scope"><el-tag :type="scope.row.status === 'ACTIVE' ? 'success' : 'info'">{{ cardStatusLabels[scope.row.status] ?? scope.row.status }}</el-tag></template></el-table-column>
+          <el-table-column v-if="auth.hasPermission('member:card:manage')" label="操作" width="130" fixed="right">
+            <template #default="scope"><template v-if="scope.row.status === 'ACTIVE'"><el-button link type="primary" @click="openCardExchange(scope.row)">换卡</el-button><el-button link type="primary" @click="openCardTransfer(scope.row)">转赠</el-button></template></template>
           </el-table-column>
         </el-table>
       </el-tab-pane>
@@ -440,6 +524,22 @@ onMounted(load)
         </template>
       </el-form>
       <template #footer><el-button @click="exchangeVisible = false">取消</el-button><el-button type="primary" :disabled="!exchangeQuote" :loading="submitting" @click="submitCardExchange">确认收款并换卡</el-button></template>
+    </el-dialog>
+
+    <el-dialog v-model="transferVisible" title="次卡转赠" width="620px" destroy-on-close>
+      <el-alert title="转赠会关闭原卡，并为接收会员建立仅包含当前剩余次数的新卡；操作完成后不能直接撤回。" type="warning" :closable="false" />
+      <el-form label-width="110px" style="margin-top: 20px">
+        <el-form-item label="转出次卡"><span>{{ transferSourceCard?.cardTypeName }} · 剩余 {{ transferSourceCard?.remainingTimes }} 次</span></el-form-item>
+        <el-form-item label="接收会员" required>
+          <el-select v-model="transferForm.recipientMemberId" filterable remote reserve-keyword :remote-method="searchTransferRecipients" :loading="recipientLoading" placeholder="输入手机号、会员号或会员卡号" style="width: 100%">
+            <el-option v-for="item in recipientMembers" :key="item.id" :label="`${item.fullName} · ${item.memberNo} · ${item.maskedMobile}`" :value="item.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="新卡有效期" required><el-date-picker v-model="transferForm.expiresAt" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" placeholder="选择新卡到期时间" style="width: 100%" /></el-form-item>
+        <el-form-item label="经办员工"><el-select v-model="transferForm.employeeId" clearable style="width: 100%"><el-option v-for="item in salesEmployees" :key="item.id" :label="item.name" :value="item.id" /></el-select></el-form-item>
+        <el-form-item label="转赠原因" required><el-input v-model="transferForm.reason" type="textarea" maxlength="500" show-word-limit /></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="transferVisible = false">取消</el-button><el-button type="primary" :loading="submitting" @click="submitCardTransfer">确认转赠</el-button></template>
     </el-dialog>
   </div>
 </template>

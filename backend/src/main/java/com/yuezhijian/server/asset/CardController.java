@@ -87,4 +87,13 @@ public class CardController {
             Principal principal) {
         return ApiResponse.ok(service.exchange(id, request, principal.getName()));
     }
+
+    @PostMapping("/member-cards/{id}/transfer")
+    @PreAuthorize("hasAuthority('member:card:manage')")
+    public ApiResponse<CardTransferResult> transfer(
+            @PathVariable long id,
+            @Valid @RequestBody TransferMemberCardRequest request,
+            Principal principal) {
+        return ApiResponse.ok(service.transfer(id, request, principal.getName()));
+    }
 }

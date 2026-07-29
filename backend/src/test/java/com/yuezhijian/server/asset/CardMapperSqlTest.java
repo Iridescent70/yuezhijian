@@ -60,4 +60,20 @@ class CardMapperSqlTest {
                 "status = 'EXCHANGED'", "status = 'ACTIVE'",
                 "row_version = CONVERT(binary(8), #{version}, 1)");
     }
+
+    @Test
+    void transferLocksActiveRecipientAndVersionClosesSourceCard() throws Exception {
+        Method create = CardMapper.class.getMethod(
+                "insertTransferMemberCard", String.class, CardTransferCommand.class);
+        Method close = CardMapper.class.getMethod("markCardTransferred", long.class, String.class, long.class);
+        String createSql = String.join(" ", create.getAnnotation(Select.class).value());
+        String closeSql = String.join(" ", close.getAnnotation(Update.class).value());
+
+        assertThat(createSql).contains(
+                "mem_member recipient WITH (UPDLOCK, HOLDLOCK)", "recipient.status = 'ACTIVE'",
+                "#{command.remainingValue}", "#{command.sourceCard.id}");
+        assertThat(closeSql).contains(
+                "status = 'TRANSFERRED'", "status = 'ACTIVE'",
+                "row_version = CONVERT(binary(8), #{version}, 1)");
+    }
 }

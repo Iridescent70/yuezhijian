@@ -22,4 +22,8 @@ public interface CardRepository {
     Optional<CardExchangeResult> findExchangeByIdempotencyKey(String key);
 
     CardExchangeResult exchange(CardExchangeCommand command);
+
+    Optional<CardTransferResult> findTransferByIdempotencyKey(String key);
+
+    CardTransferResult transfer(CardTransferCommand command);
 }

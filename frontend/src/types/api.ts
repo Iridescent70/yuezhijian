@@ -357,6 +357,22 @@ export interface CardExchangeResult {
   executedAt: string
 }
 
+export interface CardTransferResult {
+  transferId: number
+  transferNo: string
+  sourceCard: MemberCardSummary
+  targetCard: MemberCardSummary
+  sourceMemberId: number
+  recipientMemberId: number
+  recipientMemberName: string
+  remainingTimes: number
+  remainingValue: number
+  oldExpiresAt: string
+  newExpiresAt: string
+  reason: string
+  executedAt: string
+}
+
 export interface CreateMemberPayload {
   fullName: string
   nickname?: string

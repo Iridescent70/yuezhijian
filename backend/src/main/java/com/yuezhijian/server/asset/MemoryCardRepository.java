@@ -22,6 +22,7 @@ public class MemoryCardRepository implements CardRepository {
     private final Map<String, CardSaleResult> sales = new LinkedHashMap<>();
     private final Map<String, CardExchangeQuote> exchangeQuotes = new LinkedHashMap<>();
     private final Map<String, CardExchangeResult> exchanges = new LinkedHashMap<>();
+    private final Map<String, CardTransferResult> transfers = new LinkedHashMap<>();
     private final AtomicLong typeIds = new AtomicLong(501);
     private final AtomicLong orderIds = new AtomicLong(600);
     private final AtomicLong cardIds = new AtomicLong(700);
@@ -29,6 +30,7 @@ public class MemoryCardRepository implements CardRepository {
     private final AtomicLong ledgerIds = new AtomicLong(900);
     private final AtomicLong exchangeQuoteIds = new AtomicLong(1000);
     private final AtomicLong exchangeIds = new AtomicLong(1100);
+    private final AtomicLong transferIds = new AtomicLong(1200);
     private final AssetNumberGenerator numbers;
 
     public MemoryCardRepository(AssetNumberGenerator numbers) {
@@ -324,6 +326,88 @@ public class MemoryCardRepository implements CardRepository {
                 quote.targetCardTypeId(), quote.targetCardTypeName(), quote.targetCardTypeVersion(), quote.oldRemainingTimes(),
                 quote.oldRemainingValue(), quote.newCardValue(), quote.differenceAmount(), quote.oldCardVersion(),
                 quote.expiresAt(), true));
+        return result;
+    }
+
+    @Override
+    public synchronized Optional<CardTransferResult> findTransferByIdempotencyKey(String key) {
+        return Optional.ofNullable(transfers.get(key));
+    }
+
+    @Override
+    public synchronized CardTransferResult transfer(CardTransferCommand command) {
+        Optional<CardTransferResult> existing = findTransferByIdempotencyKey(command.idempotencyKey());
+        if (existing.isPresent()) return existing.get();
+        MemberCardDetail sourceDetail = cards.get(command.sourceCard().id());
+        if (sourceDetail == null || !"ACTIVE".equals(sourceDetail.card().status())
+                || !sourceDetail.card().version().equals(command.sourceCard().version())) {
+            throw new DuplicateResourceException("原次卡状态已发生变化，请刷新后重试");
+        }
+        if (sourceDetail.balances().stream().anyMatch(item -> item.frozenTimes().signum() > 0)) {
+            throw new IllegalArgumentException("原次卡存在冻结次数，不能转赠");
+        }
+        List<MemberCardBalanceItem> transferable = sourceDetail.balances().stream()
+                .filter(item -> item.remainingTimes().signum() > 0).toList();
+        BigDecimal remaining = transferable.stream().map(MemberCardBalanceItem::remainingTimes)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (remaining.signum() <= 0 || remaining.compareTo(command.remainingTimes()) != 0) {
+            throw new DuplicateResourceException("原次卡次数已发生变化，请刷新后重试");
+        }
+        long transferId = transferIds.incrementAndGet();
+        List<MemberCardBalanceItem> sourceBalances = sourceDetail.balances().stream().map(item ->
+                new MemberCardBalanceItem(
+                        item.id(), item.serviceId(), item.serviceCode(), item.serviceName(), item.totalTimes(),
+                        BigDecimal.ZERO.setScale(4), item.frozenTimes(), item.deductTimes(), nextVersion(item.version())))
+                .toList();
+        List<MemberCardLedgerItem> sourceLedgers = new ArrayList<>(sourceDetail.ledgers());
+        List<MemberCardBalanceItem> targetBalances = new ArrayList<>();
+        List<MemberCardLedgerItem> targetLedgers = new ArrayList<>();
+        BigDecimal allocated = BigDecimal.ZERO.setScale(4);
+        for (int index = 0; index < transferable.size(); index++) {
+            MemberCardBalanceItem balance = transferable.get(index);
+            BigDecimal value = index == transferable.size() - 1
+                    ? command.remainingValue().subtract(allocated)
+                    : command.remainingValue().multiply(balance.remainingTimes())
+                            .divide(remaining, 4, java.math.RoundingMode.HALF_UP);
+            value = value.setScale(4, java.math.RoundingMode.HALF_UP);
+            allocated = allocated.add(value);
+            sourceLedgers.add(new MemberCardLedgerItem(
+                    ledgerIds.incrementAndGet(), numbers.cardLedgerNo(), balance.serviceId(), balance.serviceName(),
+                    "TRANSFER_OUT", balance.remainingTimes(), balance.remainingTimes().negate(),
+                    BigDecimal.ZERO.setScale(4), value, "CARD_TRANSFER", transferId, command.executedAt(),
+                    "card-transfer:" + transferId + ":out:" + balance.id(), null, "次卡转赠转出"));
+            targetBalances.add(new MemberCardBalanceItem(
+                    balanceIds.incrementAndGet(), balance.serviceId(), balance.serviceCode(), balance.serviceName(),
+                    balance.remainingTimes(), balance.remainingTimes(), BigDecimal.ZERO.setScale(4),
+                    balance.deductTimes(), "1"));
+            targetLedgers.add(new MemberCardLedgerItem(
+                    ledgerIds.incrementAndGet(), numbers.cardLedgerNo(), balance.serviceId(), balance.serviceName(),
+                    "TRANSFER_IN", BigDecimal.ZERO.setScale(4), balance.remainingTimes(), balance.remainingTimes(),
+                    value, "CARD_TRANSFER", transferId, command.executedAt(),
+                    "card-transfer:" + transferId + ":in:" + balance.serviceId(), null, "次卡转赠转入"));
+        }
+        MemberCardSummary source = sourceDetail.card();
+        MemberCardSummary transferredSource = new MemberCardSummary(
+                source.id(), source.cardNo(), source.memberId(), source.cardTypeId(), source.cardTypeCode(),
+                source.cardTypeName(), source.purchaseStoreId(), source.purchaseStoreName(), source.purchasePrice(),
+                source.totalTimes(), BigDecimal.ZERO.setScale(4), source.frozenTimes(), source.startedAt(),
+                source.expiresAt(), "TRANSFERRED", nextVersion(source.version()));
+        cards.put(source.id(), new MemberCardDetail(
+                transferredSource, sourceBalances, List.copyOf(sourceLedgers)));
+
+        long targetCardId = cardIds.incrementAndGet();
+        MemberCardSummary target = new MemberCardSummary(
+                targetCardId, numbers.memberCardNo(), command.recipientMemberId(), source.cardTypeId(),
+                source.cardTypeCode(), source.cardTypeName(), source.purchaseStoreId(), source.purchaseStoreName(),
+                command.remainingValue(), command.remainingTimes(), command.remainingTimes(),
+                BigDecimal.ZERO.setScale(4), command.executedAt(), command.newExpiresAt(), "ACTIVE", "1");
+        cards.put(targetCardId, new MemberCardDetail(target, List.copyOf(targetBalances), List.copyOf(targetLedgers)));
+        CardTransferResult result = new CardTransferResult(
+                transferId, command.transferNo(), transferredSource, target, source.memberId(),
+                command.recipientMemberId(), command.recipientMemberName(), command.remainingTimes(),
+                command.remainingValue(), source.expiresAt(), command.newExpiresAt(), command.reason(),
+                command.executedAt());
+        transfers.put(command.idempotencyKey(), result);
         return result;
     }
 

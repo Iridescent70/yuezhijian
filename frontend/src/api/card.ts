@@ -2,6 +2,7 @@ import { apiRequest } from './http'
 import type {
   CardExchangeQuote,
   CardExchangeResult,
+  CardTransferResult,
   CardSaleResult,
   CardTypeDetail,
   CreateCardTypePayload,
@@ -53,5 +54,19 @@ export function executeCardExchange(cardId: number, payload: {
 }): Promise<CardExchangeResult> {
   return apiRequest<CardExchangeResult>({
     method: 'POST', url: `/member-cards/${cardId}/exchange`, data: payload,
+  })
+}
+
+export function transferMemberCard(cardId: number, payload: {
+  recipientMemberId: number
+  expiresAt: string
+  storeId: number
+  employeeId?: number
+  reason: string
+  sourceCardVersion: string
+  idempotencyKey: string
+}): Promise<CardTransferResult> {
+  return apiRequest<CardTransferResult>({
+    method: 'POST', url: `/member-cards/${cardId}/transfer`, data: payload,
   })
 }
