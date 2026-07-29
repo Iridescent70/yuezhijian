@@ -168,6 +168,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '薪资测算', permission: 'commission:plan:view' },
       },
       {
+        path: 'service/visits',
+        name: 'visit-tasks',
+        component: () => import('@/views/visit/VisitTaskView.vue'),
+        meta: { title: '回访管理', permission: 'visit:task:view' },
+      },
+      {
         path: 'forbidden',
         name: 'forbidden',
         component: () => import('@/views/ForbiddenView.vue'),

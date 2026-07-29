@@ -90,6 +90,7 @@ plan/migration/
 | `V202607291220` | 代金券定义、发放绑定、结算核销和冲销返券 | `cat_voucher`、`ben_voucher_*`、`trd_*_asset*` |
 | `V202607291230` | 版本化提成方案、服务计提事实和账单冲销负向流水 | `comm_plan*`、`comm_ledger` |
 | `V202607291240` | 提成测算页菜单及排序 | `iam_menu` |
+| `V202607291250` | 结算后回访、多技师记录、满意度和客诉 | `vis_visit_task`、`vis_visit_participant`、`vis_visit_record` |
 | `R__reporting_views` | 可重复构建的统计视图 | `rpt_*` 视图/函数 |
 
 表中未落地版本仍属于设计基线；实际脚本只能在当前最高版本之后追加，逐个建立同号说明并记录各环境执行结果，禁止为了补齐旧编号而开启Flyway乱序执行。

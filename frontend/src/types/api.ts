@@ -1032,3 +1032,70 @@ export interface CommissionLedgerItem {
   correlationId: string
   reversedLedgerId?: number
 }
+
+export type VisitTaskStatus = 'PENDING' | 'OVERDUE' | 'COMPLETED' | 'CANCELLED'
+export type VisitResultCode = 'CONTACTED' | 'NO_ANSWER' | 'DECLINED' | 'FOLLOW_UP'
+
+export interface VisitTaskSummary {
+  id: number
+  taskNo: string
+  memberId: number
+  billId: number
+  billNo: string
+  customerName: string
+  maskedMobile: string
+  storeId: number
+  storeName: string
+  dueAt: string
+  taskType: 'AFTER_SALE'
+  status: VisitTaskStatus
+  overdue: boolean
+  complaintFlag: boolean
+  participantCount: number
+  completedCount: number
+  conclusion?: string
+  settledAt: string
+  completedAt?: string
+  canceledAt?: string
+  cancelReason?: string
+  createdAt: string
+}
+
+export interface VisitParticipantItem {
+  id: number
+  employeeId?: number
+  employeeName: string
+  serviceSummary: string
+  status: 'PENDING' | 'COMPLETED'
+  completedAt?: string
+}
+
+export interface VisitRecordItem {
+  id: number
+  participantId: number
+  employeeId: number
+  employeeName: string
+  resultCode: VisitResultCode
+  satisfactionScore?: number
+  complaintFlag: boolean
+  content?: string
+  nextFollowAt?: string
+  createdAt: string
+  createdBy: number
+  createdByName: string
+}
+
+export interface VisitTaskDetail {
+  task: VisitTaskSummary
+  participants: VisitParticipantItem[]
+  records: VisitRecordItem[]
+}
+
+export interface VisitRecordPayload {
+  employeeId: number
+  resultCode: VisitResultCode
+  satisfactionScore?: number
+  complaintFlag: boolean
+  content?: string
+  nextFollowAt?: string
+}

@@ -254,10 +254,10 @@
 
 | API 编号 | 方法与路径 | 用途及主要入参 | 主要返回/权限 | 需求来源 |
 | --- | --- | --- | --- | --- |
-| API-VIS-001 | `GET /visit-tasks` | 会员、账单、门店、技师、状态、到期日 | 回访任务分页 | 会员管理-03、结算管理-05 |
-| API-VIS-002 | `GET /visit-tasks/{id}` | id | 账单、会员、参与技师和历史 | 会员管理-03 |
-| API-VIS-003 | `POST /visit-tasks/{id}/records` | 结果、满意度、客诉、下次跟进日 | 回访记录 | 结算管理-05 |
-| API-VIS-004 | `POST /visit-tasks/{id}/complete` | 结论 | 完成状态 | 结算管理-05 |
+| API-VIS-001 | `GET /visit-tasks` | `storeId/employeeId/status/dueDate/keyword`；状态为`PENDING/OVERDUE/COMPLETED/CANCELLED` | 任务、会员、账单、技师进度、客诉及到期时间；`visit:task:view`；已实现 | 会员管理-03、结算管理-05 |
+| API-VIS-002 | `GET /visit-tasks/{id}` | id | 任务、账单、会员、参与技师和回访历史；`visit:task:view`；已实现 | 会员管理-03 |
+| API-VIS-003 | `POST /visit-tasks/{id}/records` | `employeeId/resultCode/satisfactionScore/complaintFlag/content/nextFollowAt` | 更新后的完整任务；`visit:task:manage`；已实现 | 结算管理-05 |
+| API-VIS-004 | `POST /visit-tasks/{id}/complete` | `conclusion`；仅所有参与技师完成后允许 | 完成状态和总结；`visit:task:manage`；已实现 | 结算管理-05 |
 | API-VIS-005 | `GET/PUT /satisfaction-rules` | 无/识别关键字、评分映射 | 规则 | 系统管理-19 |
 | API-VIS-006 | `GET /service-feedback` | 会员、账单、评分、状态 | 反馈分页 | 系统管理-20 |
 | API-VIS-007 | `POST /service-feedback/{id}/handle` | 处理人、结果、附件 | 处理记录 | 系统管理-20 |
@@ -277,6 +277,8 @@
 | API-NTF-005 | `POST /notifications/test` | templateId、channel、recipient | 测试发送结果 | 通知-01 |
 | API-NTF-006 | `GET/POST /announcements` | 查询/标题、内容、门店、有效期 | 公告列表/id | 系统管理-18 |
 | API-NTF-007 | `PUT /announcements/{id}` | 公告内容、状态、version | 更新结果 | 系统管理-18 |
+
+`API-VIS-001~004`基础闭环已落地。会员账单确认结算后在同一事务中生成一张回访任务，默认到期时间为结算后24小时；同一账单重复结算不会重复生成。每位服务技师生成一个参与项，无技师账单生成“待分配”项。`CONTACTED`必须填写1至5分满意度，`NO_ANSWER/FOLLOW_UP`必须填写未来的下次跟进时间，`DECLINED`直接结束该技师参与项；所有参与项完成后任务自动完成。整单冲销只取消尚未完成的任务。24小时规则后续应改为系统参数，咨询卡/色号、独立客诉处理单和满意度识别规则仍按`API-VIS-005~007`继续开发。
 
 ## 7. 薪酬、提成、目标和分润
 

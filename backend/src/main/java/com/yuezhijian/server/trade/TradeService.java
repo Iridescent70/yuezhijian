@@ -26,6 +26,7 @@ import com.yuezhijian.server.masterdata.MasterDataRepository;
 import com.yuezhijian.server.masterdata.ServiceItemSummary;
 import com.yuezhijian.server.member.MemberDetail;
 import com.yuezhijian.server.member.MemberRepository;
+import com.yuezhijian.server.visit.VisitService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -55,6 +56,7 @@ public class TradeService {
     private final CardRepository cards;
     private final BenefitRepository benefits;
     private final CommissionService commissions;
+    private final VisitService visits;
     private final AccessCatalogService accessCatalog;
     private final TradeNumberGenerator numbers;
 
@@ -67,6 +69,7 @@ public class TradeService {
             CardRepository cards,
             BenefitRepository benefits,
             CommissionService commissions,
+            VisitService visits,
             AccessCatalogService accessCatalog,
             TradeNumberGenerator numbers) {
         this.repository = repository;
@@ -77,6 +80,7 @@ public class TradeService {
         this.cards = cards;
         this.benefits = benefits;
         this.commissions = commissions;
+        this.visits = visits;
         this.accessCatalog = accessCatalog;
         this.numbers = numbers;
     }
@@ -426,6 +430,7 @@ public class TradeService {
         Optional<BillDetail> existing = repository.findBySettlementIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
             if (existing.get().bill().id() != billId) throw new IllegalArgumentException("结算幂等键已被其他账单使用");
+            visits.ensureForSettledBill(existing.get(), currentUserId(username));
             return existing.get();
         }
         SettlementQuote quote = repository.findQuote(request.quoteNo())
@@ -464,6 +469,7 @@ public class TradeService {
         BillDetail settled = repository.settle(new SettleBillCommand(
                 billId, quote, idempotencyKey, operatorId));
         commissions.recordSettledBill(settled, operatorId);
+        visits.ensureForSettledBill(settled, operatorId);
         return settled;
     }
 
