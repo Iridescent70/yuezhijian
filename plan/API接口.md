@@ -238,14 +238,16 @@
 | API-TRD-014 | `GET /bill-adjustments/{id}/preview` | 申请 id | 新旧金额、门店和提成差额 | 结算管理-03 |
 | API-TRD-015 | `POST /bill-adjustments/{id}/approve`、`/reject` | 意见 | 审批结果 | 结算管理-03 |
 | API-TRD-016 | `POST /bill-adjustments/{id}/execute` | 幂等键 | 调整单、反向及新流水 | 结算管理-03 |
-| API-TRD-017 | `GET/POST /reversal-requests` | 查询/对象类型、对象 id、退款算法/方式、手续费 | 申请分页/id | 结算管理-04 |
-| API-TRD-018 | `GET /reversal-requests/{id}/preview` | 申请 id | 退款、资产、提成级联影响 | 结算管理-04 |
-| API-TRD-019 | `POST /reversal-requests/{id}/approve`、`/reject` | 意见 | 审批结果 | 结算管理-04 |
-| API-TRD-020 | `POST /reversal-requests/{id}/execute` | 退款凭证 | 冲销单和全部反向流水 | 业务管理-02、结算管理-04 |
+| API-TRD-017 | `GET /reversals`、`POST /bills/{billId}/reversals` | 状态查询/原因、`idempotencyKey` | 列表/冲销申请、支付及资产影响；`trade:reversal:view/manage` | 结算管理-04 |
+| API-TRD-018 | `GET /reversals/{id}` | 冲销 id | 申请、原账单、支付退款及资产返还明细；`trade:reversal:view` | 结算管理-04 |
+| API-TRD-019 | `POST /reversals/{id}/review` | `approved`、意见、`version` | `APPROVED/REJECTED`；`trade:reversal:approve` | 结算管理-04 |
+| API-TRD-020 | `POST /reversals/{id}/execute` | `version`、`idempotencyKey` | `EXECUTED`、账单`REVERSED`、支付退款及资产反向流水；`trade:reversal:manage` | 业务管理-02、结算管理-04 |
 | API-TRD-021 | `GET /recommendation-card-performance` | 日期、门店、技师 | 推荐卡卡数和金额 | 业务管理-04 |
 | API-TRD-022 | `GET /global-search` | keyword、types | 会员、账单、预约、功能结果 | 优化系统管理-05 |
 
 账单状态：`DRAFT → PENDING_PAYMENT → SETTLED`；草稿可 `VOIDED`，已结算只能通过审批生成 `ADJUSTED` 或 `REVERSED`，禁止直接改状态。预约状态：`PENDING_CONFIRM → CONFIRMED → ARRIVED → SERVING → COMPLETED`，分支为 `CANCELLED/NO_SHOW`。审批状态统一为 `DRAFT/SUBMITTED/APPROVING/APPROVED/REJECTED/EXECUTED/CANCELLED`。
+
+当前冲销接口先落地已结算账单的整单冲销：申请时按账单事实生成支付和会员资产影响，审批后一次性执行；现金找零从退款金额中扣除，原账单金额和原流水保留。储值、积分和次卡分别追加`REFUND`流水并关联原扣减流水。部分退款、储值单/次卡单独冲销、多级审批、提成冲回及真实电子支付通道退款属于后续扩展；通道未接通前，电子支付退款记录仅可用于本地联调，不能作为生产退款验收结果。
 
 ## 6. 回访、满意度、短信、通知和营销
 

@@ -126,6 +126,33 @@ public class SqlServerCardRepository implements CardRepository {
         mapper.insertCardAssetUsage(command, ledgerId);
     }
 
+    @Override
+    @Transactional
+    public void refundCard(CardRefundCommand command) {
+        if (command.times() == null || command.times().signum() <= 0 || command.originalLedgerId() == null) {
+            throw new IllegalArgumentException("次卡冲销数据不完整");
+        }
+        MemberCardDetail card = findMemberCard(command.memberCardId())
+                .orElseThrow(() -> new IllegalArgumentException("会员次卡不存在"));
+        if (card.card().memberId() != command.memberId()) {
+            throw new IllegalArgumentException("次卡不属于当前会员");
+        }
+        MemberCardBalanceRow balance = mapper.lockMemberCardBalance(command.memberCardBalanceId());
+        if (balance == null || balance.memberCardId() != command.memberCardId()
+                || balance.serviceId() != command.serviceId()) {
+            throw new IllegalArgumentException("次卡冲销项目不匹配");
+        }
+        BigDecimal after = balance.remainingTimes().add(command.times());
+        if (after.compareTo(balance.totalTimes().subtract(balance.frozenTimes())) > 0) {
+            throw new IllegalArgumentException("次卡返还后次数超过可用上限");
+        }
+        if (mapper.refundCardBalance(balance.id(), command.times(), balance.rowVersion()) != 1) {
+            throw new DuplicateResourceException("次卡次数已发生变化，请重新执行冲销");
+        }
+        mapper.insertCardRefundLedger(numbers.cardLedgerNo(), command, balance.remainingTimes(), after);
+        mapper.restoreMemberCardStatus(command.memberCardId(), command.operatorId());
+    }
+
     private CardTypeDetail toCardType(CardTypeRow row) {
         return new CardTypeDetail(
                 row.id(), row.code(), row.name(), row.salePrice(), row.listPrice(), row.totalTimes(),

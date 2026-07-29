@@ -33,4 +33,20 @@ public interface TradeRepository {
     BillDetail settle(SettleBillCommand command);
 
     BillDetail voidBill(long billId, String reasonCode, String note, String version, long operatorId);
+
+    List<ReversalSummary> reversals(String status);
+
+    Optional<ReversalDetail> findReversal(long id);
+
+    Optional<ReversalDetail> findReversalByRequestKey(String idempotencyKey);
+
+    Optional<ReversalDetail> findReversalByExecutionKey(String idempotencyKey);
+
+    Optional<ReversalDetail> findActiveReversalByBill(long billId);
+
+    ReversalDetail createReversal(ReversalDraft draft);
+
+    ReversalDetail reviewReversal(long id, boolean approved, String comment, String version, long operatorId);
+
+    ReversalDetail executeReversal(ReversalExecutionCommand command);
 }

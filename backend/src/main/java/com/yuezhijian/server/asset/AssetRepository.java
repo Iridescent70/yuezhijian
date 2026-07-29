@@ -19,4 +19,6 @@ public interface AssetRepository {
     int pointsPerYuan();
     void consumeBalance(BalanceSettlementConsumption command);
     void consumePoints(PointSettlementConsumption command);
+    void refundBalance(BalanceRefundCommand command);
+    void refundPoints(PointRefundCommand command);
 }

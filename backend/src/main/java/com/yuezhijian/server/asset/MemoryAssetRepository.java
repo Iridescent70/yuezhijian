@@ -228,6 +228,39 @@ public class MemoryAssetRepository implements AssetRepository {
         account.version++;
     }
 
+    @Override
+    public synchronized void refundBalance(BalanceRefundCommand command) {
+        MutableBalanceAccount account = balance(command.memberId());
+        LocalDateTime now = LocalDateTime.now();
+        BigDecimal before = account.available;
+        BigDecimal after = before.add(command.amount());
+        balanceLedgers.add(new BalanceLedgerItem(
+                balanceLedgerIds.incrementAndGet(), command.memberId(), numbers.balanceLedgerNo(), "REFUND",
+                before, command.amount(), after, "REVERSAL", command.reversalId(), command.storeId(),
+                storeName(command.storeId()), now, "reversal:" + command.reversalId() + ":usage:" + command.usageId(),
+                command.originalLedgerId(), command.note()));
+        account.available = after;
+        account.lastTransactionAt = now;
+        account.version++;
+    }
+
+    @Override
+    public synchronized void refundPoints(PointRefundCommand command) {
+        MutablePointAccount account = point(command.memberId());
+        int after;
+        try { after = Math.addExact(account.available, command.points()); }
+        catch (ArithmeticException exception) { throw new IllegalArgumentException("积分返还超出允许范围"); }
+        LocalDateTime now = LocalDateTime.now();
+        pointLedgers.add(new PointLedgerItem(
+                pointLedgerIds.incrementAndGet(), command.memberId(), numbers.pointLedgerNo(), "REFUND",
+                account.available, command.points(), after, "REVERSAL", command.reversalId(), null, now,
+                "reversal:" + command.reversalId() + ":usage:" + command.usageId(),
+                command.originalLedgerId(), command.note()));
+        account.available = after;
+        account.lastTransactionAt = now;
+        account.version++;
+    }
+
     private MutableBalanceAccount balance(long memberId) {
         return balances.computeIfAbsent(memberId, ignored -> new MutableBalanceAccount(
                 BigDecimal.ZERO.setScale(4), BigDecimal.ZERO.setScale(4), BigDecimal.ZERO.setScale(4), null, 1));

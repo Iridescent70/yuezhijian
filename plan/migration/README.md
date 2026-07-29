@@ -83,6 +83,7 @@ plan/migration/
 | `V202607291150` | 次卡类型、售卡订单、会员次卡余额和次数流水 | `cat_card_*`、`ast_card_sale_order`、`ast_member_card*` |
 | `V202607291160` | 储值、积分、次卡组合结算和资产使用事实 | `trd_settlement_quote_asset`、`trd_bill_asset_usage` |
 | `V202607291170` | 账单行软删除、整单优惠及逐行分摊 | `trd_bill_line`、`trd_bill_discount` |
+| `V202607291180` | 整单冲销审批、支付退款事实及冲销权限 | `trd_reversal`、`trd_payment_refund` |
 | `R__reporting_views` | 可重复构建的统计视图 | `rpt_*` 视图/函数 |
 
 表中未落地版本仍属于设计基线；实际脚本只能在当前最高版本之后追加，逐个建立同号说明并记录各环境执行结果，禁止为了补齐旧编号而开启Flyway乱序执行。

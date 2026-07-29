@@ -1,10 +1,9 @@
 package com.yuezhijian.server.trade;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
-public record BillAssetUsageItem(
-        long id,
+public record ReversalAssetImpact(
+        long usageId,
         String assetType,
         long memberId,
         Long memberCardId,
@@ -14,5 +13,4 @@ public record BillAssetUsageItem(
         BigDecimal quantity,
         BigDecimal amount,
         Long assetLedgerId,
-        String displayName,
-        LocalDateTime createdAt) {}
+        String displayName) {}

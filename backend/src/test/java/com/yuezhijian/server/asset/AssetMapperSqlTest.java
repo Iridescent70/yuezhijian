@@ -33,4 +33,20 @@ class AssetMapperSqlTest {
         assertThat(balanceSql).contains("row_version = #{rowVersion}", "available_balance >= #{amount}");
         assertThat(pointSql).contains("row_version = #{rowVersion}", "available_points >= #{points}");
     }
+
+    @Test
+    void reversalCreditsUseVersionAndLinkOriginalLedger() throws Exception {
+        Method balance = AssetMapper.class.getMethod(
+                "refundBalance", long.class, java.math.BigDecimal.class,
+                java.time.LocalDateTime.class, byte[].class);
+        Method pointLedger = AssetMapper.class.getMethod(
+                "insertPointRefundLedger", String.class, long.class, int.class, int.class, int.class,
+                java.time.LocalDateTime.class, PointRefundCommand.class);
+
+        String balanceSql = String.join(" ", balance.getAnnotation(Update.class).value());
+        String ledgerSql = String.join(" ", pointLedger.getAnnotation(org.apache.ibatis.annotations.Insert.class).value());
+
+        assertThat(balanceSql).contains("available_balance = available_balance + #{amount}", "row_version = #{rowVersion}");
+        assertThat(ledgerSql).contains("'REVERSAL'", "#{command.originalLedgerId}", "#{command.usageId}");
+    }
 }

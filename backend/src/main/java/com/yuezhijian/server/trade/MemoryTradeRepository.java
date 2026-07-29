@@ -29,12 +29,16 @@ public class MemoryTradeRepository implements TradeRepository {
     private final Map<String, Long> billIdempotency = new LinkedHashMap<>();
     private final Map<String, SettlementQuote> quotes = new LinkedHashMap<>();
     private final Map<String, Long> settlementIdempotency = new LinkedHashMap<>();
+    private final Map<Long, ReversalDetail> reversalRequests = new LinkedHashMap<>();
+    private final Map<String, Long> reversalRequestKeys = new LinkedHashMap<>();
+    private final Map<String, Long> reversalExecutionKeys = new LinkedHashMap<>();
     private final AtomicLong billIds = new AtomicLong(2000);
     private final AtomicLong lineIds = new AtomicLong(3000);
     private final AtomicLong paymentIds = new AtomicLong(4000);
     private final AtomicLong historyIds = new AtomicLong(5000);
     private final AtomicLong discountIds = new AtomicLong(6000);
     private final AtomicLong assetUsageIds = new AtomicLong(7000);
+    private final AtomicLong reversalIds = new AtomicLong(8000);
     private final MemberRepository members;
     private final AccessCatalogService accessCatalog;
     private final TradeNumberGenerator numbers;
@@ -266,9 +270,13 @@ public class MemoryTradeRepository implements TradeRepository {
                 line.receivableAmount(), line.receivableAmount(), line.employeeId(), line.employeeName(), line.note()
         )).toList();
         List<BillAssetUsageItem> assetUsages = command.quote().assets().stream()
-                .map(asset -> new BillAssetUsageItem(
-                        assetUsageIds.incrementAndGet(), asset.assetType(), asset.memberCardId(), asset.billLineId(),
-                        asset.quantity(), asset.amount(), asset.displayName(), LocalDateTime.now()))
+                .map(asset -> {
+                    long usageId = assetUsageIds.incrementAndGet();
+                    return new BillAssetUsageItem(
+                            usageId, asset.assetType(), asset.memberId(), asset.memberCardId(),
+                            asset.memberCardBalanceId(), asset.billLineId(), asset.serviceId(), asset.quantity(),
+                            asset.amount(), usageId, asset.displayName(), LocalDateTime.now());
+                })
                 .toList();
         BillDetail result = new BillDetail(
                 bill, settledLines, payments, current.discounts(), assetUsages, history);
@@ -302,6 +310,116 @@ public class MemoryTradeRepository implements TradeRepository {
         return result;
     }
 
+    @Override
+    public synchronized List<ReversalSummary> reversals(String status) {
+        return reversalRequests.values().stream().map(ReversalDetail::reversal)
+                .filter(item -> status == null || status.equals(item.status()))
+                .sorted(Comparator.comparing(ReversalSummary::requestedAt).reversed()
+                        .thenComparing(ReversalSummary::id, Comparator.reverseOrder()))
+                .toList();
+    }
+
+    @Override
+    public synchronized Optional<ReversalDetail> findReversal(long id) {
+        return Optional.ofNullable(reversalRequests.get(id));
+    }
+
+    @Override
+    public synchronized Optional<ReversalDetail> findReversalByRequestKey(String key) {
+        Long id = key == null ? null : reversalRequestKeys.get(key);
+        return id == null ? Optional.empty() : findReversal(id);
+    }
+
+    @Override
+    public synchronized Optional<ReversalDetail> findReversalByExecutionKey(String key) {
+        Long id = key == null ? null : reversalExecutionKeys.get(key);
+        return id == null ? Optional.empty() : findReversal(id);
+    }
+
+    @Override
+    public synchronized Optional<ReversalDetail> findActiveReversalByBill(long billId) {
+        return reversalRequests.values().stream()
+                .filter(item -> item.reversal().billId() == billId)
+                .filter(item -> List.of("SUBMITTED", "APPROVED", "EXECUTED").contains(item.reversal().status()))
+                .findFirst();
+    }
+
+    @Override
+    public synchronized ReversalDetail createReversal(ReversalDraft draft) {
+        Optional<ReversalDetail> existing = findReversalByRequestKey(draft.idempotencyKey());
+        if (existing.isPresent()) return existing.get();
+        long id = reversalIds.incrementAndGet();
+        LocalDateTime now = LocalDateTime.now();
+        ReversalSummary summary = new ReversalSummary(
+                id, draft.reversalNo(), draft.bill().bill().id(), draft.bill().bill().billNo(),
+                draft.bill().bill().customerName(), draft.bill().bill().storeName(),
+                draft.bill().bill().receivableAmount(), "SUBMITTED", draft.reason(), now, draft.operatorId(),
+                null, null, null, null, "1");
+        ReversalDetail result = reversalDetail(summary, draft.bill());
+        reversalRequests.put(id, result);
+        reversalRequestKeys.put(draft.idempotencyKey(), id);
+        return result;
+    }
+
+    @Override
+    public synchronized ReversalDetail reviewReversal(
+            long id, boolean approved, String comment, String version, long operatorId) {
+        ReversalDetail current = requireReversal(id);
+        if (!"SUBMITTED".equals(current.reversal().status()) || !current.reversal().version().equals(version)) {
+            throw new DuplicateResourceException("冲销申请已被他人处理，请刷新后重试");
+        }
+        ReversalSummary old = current.reversal();
+        ReversalSummary reviewed = new ReversalSummary(
+                old.id(), old.reversalNo(), old.billId(), old.billNo(), old.customerName(), old.storeName(),
+                old.refundAmount(), approved ? "APPROVED" : "REJECTED", old.reason(), old.requestedAt(),
+                old.requestedBy(), LocalDateTime.now(), operatorId, comment, null, nextVersion(old.version()));
+        ReversalDetail result = new ReversalDetail(reviewed, current.payments(), current.assets());
+        reversalRequests.put(id, result);
+        return result;
+    }
+
+    @Override
+    public synchronized ReversalDetail executeReversal(ReversalExecutionCommand command) {
+        Optional<ReversalDetail> existing = findReversalByExecutionKey(command.idempotencyKey());
+        if (existing.isPresent()) return existing.get();
+        long id = command.reversal().reversal().id();
+        ReversalDetail current = requireReversal(id);
+        if (!"APPROVED".equals(current.reversal().status())
+                || !current.reversal().version().equals(command.version())) {
+            throw new DuplicateResourceException("冲销申请已被他人处理，请刷新后重试");
+        }
+        BillDetail billDetail = bills.get(current.reversal().billId());
+        if (billDetail == null || !BillStatus.SETTLED.name().equals(billDetail.bill().status())) {
+            throw new DuplicateResourceException("账单状态已发生变化，无法执行冲销");
+        }
+        List<BillPayment> payments = billDetail.payments().stream().map(payment -> new BillPayment(
+                payment.id(), payment.paymentNo(), payment.paymentMethodId(), payment.paymentMethodName(),
+                payment.amount(), "REFUNDED", payment.externalReference(), payment.paidAt())).toList();
+        BillSummary bill = copyBill(
+                billDetail.bill(), billDetail.bill().originalAmount(), billDetail.bill().receivableAmount(),
+                billDetail.bill().receivedAmount(), billDetail.bill().changeAmount(), BillStatus.REVERSED.name(),
+                nextVersion(billDetail.bill().version()), billDetail.bill().settledAt());
+        List<BillHistoryItem> history = new ArrayList<>(billDetail.history());
+        history.add(new BillHistoryItem(
+                historyIds.incrementAndGet(), BillStatus.SETTLED.name(), BillStatus.REVERSED.name(),
+                "FULL_REVERSAL", "整单冲销：" + current.reversal().reason(), LocalDateTime.now(), command.operatorId()));
+        bills.put(bill.id(), new BillDetail(
+                bill, billDetail.lines(), payments, billDetail.discounts(), billDetail.assetUsages(), history));
+        ReversalSummary old = current.reversal();
+        ReversalSummary executed = new ReversalSummary(
+                old.id(), old.reversalNo(), old.billId(), old.billNo(), old.customerName(), old.storeName(),
+                old.refundAmount(), "EXECUTED", old.reason(), old.requestedAt(), old.requestedBy(),
+                old.reviewedAt(), old.reviewedBy(), old.reviewComment(), LocalDateTime.now(), nextVersion(old.version()));
+        List<ReversalPaymentImpact> refundedPayments = current.payments().stream()
+                .map(payment -> new ReversalPaymentImpact(
+                        payment.paymentId(), payment.paymentMethodName(), payment.amount(), "REFUNDED"))
+                .toList();
+        ReversalDetail result = new ReversalDetail(executed, refundedPayments, current.assets());
+        reversalRequests.put(id, result);
+        reversalExecutionKeys.put(command.idempotencyKey(), id);
+        return result;
+    }
+
     private BillLine toLine(BillLineDraft draft, int lineNo) {
         BigDecimal amount = draft.amount();
         return new BillLine(
@@ -317,6 +435,45 @@ public class MemoryTradeRepository implements TradeRepository {
             throw new DuplicateResourceException("账单已被他人修改，请刷新后重试");
         }
         return current;
+    }
+
+    private ReversalDetail requireReversal(long id) {
+        ReversalDetail result = reversalRequests.get(id);
+        if (result == null) throw new IllegalArgumentException("冲销申请不存在");
+        return result;
+    }
+
+    private ReversalDetail reversalDetail(ReversalSummary summary, BillDetail bill) {
+        List<ReversalPaymentImpact> payments = reversalPayments(bill);
+        List<ReversalAssetImpact> assets = bill.assetUsages().stream()
+                .map(asset -> new ReversalAssetImpact(
+                        asset.id(), asset.assetType(), asset.memberId(), asset.memberCardId(),
+                        asset.memberCardBalanceId(), asset.billLineId(), asset.serviceId(), asset.quantity(),
+                        asset.amount(), asset.assetLedgerId(), asset.displayName()))
+                .toList();
+        return new ReversalDetail(summary, payments, assets);
+    }
+
+    private List<ReversalPaymentImpact> reversalPayments(BillDetail bill) {
+        BigDecimal remainingChange = bill.bill().changeAmount();
+        List<ReversalPaymentImpact> result = new ArrayList<>();
+        for (BillPayment payment : bill.payments()) {
+            PaymentMethodOption method = METHODS.stream()
+                    .filter(item -> item.id() == payment.paymentMethodId()).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("支付方式不存在"));
+            BigDecimal amount = payment.amount();
+            if ("CASH".equals(method.type()) && remainingChange.signum() > 0) {
+                BigDecimal deducted = amount.min(remainingChange);
+                amount = amount.subtract(deducted);
+                remainingChange = remainingChange.subtract(deducted);
+            }
+            if (amount.signum() > 0) {
+                result.add(new ReversalPaymentImpact(
+                        payment.id(), payment.paymentMethodName(), amount, payment.status()));
+            }
+        }
+        if (remainingChange.signum() != 0) throw new IllegalArgumentException("账单找零记录无法匹配现金支付");
+        return List.copyOf(result);
     }
 
     private void requireMutable(BillSummary bill) {

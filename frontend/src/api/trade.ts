@@ -5,6 +5,9 @@ import type {
   CardSettlementOption,
   CreatedBill,
   PaymentMethodOption,
+  ReversalDetail,
+  ReversalSummary,
+  ReversalStatus,
   SettlementAssetOptions,
   SettlementQuote,
 } from '@/types/api'
@@ -87,4 +90,43 @@ export function voidBill(id: number, payload: {
   reasonCode: string; note?: string; version: string
 }): Promise<BillDetail> {
   return apiRequest<BillDetail>({ method: 'POST', url: `/bills/${id}/void`, data: payload })
+}
+
+export function getReversals(status?: ReversalStatus): Promise<ReversalSummary[]> {
+  return apiRequest<ReversalSummary[]>({ method: 'GET', url: '/reversals', params: { status } })
+}
+
+export function getReversal(id: number): Promise<ReversalDetail> {
+  return apiRequest<ReversalDetail>({ method: 'GET', url: `/reversals/${id}` })
+}
+
+export function createReversal(
+  billId: number,
+  reason: string,
+  idempotencyKey: string,
+): Promise<ReversalDetail> {
+  return apiRequest<ReversalDetail>({
+    method: 'POST', url: `/bills/${billId}/reversals`, data: { reason, idempotencyKey },
+  })
+}
+
+export function reviewReversal(
+  id: number,
+  approved: boolean,
+  comment: string | undefined,
+  version: string,
+): Promise<ReversalDetail> {
+  return apiRequest<ReversalDetail>({
+    method: 'POST', url: `/reversals/${id}/review`, data: { approved, comment, version },
+  })
+}
+
+export function executeReversal(
+  id: number,
+  version: string,
+  idempotencyKey: string,
+): Promise<ReversalDetail> {
+  return apiRequest<ReversalDetail>({
+    method: 'POST', url: `/reversals/${id}/execute`, data: { version, idempotencyKey },
+  })
 }

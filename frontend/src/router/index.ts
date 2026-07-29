@@ -132,6 +132,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '账单详情', permission: 'trade:bill:view' },
       },
       {
+        path: 'settlement/reversals',
+        name: 'reversals',
+        component: () => import('@/views/trade/ReversalListView.vue'),
+        meta: { title: '冲销管理', permission: 'trade:reversal:view' },
+      },
+      {
         path: 'forbidden',
         name: 'forbidden',
         component: () => import('@/views/ForbiddenView.vue'),

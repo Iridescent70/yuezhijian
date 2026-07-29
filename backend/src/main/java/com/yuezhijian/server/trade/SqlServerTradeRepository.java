@@ -15,11 +15,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Profile("sqlserver")
 public class SqlServerTradeRepository implements TradeRepository {
     private final TradeMapper mapper;
+    private final ReversalMapper reversals;
     private final SensitiveDataCodec codec;
     private final TradeNumberGenerator numbers;
 
-    public SqlServerTradeRepository(TradeMapper mapper, SensitiveDataCodec codec, TradeNumberGenerator numbers) {
+    public SqlServerTradeRepository(
+            TradeMapper mapper,
+            ReversalMapper reversals,
+            SensitiveDataCodec codec,
+            TradeNumberGenerator numbers) {
         this.mapper = mapper;
+        this.reversals = reversals;
         this.codec = codec;
         this.numbers = numbers;
     }
@@ -243,6 +249,80 @@ public class SqlServerTradeRepository implements TradeRepository {
         return requireDetail(billId);
     }
 
+    @Override
+    public List<ReversalSummary> reversals(String status) {
+        return reversals.search(status);
+    }
+
+    @Override
+    public Optional<ReversalDetail> findReversal(long id) {
+        return Optional.ofNullable(reversals.findById(id)).map(this::toReversalDetail);
+    }
+
+    @Override
+    public Optional<ReversalDetail> findReversalByRequestKey(String key) {
+        if (key == null) return Optional.empty();
+        return Optional.ofNullable(reversals.findByRequestKey(key)).map(this::toReversalDetail);
+    }
+
+    @Override
+    public Optional<ReversalDetail> findReversalByExecutionKey(String key) {
+        if (key == null) return Optional.empty();
+        return Optional.ofNullable(reversals.findByExecutionKey(key)).map(this::toReversalDetail);
+    }
+
+    @Override
+    public Optional<ReversalDetail> findActiveReversalByBill(long billId) {
+        return Optional.ofNullable(reversals.findActiveByBill(billId)).map(this::toReversalDetail);
+    }
+
+    @Override
+    @Transactional
+    public ReversalDetail createReversal(ReversalDraft draft) {
+        Optional<ReversalDetail> existing = findReversalByRequestKey(draft.idempotencyKey());
+        if (existing.isPresent()) return existing.get();
+        long id = reversals.insert(draft);
+        return requireReversal(id);
+    }
+
+    @Override
+    @Transactional
+    public ReversalDetail reviewReversal(
+            long id, boolean approved, String comment, String version, long operatorId) {
+        if (reversals.review(id, approved ? "APPROVED" : "REJECTED", comment, version, operatorId) != 1) {
+            throw new DuplicateResourceException("冲销申请已被他人处理，请刷新后重试");
+        }
+        return requireReversal(id);
+    }
+
+    @Override
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    public ReversalDetail executeReversal(ReversalExecutionCommand command) {
+        Optional<ReversalDetail> existing = findReversalByExecutionKey(command.idempotencyKey());
+        if (existing.isPresent()) return existing.get();
+        ReversalDetail current = requireReversal(command.reversal().reversal().id());
+        if (reversals.markExecuted(
+                current.reversal().id(), command.version(), command.idempotencyKey(), command.operatorId()) != 1) {
+            throw new DuplicateResourceException("冲销申请已被他人处理，请刷新后重试");
+        }
+        if (reversals.reverseBill(current.reversal().billId(), command.operatorId()) != 1) {
+            throw new DuplicateResourceException("账单状态已发生变化，无法执行冲销");
+        }
+        for (int index = 0; index < current.payments().size(); index++) {
+            ReversalPaymentImpact payment = current.payments().get(index);
+            if (reversals.markPaymentRefunded(payment.paymentId()) != 1) {
+                throw new DuplicateResourceException("支付状态已发生变化，无法执行冲销");
+            }
+            reversals.insertPaymentRefund(
+                    numbers.refundNo(), current.reversal().id(), payment.paymentId(), payment.amount(),
+                    command.idempotencyKey() + ':' + index, command.operatorId());
+        }
+        mapper.insertHistory(
+                current.reversal().billId(), BillStatus.SETTLED.name(), BillStatus.REVERSED.name(),
+                "FULL_REVERSAL", "整单冲销：" + current.reversal().reason(), command.operatorId());
+        return requireReversal(current.reversal().id());
+    }
+
     private void insertLine(long billId, int lineNo, long storeId, BillLineDraft line) {
         long lineId = mapper.insertLine(billId, lineNo, line);
         if (line.employeeId() != null) {
@@ -256,5 +336,44 @@ public class SqlServerTradeRepository implements TradeRepository {
 
     private SettlementQuote requireQuote(String quoteNo) {
         return findQuote(quoteNo).orElseThrow(() -> new IllegalArgumentException("结算试算不存在"));
+    }
+
+    private ReversalDetail requireReversal(long id) {
+        return findReversal(id).orElseThrow(() -> new IllegalArgumentException("冲销申请不存在"));
+    }
+
+    private ReversalDetail toReversalDetail(ReversalSummary summary) {
+        BillDetail bill = requireDetail(summary.billId());
+        List<ReversalPaymentImpact> payments = reversalPayments(bill);
+        List<ReversalAssetImpact> assets = bill.assetUsages().stream()
+                .map(asset -> new ReversalAssetImpact(
+                        asset.id(), asset.assetType(), asset.memberId(), asset.memberCardId(),
+                        asset.memberCardBalanceId(), asset.billLineId(), asset.serviceId(), asset.quantity(),
+                        asset.amount(), asset.assetLedgerId(), asset.displayName()))
+                .toList();
+        return new ReversalDetail(summary, payments, assets);
+    }
+
+    private List<ReversalPaymentImpact> reversalPayments(BillDetail bill) {
+        java.util.Map<Long, PaymentMethodOption> methods = paymentMethods(bill.bill().storeId()).stream()
+                .collect(java.util.stream.Collectors.toMap(PaymentMethodOption::id, java.util.function.Function.identity()));
+        BigDecimal remainingChange = bill.bill().changeAmount();
+        List<ReversalPaymentImpact> result = new java.util.ArrayList<>();
+        for (BillPayment payment : bill.payments()) {
+            PaymentMethodOption method = methods.get(payment.paymentMethodId());
+            if (method == null) throw new IllegalArgumentException("支付方式不存在");
+            BigDecimal amount = payment.amount();
+            if ("CASH".equals(method.type()) && remainingChange.signum() > 0) {
+                BigDecimal deducted = amount.min(remainingChange);
+                amount = amount.subtract(deducted);
+                remainingChange = remainingChange.subtract(deducted);
+            }
+            if (amount.signum() > 0) {
+                result.add(new ReversalPaymentImpact(
+                        payment.id(), payment.paymentMethodName(), amount, payment.status()));
+            }
+        }
+        if (remainingChange.signum() != 0) throw new IllegalArgumentException("账单找零记录无法匹配现金支付");
+        return List.copyOf(result);
     }
 }

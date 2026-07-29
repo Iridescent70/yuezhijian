@@ -176,6 +176,43 @@ public class MemoryCardRepository implements CardRepository {
         cards.put(card.id(), new MemberCardDetail(card, balances, List.copyOf(ledgers)));
     }
 
+    @Override
+    public synchronized void refundCard(CardRefundCommand command) {
+        MemberCardDetail detail = cards.get(command.memberCardId());
+        if (detail == null || detail.card().memberId() != command.memberId()) {
+            throw new IllegalArgumentException("会员次卡不存在");
+        }
+        MemberCardBalanceItem current = detail.balances().stream()
+                .filter(item -> item.id() == command.memberCardBalanceId() && item.serviceId() == command.serviceId())
+                .findFirst().orElseThrow(() -> new IllegalArgumentException("次卡项目余额不存在"));
+        BigDecimal after = current.remainingTimes().add(command.times());
+        if (after.add(current.frozenTimes()).compareTo(current.totalTimes()) > 0) {
+            throw new IllegalArgumentException("次卡返还后次数超过原始次数");
+        }
+        MemberCardBalanceItem updated = new MemberCardBalanceItem(
+                current.id(), current.serviceId(), current.serviceCode(), current.serviceName(), current.totalTimes(),
+                after, current.frozenTimes(), current.deductTimes(), nextVersion(current.version()));
+        List<MemberCardBalanceItem> balances = detail.balances().stream()
+                .map(item -> item.id() == updated.id() ? updated : item).toList();
+        List<MemberCardLedgerItem> ledgers = new ArrayList<>(detail.ledgers());
+        ledgers.add(new MemberCardLedgerItem(
+                ledgerIds.incrementAndGet(), numbers.cardLedgerNo(), command.serviceId(), current.serviceName(),
+                "REFUND", current.remainingTimes(), command.times(), after, command.amount(),
+                "REVERSAL", command.reversalId(), LocalDateTime.now(),
+                "reversal:" + command.reversalId() + ":usage:" + command.usageId(),
+                command.originalLedgerId(), command.note()));
+        BigDecimal remainingTotal = balances.stream().map(MemberCardBalanceItem::remainingTimes)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        MemberCardSummary old = detail.card();
+        String status = "EXHAUSTED".equals(old.status()) && old.expiresAt().isAfter(LocalDateTime.now())
+                ? "ACTIVE" : old.status();
+        MemberCardSummary card = new MemberCardSummary(
+                old.id(), old.cardNo(), old.memberId(), old.cardTypeId(), old.cardTypeCode(), old.cardTypeName(),
+                old.purchaseStoreId(), old.purchaseStoreName(), old.purchasePrice(), old.totalTimes(),
+                remainingTotal, old.frozenTimes(), old.startedAt(), old.expiresAt(), status, nextVersion(old.version()));
+        cards.put(card.id(), new MemberCardDetail(card, balances, List.copyOf(ledgers)));
+    }
+
     private BigDecimal allocatedValue(BigDecimal price, BigDecimal included, BigDecimal total) {
         return price.multiply(included).divide(total, 4, java.math.RoundingMode.HALF_UP);
     }

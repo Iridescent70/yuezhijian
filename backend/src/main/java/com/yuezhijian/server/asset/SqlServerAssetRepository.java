@@ -201,6 +201,47 @@ public class SqlServerAssetRepository implements AssetRepository {
                 ledgerId, command.displayName(), command.operatorId());
     }
 
+    @Override
+    @Transactional
+    public void refundBalance(BalanceRefundCommand command) {
+        if (command.amount() == null || command.amount().signum() <= 0 || command.originalLedgerId() == null) {
+            throw new IllegalArgumentException("储值冲销数据不完整");
+        }
+        BalanceAccountRow account = mapper.lockBalanceAccount(command.memberId());
+        if (account == null) throw new IllegalArgumentException("会员储值账户不存在");
+        LocalDateTime now = LocalDateTime.now();
+        BigDecimal after = account.availableBalance().add(command.amount());
+        if (mapper.refundBalance(account.accountId(), command.amount(), now, account.rowVersion()) != 1) {
+            throw new DuplicateResourceException("储值余额已发生变化，请重新执行冲销");
+        }
+        mapper.insertBalanceRefundLedger(
+                numbers.balanceLedgerNo(), account.accountId(), account.availableBalance(), command.amount(),
+                after, now, command);
+    }
+
+    @Override
+    @Transactional
+    public void refundPoints(PointRefundCommand command) {
+        if (command.points() <= 0 || command.originalLedgerId() == null) {
+            throw new IllegalArgumentException("积分冲销数据不完整");
+        }
+        PointAccountRow account = mapper.lockPointAccount(command.memberId());
+        if (account == null) throw new IllegalArgumentException("会员积分账户不存在");
+        int after;
+        try {
+            after = Math.addExact(account.availablePoints(), command.points());
+        } catch (ArithmeticException exception) {
+            throw new IllegalArgumentException("积分返还超出允许范围");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (mapper.refundPoints(account.accountId(), command.points(), now, account.rowVersion()) != 1) {
+            throw new DuplicateResourceException("积分余额已发生变化，请重新执行冲销");
+        }
+        mapper.insertPointRefundLedger(
+                numbers.pointLedgerNo(), account.accountId(), account.availablePoints(), command.points(),
+                after, now, command);
+    }
+
     private BalanceAccount toBalanceAccount(BalanceAccountRow row) {
         return new BalanceAccount(
                 row.memberId(), row.availableBalance(), row.frozenBalance(), row.totalRecharged(),

@@ -6,6 +6,7 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 import org.apache.ibatis.mapping.BoundSql;
 import org.apache.ibatis.mapping.SqlSource;
 import org.apache.ibatis.scripting.xmltags.XMLLanguageDriver;
@@ -27,5 +28,17 @@ class CardMapperSqlTest {
 
         assertThat(sql.getSql()).contains("cfg.store_id = ?", "card_type_name LIKE", "type.status = ?");
         assertThat(sql.getParameterMappings()).hasSize(4);
+    }
+
+    @Test
+    void cardRefundCannotExceedOriginalAvailableTimes() throws Exception {
+        Method method = CardMapper.class.getMethod(
+                "refundCardBalance", long.class, java.math.BigDecimal.class, byte[].class);
+        String sql = String.join(" ", method.getAnnotation(Update.class).value());
+
+        assertThat(sql).contains(
+                "remaining_times = remaining_times + #{times}",
+                "remaining_times + #{times} <= total_times - frozen_times",
+                "row_version = #{rowVersion}");
     }
 }

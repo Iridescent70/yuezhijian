@@ -106,8 +106,10 @@ public interface TradeMapper {
     List<BillDiscountItem> findDiscounts(long billId);
 
     @Select("""
-            SELECT id, asset_type AS assetType, member_card_id AS memberCardId,
-                   bill_line_id AS billLineId, quantity, amount, display_name AS displayName,
+            SELECT id, asset_type AS assetType, member_id AS memberId, member_card_id AS memberCardId,
+                   member_card_balance_id AS memberCardBalanceId, bill_line_id AS billLineId,
+                   service_id AS serviceId, quantity, amount, asset_ledger_id AS assetLedgerId,
+                   display_name AS displayName,
                    created_at AS createdAt
             FROM dbo.trd_bill_asset_usage
             WHERE bill_id = #{billId}

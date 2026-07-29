@@ -618,10 +618,14 @@ export interface BillDiscountItem {
 export interface BillAssetUsageItem {
   id: number
   assetType: 'BALANCE' | 'POINT' | 'CARD'
+  memberId: number
   memberCardId?: number
+  memberCardBalanceId?: number
   billLineId?: number
+  serviceId?: number
   quantity: number
   amount: number
+  assetLedgerId?: number
   displayName: string
   createdAt: string
 }
@@ -633,6 +637,54 @@ export interface BillDetail {
   discounts: BillDiscountItem[]
   assetUsages: BillAssetUsageItem[]
   history: BillHistoryItem[]
+}
+
+export type ReversalStatus = 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'EXECUTED'
+
+export interface ReversalSummary {
+  id: number
+  reversalNo: string
+  billId: number
+  billNo: string
+  customerName: string
+  storeName: string
+  refundAmount: number
+  status: ReversalStatus
+  reason: string
+  requestedAt: string
+  requestedBy: number
+  reviewedAt?: string
+  reviewedBy?: number
+  reviewComment?: string
+  executedAt?: string
+  version: string
+}
+
+export interface ReversalPaymentImpact {
+  paymentId: number
+  paymentMethodName: string
+  amount: number
+  status: string
+}
+
+export interface ReversalAssetImpact {
+  usageId: number
+  assetType: 'BALANCE' | 'POINT' | 'CARD'
+  memberId: number
+  memberCardId?: number
+  memberCardBalanceId?: number
+  billLineId?: number
+  serviceId?: number
+  quantity: number
+  amount: number
+  assetLedgerId: number
+  displayName: string
+}
+
+export interface ReversalDetail {
+  reversal: ReversalSummary
+  payments: ReversalPaymentImpact[]
+  assets: ReversalAssetImpact[]
 }
 
 export interface CreatedBill {

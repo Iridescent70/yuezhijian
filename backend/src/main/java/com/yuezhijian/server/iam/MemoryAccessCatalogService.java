@@ -16,7 +16,8 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             "org:workstation:view", "org:workstation:manage",
             "catalog:service:view", "catalog:service:manage",
             "appointment:appointment:view", "appointment:appointment:create", "appointment:appointment:manage",
-            "trade:bill:view", "trade:bill:create", "trade:bill:manage", "trade:bill:settle");
+            "trade:bill:view", "trade:bill:create", "trade:bill:manage", "trade:bill:settle",
+            "trade:reversal:view", "trade:reversal:manage", "trade:reversal:approve");
 
     private static final List<StoreSummary> STORES = List.of(
             new StoreSummary(1L, "HQ", "悦指间总部", "HEADQUARTERS", "ACTIVE"),
@@ -36,6 +37,8 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
                     "appointment:appointment:view", List.of()),
             new MenuItem(4L, "bill", "账单管理", "/app/bills", "Tickets", 40,
                     "trade:bill:view", List.of()),
+            new MenuItem(7L, "reversals", "冲销管理", "/app/settlement/reversals", "RefreshLeft", 50,
+                    "trade:reversal:view", List.of()),
             new MenuItem(5L, "system", "系统管理", "/app/system", "Setting", 90, null,
                     List.of(
                             new MenuItem(51L, "stores", "组织门店", "/app/system/stores", "Shop", 10,

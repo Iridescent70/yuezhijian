@@ -307,4 +307,48 @@ public interface CardMapper {
     void insertCardAssetUsage(
             @Param("command") CardSettlementConsumption command,
             @Param("ledgerId") long ledgerId);
+
+    @Update("""
+            UPDATE dbo.ast_member_card_balance
+            SET remaining_times = remaining_times + #{times}, updated_at = sysdatetime()
+            WHERE id = #{id} AND row_version = #{rowVersion}
+              AND remaining_times + #{times} <= total_times - frozen_times
+            """)
+    int refundCardBalance(
+            @Param("id") long id,
+            @Param("times") BigDecimal times,
+            @Param("rowVersion") byte[] rowVersion);
+
+    @Insert("""
+            INSERT INTO dbo.ast_member_card_ledger (
+                ledger_no, member_card_id, service_id, transaction_type,
+                before_times, change_times, after_times, value_amount,
+                source_type, source_id, source_line_id, occurred_at, correlation_id,
+                reversed_ledger_id, note, created_by
+            ) VALUES (
+                #{ledgerNo}, #{command.memberCardId}, #{command.serviceId}, 'REFUND',
+                #{beforeTimes}, #{command.times}, #{afterTimes}, #{command.amount},
+                'REVERSAL', #{command.reversalId}, NULL, sysdatetime(),
+                CONCAT('reversal:', #{command.reversalId}, ':usage:', #{command.usageId}),
+                #{command.originalLedgerId}, #{command.note}, #{command.operatorId}
+            )
+            """)
+    void insertCardRefundLedger(
+            @Param("ledgerNo") String ledgerNo,
+            @Param("command") CardRefundCommand command,
+            @Param("beforeTimes") BigDecimal beforeTimes,
+            @Param("afterTimes") BigDecimal afterTimes);
+
+    @Update("""
+            UPDATE dbo.ast_member_card
+            SET status = CASE
+                    WHEN status = 'EXHAUSTED' AND expires_at >= sysdatetime() THEN 'ACTIVE'
+                    ELSE status
+                END,
+                updated_at = sysdatetime(), updated_by = #{operatorId}
+            WHERE id = #{memberCardId}
+            """)
+    void restoreMemberCardStatus(
+            @Param("memberCardId") long memberCardId,
+            @Param("operatorId") long operatorId);
 }

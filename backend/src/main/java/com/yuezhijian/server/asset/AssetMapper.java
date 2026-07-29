@@ -338,4 +338,70 @@ public interface AssetMapper {
             @Param("ledgerId") long ledgerId,
             @Param("displayName") String displayName,
             @Param("operatorId") long operatorId);
+
+    @Update("""
+            UPDATE dbo.ast_balance_account
+            SET available_balance = available_balance + #{amount},
+                last_transaction_at = #{occurredAt}, updated_at = #{occurredAt}
+            WHERE id = #{accountId} AND row_version = #{rowVersion}
+            """)
+    int refundBalance(
+            @Param("accountId") long accountId,
+            @Param("amount") BigDecimal amount,
+            @Param("occurredAt") LocalDateTime occurredAt,
+            @Param("rowVersion") byte[] rowVersion);
+
+    @Insert("""
+            INSERT INTO dbo.ast_balance_ledger (
+                ledger_no, account_id, transaction_type, before_balance, change_amount, after_balance,
+                source_type, source_id, store_id, occurred_at, correlation_id,
+                reversed_ledger_id, note, created_by
+            ) VALUES (
+                #{ledgerNo}, #{accountId}, 'REFUND', #{beforeBalance}, #{amount}, #{afterBalance},
+                'REVERSAL', #{command.reversalId}, #{command.storeId}, #{occurredAt},
+                CONCAT('reversal:', #{command.reversalId}, ':usage:', #{command.usageId}),
+                #{command.originalLedgerId}, #{command.note}, #{command.operatorId}
+            )
+            """)
+    void insertBalanceRefundLedger(
+            @Param("ledgerNo") String ledgerNo,
+            @Param("accountId") long accountId,
+            @Param("beforeBalance") BigDecimal beforeBalance,
+            @Param("amount") BigDecimal amount,
+            @Param("afterBalance") BigDecimal afterBalance,
+            @Param("occurredAt") LocalDateTime occurredAt,
+            @Param("command") BalanceRefundCommand command);
+
+    @Update("""
+            UPDATE dbo.ast_point_account
+            SET available_points = available_points + #{points},
+                last_transaction_at = #{occurredAt}, updated_at = #{occurredAt}
+            WHERE id = #{accountId} AND row_version = #{rowVersion}
+            """)
+    int refundPoints(
+            @Param("accountId") long accountId,
+            @Param("points") int points,
+            @Param("occurredAt") LocalDateTime occurredAt,
+            @Param("rowVersion") byte[] rowVersion);
+
+    @Insert("""
+            INSERT INTO dbo.ast_point_ledger (
+                ledger_no, account_id, transaction_type, before_points, change_points, after_points,
+                source_type, source_id, occurred_at, correlation_id,
+                reversed_ledger_id, note, created_by
+            ) VALUES (
+                #{ledgerNo}, #{accountId}, 'REFUND', #{beforePoints}, #{points}, #{afterPoints},
+                'REVERSAL', #{command.reversalId}, #{occurredAt},
+                CONCAT('reversal:', #{command.reversalId}, ':usage:', #{command.usageId}),
+                #{command.originalLedgerId}, #{command.note}, #{command.operatorId}
+            )
+            """)
+    void insertPointRefundLedger(
+            @Param("ledgerNo") String ledgerNo,
+            @Param("accountId") long accountId,
+            @Param("beforePoints") int beforePoints,
+            @Param("points") int points,
+            @Param("afterPoints") int afterPoints,
+            @Param("occurredAt") LocalDateTime occurredAt,
+            @Param("command") PointRefundCommand command);
 }

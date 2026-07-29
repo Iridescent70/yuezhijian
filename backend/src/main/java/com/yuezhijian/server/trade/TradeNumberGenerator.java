@@ -18,6 +18,10 @@ public class TradeNumberGenerator {
 
     public String discountBatchNo() { return next("D"); }
 
+    public String reversalNo() { return next("RV"); }
+
+    public String refundNo() { return next("RF"); }
+
     private String next(String prefix) {
         return prefix + LocalDateTime.now().format(FORMAT)
                 + String.format("%05d", Math.floorMod(sequence.incrementAndGet(), 100_000));

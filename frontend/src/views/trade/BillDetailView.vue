@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   addBillLine,
   applyBillDiscount,
+  createReversal,
   getBill,
   removeBillLine,
   updateBillLine,
@@ -24,6 +25,7 @@ const saving = ref(false)
 const lineVisible = ref(false)
 const voidVisible = ref(false)
 const discountVisible = ref(false)
+const reversalVisible = ref(false)
 const editingLineId = ref<number | null>(null)
 const detail = ref<BillDetail | null>(null)
 const services = ref<ServiceItemSummary[]>([])
@@ -40,6 +42,7 @@ const discountForm = reactive({
   value: 90,
   reason: '',
 })
+const reversalForm = reactive({ reason: '' })
 const mutable = computed(() => Boolean(
   detail.value && ['DRAFT', 'PENDING_PAYMENT'].includes(detail.value.bill.status),
 ))
@@ -193,6 +196,24 @@ async function submitVoid() {
   }
 }
 
+async function submitReversal() {
+  if (!reversalForm.reason.trim()) {
+    ElMessage.warning('请填写冲销原因')
+    return
+  }
+  saving.value = true
+  try {
+    const reversal = await createReversal(billId, reversalForm.reason.trim(), crypto.randomUUID())
+    reversalVisible.value = false
+    ElMessage.success(`冲销申请 ${reversal.reversal.reversalNo} 已提交审批`)
+    await router.push('/app/settlement/reversals')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '冲销申请提交失败')
+  } finally {
+    saving.value = false
+  }
+}
+
 function dateTime(value?: string) {
   return value?.replace('T', ' ').slice(0, 19) ?? '—'
 }
@@ -214,6 +235,12 @@ onMounted(load)
           <p>{{ detail.bill.customerName }} · {{ detail.bill.storeName }} · {{ dateTime(detail.bill.createdAt) }}</p>
         </div>
         <div>
+          <el-button
+            v-if="detail.bill.status === 'SETTLED' && auth.hasPermission('trade:reversal:manage')"
+            type="danger"
+            plain
+            @click="reversalForm.reason = ''; reversalVisible = true"
+          >申请冲销</el-button>
           <el-button v-if="mutable && auth.hasPermission('trade:bill:manage')" @click="voidVisible = true">作废</el-button>
           <el-button v-if="mutable && detail.lines.length && auth.hasPermission('trade:bill:manage')" @click="openDiscount">整单优惠</el-button>
           <el-button v-if="mutable && auth.hasPermission('trade:bill:manage')" @click="openAdd">添加项目</el-button>
@@ -367,9 +394,29 @@ onMounted(load)
         <el-button type="danger" :loading="saving" @click="submitVoid">确认作废</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="reversalVisible" title="申请整单冲销" width="540px">
+      <el-alert
+        title="执行后会退回整单支付、储值、积分和次卡次数；申请提交后仍需审批。"
+        type="warning"
+        :closable="false"
+        show-icon
+      />
+      <el-form label-width="90px" class="reversal-form">
+        <el-form-item label="退款金额"><strong>{{ formatMoney(detail?.bill.receivableAmount ?? 0) }}</strong></el-form-item>
+        <el-form-item label="冲销原因" required>
+          <el-input v-model="reversalForm.reason" type="textarea" :rows="4" maxlength="1000" show-word-limit />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="reversalVisible = false">取消</el-button>
+        <el-button type="danger" :loading="saving" @click="submitReversal">提交审批</el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
 <style scoped>
 .discount-unit { margin-left: 8px; color: var(--el-text-color-secondary); }
+.reversal-form { margin-top: 20px; }
 </style>

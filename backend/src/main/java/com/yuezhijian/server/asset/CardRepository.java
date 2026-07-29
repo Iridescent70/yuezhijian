@@ -13,4 +13,5 @@ public interface CardRepository {
     Optional<CardSaleResult> findSaleByIdempotencyKey(String idempotencyKey);
     CardSaleResult purchase(PurchaseMemberCardDraft draft);
     void consumeCard(CardSettlementConsumption command);
+    void refundCard(CardRefundCommand command);
 }
