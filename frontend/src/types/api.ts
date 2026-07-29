@@ -636,15 +636,52 @@ export interface QuotePayment {
   externalReference?: string
 }
 
+export interface SettlementAssetUsage {
+  assetType: 'BALANCE' | 'POINT' | 'CARD'
+  memberId: number
+  memberCardId?: number
+  memberCardBalanceId?: number
+  billLineId?: number
+  serviceId?: number
+  quantity: number
+  amount: number
+  assetVersion: string
+  displayName: string
+}
+
+export interface CardSettlementOption {
+  billLineId: number
+  billLineName: string
+  memberCardId: number
+  cardNo: string
+  cardTypeName: string
+  memberCardBalanceId: number
+  remainingTimes: number
+  deductTimes: number
+  requiredTimes: number
+  expiresAt: string
+  recommended: boolean
+}
+
+export interface SettlementAssetOptions {
+  balanceAccount?: BalanceAccount
+  pointAccount?: PointAccount
+  pointsPerYuan: number
+  cardOptions: CardSettlementOption[]
+}
+
 export interface SettlementQuote {
   quoteNo: string
   billId: number
   billVersion: string
   receivableAmount: number
   paymentTotal: number
+  assetAmount: number
+  externalPaymentAmount: number
   changeAmount: number
   differenceAmount: number
   payments: QuotePayment[]
+  assets: SettlementAssetUsage[]
   expiresAt: string
   used: boolean
 }

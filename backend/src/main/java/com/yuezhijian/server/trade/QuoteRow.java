@@ -10,6 +10,8 @@ public record QuoteRow(
         String billVersion,
         BigDecimal receivableAmount,
         BigDecimal paymentTotal,
+        BigDecimal assetAmount,
+        BigDecimal externalPaymentAmount,
         BigDecimal changeAmount,
         BigDecimal differenceAmount,
         LocalDateTime expiresAt,

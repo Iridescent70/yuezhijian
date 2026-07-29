@@ -10,12 +10,16 @@ public record SettlementQuote(
         String billVersion,
         BigDecimal receivableAmount,
         BigDecimal paymentTotal,
+        BigDecimal assetAmount,
+        BigDecimal externalPaymentAmount,
         BigDecimal changeAmount,
         BigDecimal differenceAmount,
         List<QuotePayment> payments,
+        List<SettlementAssetUsage> assets,
         LocalDateTime expiresAt,
         boolean used) {
     public SettlementQuote {
         payments = List.copyOf(payments);
+        assets = List.copyOf(assets);
     }
 }

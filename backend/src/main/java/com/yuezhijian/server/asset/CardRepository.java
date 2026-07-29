@@ -12,4 +12,5 @@ public interface CardRepository {
     Optional<MemberCardDetail> findMemberCard(long id);
     Optional<CardSaleResult> findSaleByIdempotencyKey(String idempotencyKey);
     CardSaleResult purchase(PurchaseMemberCardDraft draft);
+    void consumeCard(CardSettlementConsumption command);
 }

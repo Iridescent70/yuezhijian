@@ -1,8 +1,10 @@
 package com.yuezhijian.server.asset;
 
+import com.yuezhijian.server.common.DuplicateResourceException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Base64;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.context.annotation.Profile;
@@ -91,6 +93,37 @@ public class SqlServerCardRepository implements CardRepository {
             }
         }
         return findSaleByIdempotencyKey(draft.idempotencyKey()).orElseThrow();
+    }
+
+    @Override
+    @Transactional
+    public void consumeCard(CardSettlementConsumption command) {
+        MemberCardDetail card = findMemberCard(command.memberCardId())
+                .orElseThrow(() -> new IllegalArgumentException("会员次卡不存在"));
+        if (card.card().memberId() != command.memberId() || !"ACTIVE".equals(card.card().status())
+                || card.card().expiresAt().isBefore(java.time.LocalDateTime.now())) {
+            throw new IllegalArgumentException("会员次卡已失效或不属于当前会员");
+        }
+        MemberCardBalanceRow balance = mapper.lockMemberCardBalance(command.memberCardBalanceId());
+        if (balance == null || balance.memberCardId() != command.memberCardId()
+                || balance.serviceId() != command.serviceId()) {
+            throw new IllegalArgumentException("次卡不支持当前项目");
+        }
+        byte[] expected;
+        try { expected = Base64.getDecoder().decode(command.balanceVersion()); }
+        catch (IllegalArgumentException exception) { throw new IllegalArgumentException("次卡版本格式不正确"); }
+        if (!Arrays.equals(expected, balance.rowVersion())) {
+            throw new DuplicateResourceException("次卡次数已发生变化，请重新试算");
+        }
+        if (balance.remainingTimes().compareTo(command.times()) < 0) throw new IllegalArgumentException("次卡剩余次数不足");
+        BigDecimal after = balance.remainingTimes().subtract(command.times());
+        if (mapper.consumeCardBalance(balance.id(), command.times(), balance.rowVersion()) != 1) {
+            throw new DuplicateResourceException("次卡次数已发生变化，请重新试算");
+        }
+        long ledgerId = mapper.insertCardConsumeLedger(
+                numbers.cardLedgerNo(), command, balance.remainingTimes(), after);
+        mapper.refreshMemberCardStatus(command.memberCardId(), command.operatorId());
+        mapper.insertCardAssetUsage(command, ledgerId);
     }
 
     private CardTypeDetail toCardType(CardTypeRow row) {

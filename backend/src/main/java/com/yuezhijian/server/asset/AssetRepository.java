@@ -16,4 +16,7 @@ public interface AssetRepository {
     RechargeOrder confirmRecharge(long id, String version, long operatorId);
     RechargeOrder cancelRecharge(long id, String version, String reason, long operatorId);
     PointAccount adjustPoints(PointAdjustmentCommand command);
+    int pointsPerYuan();
+    void consumeBalance(BalanceSettlementConsumption command);
+    void consumePoints(PointSettlementConsumption command);
 }

@@ -56,6 +56,13 @@ public class SqlServerTradeRepository implements TradeRepository {
     }
 
     @Override
+    public Optional<BillDetail> findBySettlementIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null) return Optional.empty();
+        BillSummary bill = mapper.findBySettlementIdempotency(idempotencyKey);
+        return bill == null ? Optional.empty() : findById(bill.id());
+    }
+
+    @Override
     @Transactional
     public CreatedBill create(BillDraft draft) {
         Optional<CreatedBill> existing = findByIdempotencyKey(draft.idempotencyKey());
@@ -106,6 +113,9 @@ public class SqlServerTradeRepository implements TradeRepository {
         for (int index = 0; index < draft.payments().size(); index++) {
             mapper.insertQuotePayment(id, draft.payments().get(index), index + 1);
         }
+        for (int index = 0; index < draft.assets().size(); index++) {
+            mapper.insertQuoteAsset(id, draft.assets().get(index), index + 1);
+        }
         return requireQuote(draft.quoteNo());
     }
 
@@ -115,8 +125,8 @@ public class SqlServerTradeRepository implements TradeRepository {
         if (row == null) return Optional.empty();
         return Optional.of(new SettlementQuote(
                 row.quoteNo(), row.billId(), row.billVersion(), row.receivableAmount(), row.paymentTotal(),
-                row.changeAmount(), row.differenceAmount(), mapper.findQuotePayments(row.id()),
-                row.expiresAt(), row.used()));
+                row.assetAmount(), row.externalPaymentAmount(), row.changeAmount(), row.differenceAmount(),
+                mapper.findQuotePayments(row.id()), mapper.findQuoteAssets(row.id()), row.expiresAt(), row.used()));
     }
 
     @Override
@@ -135,7 +145,8 @@ public class SqlServerTradeRepository implements TradeRepository {
             throw new DuplicateResourceException("结算试算已被使用，请刷新账单");
         }
         if (mapper.settleBill(
-                command.billId(), quote.billVersion(), quote.changeAmount(), command.operatorId()) != 1) {
+                command.billId(), quote.billVersion(), quote.changeAmount(),
+                command.idempotencyKey(), command.operatorId()) != 1) {
             throw new DuplicateResourceException("账单已被他人修改，请重新试算");
         }
         for (int index = 0; index < quote.payments().size(); index++) {

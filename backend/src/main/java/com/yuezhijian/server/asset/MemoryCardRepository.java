@@ -1,5 +1,6 @@
 package com.yuezhijian.server.asset;
 
+import com.yuezhijian.server.common.DuplicateResourceException;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -81,7 +82,13 @@ public class MemoryCardRepository implements CardRepository {
 
     @Override
     public synchronized Optional<MemberCardDetail> findMemberCard(long id) {
-        return Optional.ofNullable(cards.get(id));
+        MemberCardDetail detail = cards.get(id);
+        if (detail == null) return Optional.empty();
+        List<MemberCardLedgerItem> ledgers = detail.ledgers().stream()
+                .sorted(Comparator.comparing(MemberCardLedgerItem::occurredAt).reversed()
+                        .thenComparing(MemberCardLedgerItem::id, Comparator.reverseOrder()))
+                .toList();
+        return Optional.of(new MemberCardDetail(detail.card(), detail.balances(), ledgers));
     }
 
     @Override
@@ -130,7 +137,48 @@ public class MemoryCardRepository implements CardRepository {
         return result;
     }
 
+    @Override
+    public synchronized void consumeCard(CardSettlementConsumption command) {
+        MemberCardDetail detail = cards.get(command.memberCardId());
+        if (detail == null || detail.card().memberId() != command.memberId()) {
+            throw new IllegalArgumentException("会员次卡不存在");
+        }
+        if (!"ACTIVE".equals(detail.card().status()) || detail.card().expiresAt().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("会员次卡已失效");
+        }
+        MemberCardBalanceItem current = detail.balances().stream()
+                .filter(item -> item.id() == command.memberCardBalanceId() && item.serviceId() == command.serviceId())
+                .findFirst().orElseThrow(() -> new IllegalArgumentException("次卡不支持当前项目"));
+        if (!current.version().equals(command.balanceVersion())) {
+            throw new DuplicateResourceException("次卡次数已发生变化，请重新试算");
+        }
+        if (current.remainingTimes().compareTo(command.times()) < 0) throw new IllegalArgumentException("次卡剩余次数不足");
+        BigDecimal after = current.remainingTimes().subtract(command.times());
+        MemberCardBalanceItem updated = new MemberCardBalanceItem(
+                current.id(), current.serviceId(), current.serviceCode(), current.serviceName(), current.totalTimes(),
+                after, current.frozenTimes(), current.deductTimes(), nextVersion(current.version()));
+        List<MemberCardBalanceItem> balances = detail.balances().stream()
+                .map(item -> item.id() == updated.id() ? updated : item).toList();
+        List<MemberCardLedgerItem> ledgers = new ArrayList<>(detail.ledgers());
+        ledgers.add(new MemberCardLedgerItem(
+                ledgerIds.incrementAndGet(), numbers.cardLedgerNo(), command.serviceId(), current.serviceName(),
+                "CONSUME", current.remainingTimes(), command.times().negate(), after, command.amount(),
+                "BILL", command.billId(), LocalDateTime.now(),
+                "bill:" + command.billId() + ":line:" + command.billLineId(), null, command.displayName()));
+        BigDecimal remainingTotal = balances.stream().map(MemberCardBalanceItem::remainingTimes)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        MemberCardSummary old = detail.card();
+        MemberCardSummary card = new MemberCardSummary(
+                old.id(), old.cardNo(), old.memberId(), old.cardTypeId(), old.cardTypeCode(), old.cardTypeName(),
+                old.purchaseStoreId(), old.purchaseStoreName(), old.purchasePrice(), old.totalTimes(),
+                remainingTotal, old.frozenTimes(), old.startedAt(), old.expiresAt(),
+                remainingTotal.signum() == 0 ? "EXHAUSTED" : old.status(), nextVersion(old.version()));
+        cards.put(card.id(), new MemberCardDetail(card, balances, List.copyOf(ledgers)));
+    }
+
     private BigDecimal allocatedValue(BigDecimal price, BigDecimal included, BigDecimal total) {
         return price.multiply(included).divide(total, 4, java.math.RoundingMode.HALF_UP);
     }
+
+    private String nextVersion(String version) { return Long.toString(Long.parseLong(version) + 1); }
 }

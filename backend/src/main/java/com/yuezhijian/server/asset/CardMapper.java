@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface CardMapper {
@@ -210,7 +211,7 @@ public interface CardMapper {
     List<MemberCardRow> findMemberCardsByOrder(long orderId);
 
     @Select("""
-            SELECT balance.id, balance.service_id AS serviceId,
+            SELECT balance.id, balance.member_card_id AS memberCardId, balance.service_id AS serviceId,
                    service.service_code AS serviceCode, service.service_name AS serviceName,
                    balance.total_times AS totalTimes, balance.remaining_times AS remainingTimes,
                    balance.frozen_times AS frozenTimes, balance.deduct_times AS deductTimes,
@@ -236,4 +237,74 @@ public interface CardMapper {
             ORDER BY ledger.occurred_at DESC, ledger.id DESC
             """)
     List<MemberCardLedgerItem> findMemberCardLedgers(long memberCardId);
+
+    @Select("""
+            SELECT balance.id, balance.member_card_id AS memberCardId, balance.service_id AS serviceId,
+                   service.service_code AS serviceCode, service.service_name AS serviceName,
+                   balance.total_times AS totalTimes, balance.remaining_times AS remainingTimes,
+                   balance.frozen_times AS frozenTimes, balance.deduct_times AS deductTimes,
+                   balance.row_version AS rowVersion
+            FROM dbo.ast_member_card_balance balance WITH (UPDLOCK, HOLDLOCK)
+            JOIN dbo.cat_service service ON service.id = balance.service_id
+            WHERE balance.id = #{id}
+            """)
+    MemberCardBalanceRow lockMemberCardBalance(long id);
+
+    @Update("""
+            UPDATE dbo.ast_member_card_balance
+            SET remaining_times = remaining_times - #{times}, updated_at = sysdatetime()
+            WHERE id = #{id} AND row_version = #{rowVersion} AND remaining_times >= #{times}
+            """)
+    int consumeCardBalance(
+            @Param("id") long id,
+            @Param("times") BigDecimal times,
+            @Param("rowVersion") byte[] rowVersion);
+
+    @Select(value = """
+            INSERT INTO dbo.ast_member_card_ledger (
+                ledger_no, member_card_id, service_id, transaction_type,
+                before_times, change_times, after_times, value_amount,
+                source_type, source_id, source_line_id, occurred_at, correlation_id, note, created_by
+            )
+            OUTPUT INSERTED.id
+            VALUES (
+                #{ledgerNo}, #{command.memberCardId}, #{command.serviceId}, 'CONSUME',
+                #{beforeTimes}, -#{command.times}, #{afterTimes}, #{command.amount},
+                'BILL', #{command.billId}, #{command.billLineId}, sysdatetime(),
+                CONCAT('bill:', #{command.billId}, ':line:', #{command.billLineId}),
+                #{command.displayName}, #{command.operatorId}
+            )
+            """, affectData = true)
+    long insertCardConsumeLedger(
+            @Param("ledgerNo") String ledgerNo,
+            @Param("command") CardSettlementConsumption command,
+            @Param("beforeTimes") BigDecimal beforeTimes,
+            @Param("afterTimes") BigDecimal afterTimes);
+
+    @Update("""
+            UPDATE dbo.ast_member_card
+            SET status = CASE WHEN NOT EXISTS (
+                    SELECT 1 FROM dbo.ast_member_card_balance balance
+                    WHERE balance.member_card_id = #{memberCardId} AND balance.remaining_times > 0
+                ) THEN 'EXHAUSTED' ELSE status END,
+                updated_at = sysdatetime(), updated_by = #{operatorId}
+            WHERE id = #{memberCardId} AND status = 'ACTIVE'
+            """)
+    void refreshMemberCardStatus(
+            @Param("memberCardId") long memberCardId,
+            @Param("operatorId") long operatorId);
+
+    @Insert("""
+            INSERT INTO dbo.trd_bill_asset_usage (
+                bill_id, asset_type, member_id, member_card_id, member_card_balance_id,
+                bill_line_id, service_id, quantity, amount, asset_ledger_id, display_name, created_by
+            ) VALUES (
+                #{command.billId}, 'CARD', #{command.memberId}, #{command.memberCardId},
+                #{command.memberCardBalanceId}, #{command.billLineId}, #{command.serviceId},
+                #{command.times}, #{command.amount}, #{ledgerId}, #{command.displayName}, #{command.operatorId}
+            )
+            """)
+    void insertCardAssetUsage(
+            @Param("command") CardSettlementConsumption command,
+            @Param("ledgerId") long ledgerId);
 }

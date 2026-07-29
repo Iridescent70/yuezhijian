@@ -72,7 +72,7 @@ public interface TradeMapper {
     @Select(SUMMARY_SELECT + " WHERE bill.idempotency_key = #{idempotencyKey}")
     BillSummary findByIdempotencyKey(String idempotencyKey);
 
-    @Select(SUMMARY_SELECT + " WHERE EXISTS (SELECT 1 FROM dbo.trd_payment payment WHERE payment.bill_id = bill.id AND payment.idempotency_key = CONCAT(#{key}, ':0'))")
+    @Select(SUMMARY_SELECT + " WHERE bill.settlement_idempotency_key = #{key}")
     BillSummary findBySettlementIdempotency(String key);
 
     @Select("""
@@ -175,10 +175,12 @@ public interface TradeMapper {
     @Select(value = """
             INSERT INTO dbo.trd_settlement_quote (
                 quote_no, bill_id, bill_row_version, receivable_amount, payment_total,
+                asset_amount, external_payment_amount,
                 change_amount, difference_amount, request_json, expires_at, created_by
             )
             OUTPUT INSERTED.id
             SELECT #{quoteNo}, bill.id, bill.row_version, #{receivableAmount}, #{paymentTotal},
+                   #{assetAmount}, #{externalPaymentAmount},
                    #{changeAmount}, #{differenceAmount}, N'{}', #{expiresAt}, #{operatorId}
             FROM dbo.trd_bill bill
             WHERE bill.id = #{billId} AND bill.row_version = CONVERT(binary(8), #{billVersion}, 1)
@@ -199,10 +201,27 @@ public interface TradeMapper {
             @Param("payment") QuotePayment payment,
             @Param("sortNo") int sortNo);
 
+    @Insert("""
+            INSERT INTO dbo.trd_settlement_quote_asset (
+                quote_id, asset_type, member_id, member_card_id, member_card_balance_id,
+                bill_line_id, service_id, quantity, amount, asset_version, display_name, sort_no
+            ) VALUES (
+                #{quoteId}, #{asset.assetType}, #{asset.memberId}, #{asset.memberCardId},
+                #{asset.memberCardBalanceId}, #{asset.billLineId}, #{asset.serviceId},
+                #{asset.quantity}, #{asset.amount}, #{asset.assetVersion}, #{asset.displayName}, #{sortNo}
+            )
+            """)
+    void insertQuoteAsset(
+            @Param("quoteId") long quoteId,
+            @Param("asset") SettlementAssetUsage asset,
+            @Param("sortNo") int sortNo);
+
     @Select("""
             SELECT quote.id, quote.quote_no AS quoteNo, quote.bill_id AS billId,
                    CONVERT(varchar(18), quote.bill_row_version, 1) AS billVersion,
                    quote.receivable_amount AS receivableAmount, quote.payment_total AS paymentTotal,
+                   quote.asset_amount AS assetAmount,
+                   quote.external_payment_amount AS externalPaymentAmount,
                    quote.change_amount AS changeAmount, quote.difference_amount AS differenceAmount,
                    quote.expires_at AS expiresAt, CAST(CASE WHEN quote.used_at IS NULL THEN 0 ELSE 1 END AS bit) AS used
             FROM dbo.trd_settlement_quote quote
@@ -219,6 +238,17 @@ public interface TradeMapper {
             """)
     List<QuotePayment> findQuotePayments(long quoteId);
 
+    @Select("""
+            SELECT asset_type AS assetType, member_id AS memberId,
+                   member_card_id AS memberCardId, member_card_balance_id AS memberCardBalanceId,
+                   bill_line_id AS billLineId, service_id AS serviceId,
+                   quantity, amount, asset_version AS assetVersion, display_name AS displayName
+            FROM dbo.trd_settlement_quote_asset
+            WHERE quote_id = #{quoteId}
+            ORDER BY sort_no, id
+            """)
+    List<SettlementAssetUsage> findQuoteAssets(long quoteId);
+
     @Update("""
             UPDATE dbo.trd_settlement_quote
             SET used_at = sysdatetime()
@@ -230,6 +260,7 @@ public interface TradeMapper {
             UPDATE dbo.trd_bill
             SET status = 'SETTLED', received_amount = receivable_amount, change_amount = #{changeAmount},
                 settled_at = sysdatetime(), cashier_id = #{operatorId},
+                settlement_idempotency_key = #{idempotencyKey},
                 updated_at = sysdatetime(), updated_by = #{operatorId}
             WHERE id = #{billId} AND row_version = CONVERT(binary(8), #{billVersion}, 1)
               AND status IN ('DRAFT', 'PENDING_PAYMENT')
@@ -238,6 +269,7 @@ public interface TradeMapper {
             @Param("billId") long billId,
             @Param("billVersion") String billVersion,
             @Param("changeAmount") BigDecimal changeAmount,
+            @Param("idempotencyKey") String idempotencyKey,
             @Param("operatorId") long operatorId);
 
     @Update("""

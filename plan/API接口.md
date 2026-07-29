@@ -229,9 +229,9 @@
 | API-TRD-005 | `POST /bills/{id}/lines` | 项目/产品/次卡、数量、原价、技师及分配 | 行 id、金额重算 | 结算管理-06 |
 | API-TRD-006 | `PUT/DELETE /bills/{id}/lines/{lineId}` | 行资料、version | 最新账单金额 | 结算管理-06 |
 | API-TRD-007 | `POST /bills/{id}/discounts` | 优惠类型、券、授权人 | 分摊后的账单 | 混合支付 |
-| API-TRD-008 | `GET /bills/{id}/card-options` | memberId、billLines | 项目-次卡匹配和高亮建议 | 结算管理-01 |
-| API-TRD-009 | `POST /bills/{id}/settlement/quote` | 支付组合、消费归属、积分/券/次卡选择 | 锁定的金额和资产试算 | 结算管理-01、02 |
-| API-TRD-010 | `POST /bills/{id}/settle` | quoteId、支付明细、收银员、凭证号 | SETTLED、支付和资产流水 | 业务管理-02、结算-01、02 |
+| API-TRD-008 | `GET /bills/{id}/asset-options`、`/card-options` | 账单会员和明细 | 储值/积分余额、积分比例、项目-次卡匹配和推荐 | 结算管理-01 |
+| API-TRD-009 | `POST /bills/{id}/settlement/quote` | `payments`、`balanceAmount`、`points`、`cards[]` | 金额、资产版本及10分钟有效试算 | 结算管理-01、02 |
+| API-TRD-010 | `POST /bills/{id}/settle` | `quoteNo`、`idempotencyKey` | SETTLED、外部支付及储值/积分/次卡流水 | 业务管理-02、结算-01、02 |
 | API-TRD-011 | `POST /bills/{id}/void` | 原因；仅允许未结算 | VOIDED | 业务管理-02 |
 | API-TRD-012 | `GET /bills/{id}/receipt` | templateId | 小票数据/打印内容 | 优化系统管理-04 |
 | API-TRD-013 | `GET/POST /bill-adjustments` | 查询/原账单、调整项、原因、证明文件 | 申请分页/id | 结算管理-03 |
@@ -408,21 +408,16 @@ AI 只读取经过权限控制和脱敏的结构化摘要，不直接读取生�
 
 ```json
 {
-  "billId": 10001,
-  "version": 3,
-  "consumptionOwner": {"type": "SELF", "relatedMemberId": null},
   "payments": [
-    {"methodCode": "MEMBER_BALANCE", "amount": "100.00"},
-    {"methodCode": "WECHAT", "amount": "28.00", "externalOrderNo": "..."}
+    {"paymentMethodId": 3, "amount": 58.00, "externalReference": "WX..."}
   ],
-  "cardDeductions": [{"billLineId": 20001, "memberCardId": 30001, "times": 1}],
-  "pointDeduction": {"points": 100, "amount": "1.00"},
-  "voucherCodes": ["V..."],
-  "roundingMode": "HALF_UP"
+  "balanceAmount": 100.00,
+  "points": 1000,
+  "cards": [{"billLineId": 20001, "memberCardId": 30001}]
 }
 ```
 
-响应必须给出 `receivableAmount/discountAmount/assetDeductionAmount/externalPayAmount/changeAmount`，并逐行返回优惠分摊、次卡扣次、员工归属、提成计算基数和无法结算原因。试算生成短时有效 `quoteId`；正式结算必须使用同一账单版本和 quoteId。
+响应给出 `receivableAmount/paymentTotal/assetAmount/externalPaymentAmount/changeAmount/differenceAmount`，并在 `assets[]` 保存资产类型、抵扣金额、扣减数量、账单行、次卡余额和资产版本。试算生成10分钟有效 `quoteNo`；正式结算必须使用同一账单版本、资产版本和 `quoteNo`。资产或账单在试算后变化时整单失败，不允许部分扣减。
 
 ### 12.2 数据追踪要求
 

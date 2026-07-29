@@ -2,8 +2,10 @@ import { apiRequest } from './http'
 import type {
   BillDetail,
   BillSummary,
+  CardSettlementOption,
   CreatedBill,
   PaymentMethodOption,
+  SettlementAssetOptions,
   SettlementQuote,
 } from '@/types/api'
 
@@ -40,10 +42,23 @@ export function getPaymentMethods(storeId: number): Promise<PaymentMethodOption[
   return apiRequest<PaymentMethodOption[]>({ method: 'GET', url: '/payment-methods', params: { storeId } })
 }
 
-export function quoteSettlement(id: number, payments: Array<{
-  paymentMethodId: number; amount: number; externalReference?: string
-}>): Promise<SettlementQuote> {
-  return apiRequest<SettlementQuote>({ method: 'POST', url: `/bills/${id}/settlement/quote`, data: { payments } })
+export function getCardSettlementOptions(id: number): Promise<CardSettlementOption[]> {
+  return apiRequest<CardSettlementOption[]>({ method: 'GET', url: `/bills/${id}/card-options` })
+}
+
+export function getSettlementAssetOptions(id: number): Promise<SettlementAssetOptions> {
+  return apiRequest<SettlementAssetOptions>({ method: 'GET', url: `/bills/${id}/asset-options` })
+}
+
+export interface SettlementQuotePayload {
+  payments: Array<{ paymentMethodId: number; amount: number; externalReference?: string }>
+  balanceAmount?: number
+  points?: number
+  cards?: Array<{ billLineId: number; memberCardId: number }>
+}
+
+export function quoteSettlement(id: number, payload: SettlementQuotePayload): Promise<SettlementQuote> {
+  return apiRequest<SettlementQuote>({ method: 'POST', url: `/bills/${id}/settlement/quote`, data: payload })
 }
 
 export function settleBill(id: number, quoteNo: string, idempotencyKey: string): Promise<BillDetail> {

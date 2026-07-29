@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 import org.apache.ibatis.mapping.BoundSql;
 import org.apache.ibatis.mapping.SqlSource;
 import org.apache.ibatis.scripting.xmltags.XMLLanguageDriver;
@@ -33,5 +34,19 @@ class TradeMapperSqlTest {
         assertThat(sql.getSql()).contains("bill.status = ?");
         assertThat(sql.getSql()).contains("bill.bill_no LIKE CONCAT('%', ?, '%')");
         assertThat(sql.getParameterMappings()).hasSizeGreaterThanOrEqualTo(5);
+    }
+
+    @Test
+    void settlementSqlPersistsAssetTotalsAndIdempotencyKey() throws Exception {
+        Method insertQuote = TradeMapper.class.getMethod("insertQuote", SettlementQuoteDraft.class);
+        Method settleBill = TradeMapper.class.getMethod(
+                "settleBill", long.class, String.class, java.math.BigDecimal.class,
+                String.class, long.class);
+
+        String quoteSql = String.join(" ", insertQuote.getAnnotation(Select.class).value());
+        String settleSql = String.join(" ", settleBill.getAnnotation(Update.class).value());
+
+        assertThat(quoteSql).contains("asset_amount", "external_payment_amount", "#{assetAmount}");
+        assertThat(settleSql).contains("settlement_idempotency_key = #{idempotencyKey}");
     }
 }

@@ -44,6 +44,18 @@ public class TradeController {
     @PreAuthorize("hasAuthority('trade:bill:view')")
     public ApiResponse<BillDetail> detail(@PathVariable long id) { return ApiResponse.ok(service.detail(id)); }
 
+    @GetMapping("/bills/{id}/card-options")
+    @PreAuthorize("hasAuthority('trade:bill:settle')")
+    public ApiResponse<List<CardSettlementOption>> cardOptions(@PathVariable long id) {
+        return ApiResponse.ok(service.cardOptions(id));
+    }
+
+    @GetMapping("/bills/{id}/asset-options")
+    @PreAuthorize("hasAuthority('trade:bill:settle')")
+    public ApiResponse<SettlementAssetOptions> assetOptions(@PathVariable long id) {
+        return ApiResponse.ok(service.assetOptions(id));
+    }
+
     @PostMapping("/bills")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('trade:bill:create')")

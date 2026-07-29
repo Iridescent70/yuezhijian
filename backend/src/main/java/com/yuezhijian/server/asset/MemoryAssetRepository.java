@@ -184,6 +184,50 @@ public class MemoryAssetRepository implements AssetRepository {
         return toPoint(command.memberId(), account);
     }
 
+    @Override
+    public int pointsPerYuan() {
+        return 100;
+    }
+
+    @Override
+    public synchronized void consumeBalance(BalanceSettlementConsumption command) {
+        MutableBalanceAccount account = balance(command.memberId());
+        if (!Integer.toString(account.version).equals(command.accountVersion())) {
+            throw new DuplicateResourceException("储值余额已发生变化，请重新试算");
+        }
+        if (account.available.compareTo(command.amount()) < 0) throw new IllegalArgumentException("可用储值余额不足");
+        LocalDateTime now = LocalDateTime.now();
+        BigDecimal before = account.available;
+        BigDecimal after = before.subtract(command.amount());
+        balanceLedgers.add(new BalanceLedgerItem(
+                balanceLedgerIds.incrementAndGet(), command.memberId(), numbers.balanceLedgerNo(), "CONSUME",
+                before, command.amount().negate(), after, "BILL", command.billId(), command.storeId(),
+                storeName(command.storeId()), now, "bill:" + command.billId() + ":balance", null,
+                command.displayName()));
+        account.available = after;
+        account.lastTransactionAt = now;
+        account.version++;
+    }
+
+    @Override
+    public synchronized void consumePoints(PointSettlementConsumption command) {
+        MutablePointAccount account = point(command.memberId());
+        if (!Integer.toString(account.version).equals(command.accountVersion())) {
+            throw new DuplicateResourceException("积分余额已发生变化，请重新试算");
+        }
+        if (account.available < command.points()) throw new IllegalArgumentException("可用积分不足");
+        LocalDateTime now = LocalDateTime.now();
+        int before = account.available;
+        int after = before - command.points();
+        pointLedgers.add(new PointLedgerItem(
+                pointLedgerIds.incrementAndGet(), command.memberId(), numbers.pointLedgerNo(), "REDEEM",
+                before, -command.points(), after, "BILL", command.billId(), null, now,
+                "bill:" + command.billId() + ":point", null, command.displayName()));
+        account.available = after;
+        account.lastTransactionAt = now;
+        account.version++;
+    }
+
     private MutableBalanceAccount balance(long memberId) {
         return balances.computeIfAbsent(memberId, ignored -> new MutableBalanceAccount(
                 BigDecimal.ZERO.setScale(4), BigDecimal.ZERO.setScale(4), BigDecimal.ZERO.setScale(4), null, 1));
@@ -206,6 +250,10 @@ public class MemoryAssetRepository implements AssetRepository {
         RechargeOrder order = recharges.get(id);
         if (order == null) throw new IllegalArgumentException("充值单不存在");
         return order;
+    }
+
+    private String storeName(long storeId) {
+        return storeId == 1L ? "悦指间总部" : "悦指间示范店";
     }
 
     private void requirePendingVersion(RechargeOrder order, String version) {

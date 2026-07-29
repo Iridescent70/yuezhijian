@@ -83,6 +83,12 @@ public class MemoryTradeRepository implements TradeRepository {
     }
 
     @Override
+    public synchronized Optional<BillDetail> findBySettlementIdempotencyKey(String key) {
+        Long id = key == null ? null : settlementIdempotency.get(key);
+        return id == null ? Optional.empty() : Optional.ofNullable(bills.get(id));
+    }
+
+    @Override
     public synchronized CreatedBill create(BillDraft draft) {
         Optional<CreatedBill> existing = findByIdempotencyKey(draft.idempotencyKey());
         if (existing.isPresent()) return existing.get();
@@ -128,8 +134,8 @@ public class MemoryTradeRepository implements TradeRepository {
     public synchronized SettlementQuote createQuote(SettlementQuoteDraft draft) {
         SettlementQuote quote = new SettlementQuote(
                 draft.quoteNo(), draft.billId(), draft.billVersion(), draft.receivableAmount(),
-                draft.paymentTotal(), draft.changeAmount(), draft.differenceAmount(), draft.payments(),
-                draft.expiresAt(), false);
+                draft.paymentTotal(), draft.assetAmount(), draft.externalPaymentAmount(), draft.changeAmount(),
+                draft.differenceAmount(), draft.payments(), draft.assets(), draft.expiresAt(), false);
         quotes.put(quote.quoteNo(), quote);
         return quote;
     }
@@ -175,8 +181,10 @@ public class MemoryTradeRepository implements TradeRepository {
         bills.put(bill.id(), result);
         quotes.put(command.quote().quoteNo(), new SettlementQuote(
                 command.quote().quoteNo(), command.quote().billId(), command.quote().billVersion(),
-                command.quote().receivableAmount(), command.quote().paymentTotal(), command.quote().changeAmount(),
-                command.quote().differenceAmount(), command.quote().payments(), command.quote().expiresAt(), true));
+                command.quote().receivableAmount(), command.quote().paymentTotal(), command.quote().assetAmount(),
+                command.quote().externalPaymentAmount(), command.quote().changeAmount(),
+                command.quote().differenceAmount(), command.quote().payments(), command.quote().assets(),
+                command.quote().expiresAt(), true));
         settlementIdempotency.put(command.idempotencyKey(), bill.id());
         return result;
     }

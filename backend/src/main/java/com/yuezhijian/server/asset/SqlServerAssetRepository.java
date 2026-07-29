@@ -149,6 +149,58 @@ public class SqlServerAssetRepository implements AssetRepository {
         return requirePointAccount(command.memberId());
     }
 
+    @Override
+    public int pointsPerYuan() {
+        String value = mapper.findPointsPerYuan();
+        try {
+            int result = Integer.parseInt(value);
+            if (result <= 0) throw new NumberFormatException();
+            return result;
+        } catch (RuntimeException exception) {
+            throw new IllegalStateException("积分抵现比例配置无效");
+        }
+    }
+
+    @Override
+    @Transactional
+    public void consumeBalance(BalanceSettlementConsumption command) {
+        BalanceAccountRow account = mapper.lockBalanceAccount(command.memberId());
+        if (account == null) throw new IllegalArgumentException("会员储值账户不存在");
+        requireVersion(account.rowVersion(), command.accountVersion(), "储值余额已发生变化，请重新试算");
+        if (account.availableBalance().compareTo(command.amount()) < 0) throw new IllegalArgumentException("可用储值余额不足");
+        LocalDateTime now = LocalDateTime.now();
+        BigDecimal after = account.availableBalance().subtract(command.amount());
+        if (mapper.consumeBalance(account.accountId(), command.amount(), now, account.rowVersion()) != 1) {
+            throw new DuplicateResourceException("储值余额已发生变化，请重新试算");
+        }
+        long ledgerId = mapper.insertBalanceConsumeLedger(
+                numbers.balanceLedgerNo(), account.accountId(), account.availableBalance(), command.amount(), after,
+                command.billId(), command.storeId(), now, command.displayName(), command.operatorId());
+        mapper.insertAccountAssetUsage(
+                command.billId(), "BALANCE", command.memberId(), command.amount(), command.amount(),
+                ledgerId, command.displayName(), command.operatorId());
+    }
+
+    @Override
+    @Transactional
+    public void consumePoints(PointSettlementConsumption command) {
+        PointAccountRow account = mapper.lockPointAccount(command.memberId());
+        if (account == null) throw new IllegalArgumentException("会员积分账户不存在");
+        requireVersion(account.rowVersion(), command.accountVersion(), "积分余额已发生变化，请重新试算");
+        if (account.availablePoints() < command.points()) throw new IllegalArgumentException("可用积分不足");
+        LocalDateTime now = LocalDateTime.now();
+        int after = account.availablePoints() - command.points();
+        if (mapper.consumePoints(account.accountId(), command.points(), now, account.rowVersion()) != 1) {
+            throw new DuplicateResourceException("积分余额已发生变化，请重新试算");
+        }
+        long ledgerId = mapper.insertPointConsumeLedger(
+                numbers.pointLedgerNo(), account.accountId(), account.availablePoints(), command.points(), after,
+                command.billId(), now, command.displayName(), command.operatorId());
+        mapper.insertAccountAssetUsage(
+                command.billId(), "POINT", command.memberId(), BigDecimal.valueOf(command.points()), command.amount(),
+                ledgerId, command.displayName(), command.operatorId());
+    }
+
     private BalanceAccount toBalanceAccount(BalanceAccountRow row) {
         return new BalanceAccount(
                 row.memberId(), row.availableBalance(), row.frozenBalance(), row.totalRecharged(),
@@ -197,4 +249,11 @@ public class SqlServerAssetRepository implements AssetRepository {
     }
 
     private String encode(byte[] version) { return Base64.getEncoder().encodeToString(version); }
+
+    private void requireVersion(byte[] current, String expected, String message) {
+        byte[] decoded;
+        try { decoded = Base64.getDecoder().decode(expected); }
+        catch (IllegalArgumentException exception) { throw new IllegalArgumentException("资产版本格式不正确"); }
+        if (!Arrays.equals(current, decoded)) throw new DuplicateResourceException(message);
+    }
 }

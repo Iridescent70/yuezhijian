@@ -14,6 +14,8 @@ public interface TradeRepository {
 
     Optional<CreatedBill> findByIdempotencyKey(String idempotencyKey);
 
+    Optional<BillDetail> findBySettlementIdempotencyKey(String idempotencyKey);
+
     CreatedBill create(BillDraft draft);
 
     BillDetail addLine(AddBillLineCommand command);

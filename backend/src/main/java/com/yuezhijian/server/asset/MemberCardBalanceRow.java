@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 record MemberCardBalanceRow(
         long id,
+        long memberCardId,
         long serviceId,
         String serviceCode,
         String serviceName,

@@ -3,6 +3,17 @@ package com.yuezhijian.server.trade;
 import com.yuezhijian.server.appointment.AppointmentDetail;
 import com.yuezhijian.server.appointment.AppointmentRepository;
 import com.yuezhijian.server.appointment.AppointmentServiceLine;
+import com.yuezhijian.server.asset.AssetRepository;
+import com.yuezhijian.server.asset.BalanceAccount;
+import com.yuezhijian.server.asset.BalanceSettlementConsumption;
+import com.yuezhijian.server.asset.CardRepository;
+import com.yuezhijian.server.asset.CardSettlementConsumption;
+import com.yuezhijian.server.asset.MemberCardBalanceItem;
+import com.yuezhijian.server.asset.MemberCardDetail;
+import com.yuezhijian.server.asset.MemberCardSummary;
+import com.yuezhijian.server.asset.PointAccount;
+import com.yuezhijian.server.asset.PointSettlementConsumption;
+import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
 import com.yuezhijian.server.iam.AccessCatalogService;
 import com.yuezhijian.server.masterdata.EmployeeSummary;
@@ -16,6 +27,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -34,6 +46,8 @@ public class TradeService {
     private final AppointmentRepository appointments;
     private final MasterDataRepository masterData;
     private final MemberRepository members;
+    private final AssetRepository assets;
+    private final CardRepository cards;
     private final AccessCatalogService accessCatalog;
     private final TradeNumberGenerator numbers;
 
@@ -42,12 +56,16 @@ public class TradeService {
             AppointmentRepository appointments,
             MasterDataRepository masterData,
             MemberRepository members,
+            AssetRepository assets,
+            CardRepository cards,
             AccessCatalogService accessCatalog,
             TradeNumberGenerator numbers) {
         this.repository = repository;
         this.appointments = appointments;
         this.masterData = masterData;
         this.members = members;
+        this.assets = assets;
+        this.cards = cards;
         this.accessCatalog = accessCatalog;
         this.numbers = numbers;
     }
@@ -135,16 +153,132 @@ public class TradeService {
                 request.version(), currentUserId(username)));
     }
 
+    public List<CardSettlementOption> cardOptions(long billId) {
+        BillDetail bill = detail(billId);
+        if (bill.bill().memberId() == null) return List.of();
+        LocalDateTime now = LocalDateTime.now();
+        List<MemberCardSummary> activeCards = cards.memberCards(bill.bill().memberId(), "ACTIVE").stream()
+                .filter(card -> !card.expiresAt().isBefore(now))
+                .toList();
+        List<CardSettlementOption> result = new ArrayList<>();
+        for (BillLine line : bill.lines()) {
+            if (!"SERVICE".equals(line.itemType())) continue;
+            List<CardSettlementOption> lineOptions = new ArrayList<>();
+            for (MemberCardSummary card : activeCards) {
+                MemberCardDetail detail = cards.findMemberCard(card.id()).orElseThrow();
+                for (MemberCardBalanceItem balance : detail.balances()) {
+                    if (balance.serviceId() != line.itemId()) continue;
+                    BigDecimal required = balance.deductTimes().multiply(line.quantity()).setScale(4, RoundingMode.HALF_UP);
+                    if (required.signum() <= 0 || balance.remainingTimes().compareTo(required) < 0) continue;
+                    lineOptions.add(new CardSettlementOption(
+                            line.id(), line.itemName(), card.id(), card.cardNo(), card.cardTypeName(), balance.id(),
+                            balance.remainingTimes(), balance.deductTimes(), required, card.expiresAt(), false));
+                }
+            }
+            lineOptions.sort(java.util.Comparator.comparing(CardSettlementOption::expiresAt)
+                    .thenComparingLong(CardSettlementOption::memberCardId));
+            for (int index = 0; index < lineOptions.size(); index++) {
+                CardSettlementOption option = lineOptions.get(index);
+                result.add(new CardSettlementOption(
+                        option.billLineId(), option.billLineName(), option.memberCardId(), option.cardNo(),
+                        option.cardTypeName(), option.memberCardBalanceId(), option.remainingTimes(),
+                        option.deductTimes(), option.requiredTimes(), option.expiresAt(), index == 0));
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    public SettlementAssetOptions assetOptions(long billId) {
+        BillDetail bill = detail(billId);
+        if (bill.bill().memberId() == null) {
+            return new SettlementAssetOptions(null, null, assets.pointsPerYuan(), List.of());
+        }
+        long memberId = bill.bill().memberId();
+        return new SettlementAssetOptions(
+                assets.findBalanceAccount(memberId).orElse(null),
+                assets.findPointAccount(memberId).orElse(null),
+                assets.pointsPerYuan(),
+                cardOptions(billId));
+    }
+
     public SettlementQuote quote(long billId, SettlementQuoteRequest request, String username) {
         BillDetail bill = detail(billId);
         requireMutable(bill.bill());
         if (bill.lines().isEmpty() || bill.bill().receivableAmount().signum() <= 0) {
             throw new IllegalArgumentException("账单没有可结算的消费明细");
         }
+        Long memberId = bill.bill().memberId();
+        if ((request.balanceAmount().signum() > 0 || request.points() > 0 || !request.cards().isEmpty())
+                && memberId == null) {
+            throw new IllegalArgumentException("散客账单不能使用会员资产");
+        }
+        BigDecimal receivable = money(bill.bill().receivableAmount());
+        List<SettlementAssetUsage> assetUsages = new ArrayList<>();
+        BigDecimal assetTotal = BigDecimal.ZERO.setScale(4);
+
+        Map<String, CardSettlementOption> cardOptionMap = cardOptions(billId).stream().collect(Collectors.toMap(
+                option -> option.billLineId() + ":" + option.memberCardId(), Function.identity()));
+        Map<Long, BillLine> billLines = bill.lines().stream()
+                .collect(Collectors.toMap(BillLine::id, Function.identity()));
+        Set<Long> selectedLines = new HashSet<>();
+        Set<Long> selectedBalances = new HashSet<>();
+        for (SettlementCardSelectionRequest selection : request.cards()) {
+            if (!selectedLines.add(selection.billLineId())) {
+                throw new IllegalArgumentException("同一账单明细不能重复选择次卡");
+            }
+            CardSettlementOption option = cardOptionMap.get(selection.billLineId() + ":" + selection.memberCardId());
+            if (option == null) throw new IllegalArgumentException("所选次卡不能抵扣当前账单项目");
+            if (!selectedBalances.add(option.memberCardBalanceId())) {
+                throw new IllegalArgumentException("同一张次卡的同一项目不能在一笔结算中重复使用");
+            }
+            MemberCardDetail card = cards.findMemberCard(option.memberCardId()).orElseThrow();
+            MemberCardBalanceItem balance = card.balances().stream()
+                    .filter(item -> item.id() == option.memberCardBalanceId()).findFirst().orElseThrow();
+            BillLine line = billLines.get(option.billLineId());
+            BigDecimal amount = money(line.receivableAmount());
+            assetUsages.add(new SettlementAssetUsage(
+                    "CARD", memberId, card.card().id(), balance.id(), line.id(), line.itemId(),
+                    option.requiredTimes(), amount, balance.version(),
+                    card.card().cardTypeName() + "抵扣" + line.itemName()));
+            assetTotal = assetTotal.add(amount);
+        }
+
+        BigDecimal balanceAmount = money(request.balanceAmount());
+        if (balanceAmount.signum() > 0) {
+            BalanceAccount account = assets.findBalanceAccount(memberId)
+                    .orElseThrow(() -> new IllegalArgumentException("会员储值账户不存在"));
+            if (account.availableBalance().compareTo(balanceAmount) < 0) {
+                throw new IllegalArgumentException("可用储值余额不足");
+            }
+            if (assetTotal.add(balanceAmount).compareTo(receivable) > 0) {
+                throw new IllegalArgumentException("储值抵扣金额超过账单剩余应收");
+            }
+            assetUsages.add(new SettlementAssetUsage(
+                    "BALANCE", memberId, null, null, null, null, balanceAmount, balanceAmount,
+                    account.version(), "会员储值抵扣"));
+            assetTotal = assetTotal.add(balanceAmount);
+        }
+
+        if (request.points() > 0) {
+            PointAccount account = assets.findPointAccount(memberId)
+                    .orElseThrow(() -> new IllegalArgumentException("会员积分账户不存在"));
+            if (account.availablePoints() < request.points()) throw new IllegalArgumentException("可用积分不足");
+            BigDecimal pointAmount = BigDecimal.valueOf(request.points())
+                    .divide(BigDecimal.valueOf(assets.pointsPerYuan()), 4, RoundingMode.HALF_UP);
+            if (pointAmount.signum() <= 0) throw new IllegalArgumentException("本次积分不足以抵扣金额");
+            if (assetTotal.add(pointAmount).compareTo(receivable) > 0) {
+                throw new IllegalArgumentException("积分抵扣金额超过账单剩余应收");
+            }
+            assetUsages.add(new SettlementAssetUsage(
+                    "POINT", memberId, null, null, null, null, BigDecimal.valueOf(request.points()), pointAmount,
+                    account.version(), request.points() + "积分抵扣"));
+            assetTotal = assetTotal.add(pointAmount);
+        }
+
         Map<Long, PaymentMethodOption> methods = repository.paymentMethods(bill.bill().storeId()).stream()
                 .collect(Collectors.toMap(PaymentMethodOption::id, Function.identity()));
         List<QuotePayment> payments = new ArrayList<>();
-        BigDecimal total = BigDecimal.ZERO;
+        BigDecimal externalTotal = BigDecimal.ZERO.setScale(4);
         BigDecimal cashTotal = BigDecimal.ZERO;
         for (SettlementPaymentRequest item : request.payments()) {
             PaymentMethodOption method = methods.get(item.paymentMethodId());
@@ -155,26 +289,59 @@ public class TradeService {
                 throw new IllegalArgumentException(method.name() + "必须填写外部凭证号");
             }
             payments.add(new QuotePayment(method.id(), method.code(), method.name(), amount, externalReference));
-            total = total.add(amount);
+            externalTotal = externalTotal.add(amount);
             if ("CASH".equals(method.type())) cashTotal = cashTotal.add(amount);
         }
-        BigDecimal receivable = money(bill.bill().receivableAmount());
+        BigDecimal total = assetTotal.add(externalTotal);
         BigDecimal change = total.subtract(receivable).max(BigDecimal.ZERO).setScale(4, RoundingMode.HALF_UP);
         BigDecimal difference = receivable.subtract(total).max(BigDecimal.ZERO).setScale(4, RoundingMode.HALF_UP);
         if (change.compareTo(cashTotal) > 0) {
             throw new IllegalArgumentException("非现金支付不能产生找零");
         }
         return repository.createQuote(new SettlementQuoteDraft(
-                numbers.quoteNo(), billId, bill.bill().version(), receivable, total, change, difference,
-                payments, LocalDateTime.now().plusMinutes(10), currentUserId(username)));
+                numbers.quoteNo(), billId, bill.bill().version(), receivable, total, assetTotal, externalTotal,
+                change, difference, payments, assetUsages,
+                LocalDateTime.now().plusMinutes(10), currentUserId(username)));
     }
 
+    @Transactional
     public BillDetail settle(long billId, SettleBillRequest request, String username) {
+        String idempotencyKey = trimToNull(request.idempotencyKey());
+        Optional<BillDetail> existing = repository.findBySettlementIdempotencyKey(idempotencyKey);
+        if (existing.isPresent()) {
+            if (existing.get().bill().id() != billId) throw new IllegalArgumentException("结算幂等键已被其他账单使用");
+            return existing.get();
+        }
         SettlementQuote quote = repository.findQuote(request.quoteNo())
                 .orElseThrow(() -> new IllegalArgumentException("结算试算不存在"));
         if (quote.billId() != billId) throw new IllegalArgumentException("结算试算与账单不匹配");
+        if (quote.used() || quote.expiresAt().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("结算试算已失效，请重新试算");
+        }
+        if (quote.differenceAmount().signum() != 0) throw new IllegalArgumentException("支付金额尚未覆盖账单应收");
+        BillDetail bill = detail(billId);
+        if (!bill.bill().version().equals(quote.billVersion())) {
+            throw new DuplicateResourceException("账单已发生变化，请重新试算");
+        }
+        validateAssetVersions(quote, bill);
+        long operatorId = currentUserId(username);
+        for (SettlementAssetUsage asset : quote.assets()) {
+            switch (asset.assetType()) {
+                case "BALANCE" -> assets.consumeBalance(new BalanceSettlementConsumption(
+                        billId, asset.memberId(), bill.bill().storeId(), asset.amount(), asset.assetVersion(),
+                        asset.displayName(), operatorId));
+                case "POINT" -> assets.consumePoints(new PointSettlementConsumption(
+                        billId, asset.memberId(), asset.quantity().intValueExact(), asset.amount(),
+                        asset.assetVersion(), asset.displayName(), operatorId));
+                case "CARD" -> cards.consumeCard(new CardSettlementConsumption(
+                        billId, asset.memberId(), asset.memberCardId(), asset.memberCardBalanceId(),
+                        asset.billLineId(), asset.serviceId(), asset.quantity(), asset.amount(),
+                        asset.assetVersion(), asset.displayName(), operatorId));
+                default -> throw new IllegalArgumentException("不支持的会员资产类型");
+            }
+        }
         return repository.settle(new SettleBillCommand(
-                billId, quote, request.idempotencyKey(), currentUserId(username)));
+                billId, quote, idempotencyKey, operatorId));
     }
 
     public BillDetail voidBill(long billId, VoidBillRequest request, String username) {
@@ -206,6 +373,55 @@ public class TradeService {
         }
         if (trimToNull(guestName) == null || normalizeMobile(guestMobile) == null) {
             throw new IllegalArgumentException("散客开单必须填写姓名和手机号");
+        }
+    }
+
+    private void validateAssetVersions(SettlementQuote quote, BillDetail bill) {
+        for (SettlementAssetUsage asset : quote.assets()) {
+            if (bill.bill().memberId() == null || bill.bill().memberId() != asset.memberId()) {
+                throw new IllegalArgumentException("结算资产与账单会员不匹配");
+            }
+            switch (asset.assetType()) {
+                case "BALANCE" -> {
+                    BalanceAccount account = assets.findBalanceAccount(asset.memberId())
+                            .orElseThrow(() -> new IllegalArgumentException("会员储值账户不存在"));
+                    if (!account.version().equals(asset.assetVersion())) {
+                        throw new DuplicateResourceException("储值余额已发生变化，请重新试算");
+                    }
+                    if (account.availableBalance().compareTo(asset.amount()) < 0) {
+                        throw new IllegalArgumentException("可用储值余额不足");
+                    }
+                }
+                case "POINT" -> {
+                    PointAccount account = assets.findPointAccount(asset.memberId())
+                            .orElseThrow(() -> new IllegalArgumentException("会员积分账户不存在"));
+                    if (!account.version().equals(asset.assetVersion())) {
+                        throw new DuplicateResourceException("积分余额已发生变化，请重新试算");
+                    }
+                    if (account.availablePoints() < asset.quantity().intValueExact()) {
+                        throw new IllegalArgumentException("可用积分不足");
+                    }
+                }
+                case "CARD" -> {
+                    MemberCardDetail card = cards.findMemberCard(asset.memberCardId())
+                            .orElseThrow(() -> new IllegalArgumentException("会员次卡不存在"));
+                    if (card.card().memberId() != asset.memberId() || !"ACTIVE".equals(card.card().status())
+                            || card.card().expiresAt().isBefore(LocalDateTime.now())) {
+                        throw new IllegalArgumentException("会员次卡已失效或不属于当前会员");
+                    }
+                    MemberCardBalanceItem balance = card.balances().stream()
+                            .filter(item -> item.id() == asset.memberCardBalanceId()
+                                    && item.serviceId() == asset.serviceId())
+                            .findFirst().orElseThrow(() -> new IllegalArgumentException("次卡不支持当前项目"));
+                    if (!balance.version().equals(asset.assetVersion())) {
+                        throw new DuplicateResourceException("次卡次数已发生变化，请重新试算");
+                    }
+                    if (balance.remainingTimes().compareTo(asset.quantity()) < 0) {
+                        throw new IllegalArgumentException("次卡剩余次数不足");
+                    }
+                }
+                default -> throw new IllegalArgumentException("不支持的会员资产类型");
+            }
         }
     }
 
