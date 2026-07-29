@@ -59,6 +59,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '服务项目', permission: 'catalog:service:view' },
       },
       {
+        path: 'catalog/card-types',
+        name: 'card-types',
+        component: () => import('@/views/catalog/CardTypeListView.vue'),
+        meta: { title: '次卡类型', permission: 'catalog:card:view' },
+      },
+      {
         path: 'members',
         name: 'members',
         component: () => import('@/views/member/MemberListView.vue'),

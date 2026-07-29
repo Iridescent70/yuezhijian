@@ -12,10 +12,15 @@ import {
   quoteRecharge,
 } from '@/api/asset'
 import { getPaymentMethods } from '@/api/trade'
+import { getCardTypes, getMemberCards, purchaseMemberCard } from '@/api/card'
+import { getEmployees } from '@/api/masterData'
 import { useAuthStore } from '@/stores/auth'
 import type {
   BalanceAccount,
   BalanceLedgerItem,
+  CardTypeDetail,
+  EmployeeSummary,
+  MemberCardSummary,
   PaymentMethodOption,
   PointAccount,
   PointLedgerItem,
@@ -24,7 +29,7 @@ import { formatMoney } from '@/utils/formatMoney'
 
 const props = defineProps<{ memberId: number; storeId: number }>()
 const emit = defineEmits<{
-  changed: [payload: { balance: BalanceAccount; points: PointAccount }]
+  changed: [payload: { balance: BalanceAccount; points: PointAccount; cardCount: number }]
 }>()
 const auth = useAuthStore()
 const loading = ref(true)
@@ -34,11 +39,18 @@ const points = ref<PointAccount>()
 const balanceLedgers = ref<BalanceLedgerItem[]>([])
 const pointLedgers = ref<PointLedgerItem[]>([])
 const paymentMethods = ref<PaymentMethodOption[]>([])
+const memberCards = ref<MemberCardSummary[]>([])
+const cardTypes = ref<CardTypeDetail[]>([])
+const salesEmployees = ref<EmployeeSummary[]>([])
 const rechargeVisible = ref(false)
 const pointVisible = ref(false)
+const cardVisible = ref(false)
 const rechargeForm = reactive({ rechargeAmount: 0, giftAmount: 0, paymentMethodId: 0, externalReference: '' })
 const pointForm = reactive({ changePoints: 0, reason: '' })
+const cardForm = reactive({ cardTypeId: 0, quantity: 1, salesEmployeeId: undefined as number | undefined, paymentMethodId: 0, externalReference: '' })
 const selectedMethod = computed(() => paymentMethods.value.find((item) => item.id === rechargeForm.paymentMethodId))
+const selectedCardMethod = computed(() => paymentMethods.value.find((item) => item.id === cardForm.paymentMethodId))
+const selectedCardType = computed(() => cardTypes.value.find((item) => item.id === cardForm.cardTypeId))
 const canManage = computed(() => auth.hasPermission('member:asset:manage'))
 
 const balanceTypeLabels: Record<string, string> = {
@@ -53,17 +65,19 @@ const pointTypeLabels: Record<string, string> = {
 async function load() {
   loading.value = true
   try {
-    const [nextBalance, nextPoints, nextBalanceLedgers, nextPointLedgers] = await Promise.all([
+    const [nextBalance, nextPoints, nextBalanceLedgers, nextPointLedgers, nextCards] = await Promise.all([
       getBalanceAccount(props.memberId),
       getPointAccount(props.memberId),
       getBalanceLedgers(props.memberId),
       getPointLedgers(props.memberId),
+      getMemberCards(props.memberId),
     ])
     balance.value = nextBalance
     points.value = nextPoints
     balanceLedgers.value = nextBalanceLedgers
     pointLedgers.value = nextPointLedgers
-    emit('changed', { balance: nextBalance, points: nextPoints })
+    memberCards.value = nextCards
+    emit('changed', { balance: nextBalance, points: nextPoints, cardCount: nextCards.filter((card) => card.status === 'ACTIVE').length })
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '会员资产加载失败')
   } finally {
@@ -150,6 +164,47 @@ async function submitPointAdjustment() {
   }
 }
 
+async function openCardPurchase() {
+  try {
+    const [nextTypes, nextMethods, nextEmployees] = await Promise.all([
+      getCardTypes({ storeId: props.storeId, status: 'ACTIVE' }),
+      paymentMethods.value.length ? Promise.resolve(paymentMethods.value) : getPaymentMethods(props.storeId),
+      getEmployees({ storeId: props.storeId }),
+    ])
+    cardTypes.value = nextTypes
+    paymentMethods.value = nextMethods
+    salesEmployees.value = nextEmployees.filter((item) => item.canSell && item.status === 'ACTIVE')
+    const method = nextMethods.find((item) => item.type !== 'STORED_VALUE')
+    Object.assign(cardForm, {
+      cardTypeId: nextTypes[0]?.id ?? 0, quantity: 1,
+      salesEmployeeId: salesEmployees.value[0]?.id, paymentMethodId: method?.id ?? 0, externalReference: '',
+    })
+    if (!nextTypes.length) { ElMessage.warning('当前门店没有在售次卡类型'); return }
+    cardVisible.value = true
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '售卡资料加载失败') }
+}
+
+async function submitCardPurchase() {
+  if (!cardForm.cardTypeId || !cardForm.paymentMethodId) { ElMessage.warning('请选择次卡类型和支付方式'); return }
+  if (selectedCardMethod.value?.needsExternalReference && !cardForm.externalReference.trim()) {
+    ElMessage.warning('当前支付方式必须填写外部凭证号'); return
+  }
+  const total = Number(selectedCardType.value?.salePrice ?? 0) * cardForm.quantity
+  await ElMessageBox.confirm(`确认收款 ${formatMoney(total)} 并发放 ${cardForm.quantity} 张次卡吗？`, '确认售卡', { type: 'warning' })
+  submitting.value = true
+  try {
+    await purchaseMemberCard(props.memberId, {
+      cardTypeId: cardForm.cardTypeId, quantity: cardForm.quantity, storeId: props.storeId,
+      salesEmployeeId: cardForm.salesEmployeeId, paymentMethodId: cardForm.paymentMethodId,
+      externalReference: cardForm.externalReference.trim() || undefined, idempotencyKey: crypto.randomUUID(),
+    })
+    cardVisible.value = false
+    ElMessage.success('次卡已发放')
+    await load()
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '售卡失败') }
+  finally { submitting.value = false }
+}
+
 function formatTime(value?: string) { return value ? value.replace('T', ' ').slice(0, 19) : '—' }
 
 onMounted(load)
@@ -164,6 +219,7 @@ onMounted(load)
       </div>
       <div v-if="canManage">
         <el-button @click="openPointAdjustment">调整积分</el-button>
+        <el-button v-if="auth.hasPermission('member:card:manage')" @click="openCardPurchase">办理次卡</el-button>
         <el-button type="primary" @click="openRecharge">会员充值</el-button>
       </div>
     </div>
@@ -173,6 +229,11 @@ onMounted(load)
         <span>可用储值</span>
         <strong>{{ formatMoney(balance?.availableBalance ?? 0) }}</strong>
         <small>冻结 {{ formatMoney(balance?.frozenBalance ?? 0) }} · 累计充值 {{ formatMoney(balance?.totalRecharged ?? 0) }}</small>
+      </el-card>
+      <el-card shadow="never">
+        <span>有效次卡</span>
+        <strong>{{ memberCards.filter((card) => card.status === 'ACTIVE').length }}</strong>
+        <small>剩余总次数 {{ memberCards.filter((card) => card.status === 'ACTIVE').reduce((sum, card) => sum + Number(card.remainingTimes), 0) }}</small>
       </el-card>
       <el-card shadow="never">
         <span>可用积分</span>
@@ -209,6 +270,17 @@ onMounted(load)
           <el-table-column label="时间" width="170"><template #default="scope">{{ formatTime(scope.row.occurredAt) }}</template></el-table-column>
         </el-table>
       </el-tab-pane>
+      <el-tab-pane label="次卡资产">
+        <el-table :data="memberCards" empty-text="暂无会员次卡">
+          <el-table-column prop="cardNo" label="卡号" width="210" />
+          <el-table-column prop="cardTypeName" label="次卡类型" min-width="180" />
+          <el-table-column prop="remainingTimes" label="剩余次数" width="100" align="right" />
+          <el-table-column label="购卡金额" width="120" align="right"><template #default="scope">{{ formatMoney(scope.row.purchasePrice) }}</template></el-table-column>
+          <el-table-column prop="purchaseStoreName" label="购卡门店" min-width="140" />
+          <el-table-column label="到期日期" width="120"><template #default="scope">{{ scope.row.expiresAt.slice(0, 10) }}</template></el-table-column>
+          <el-table-column label="状态" width="100"><template #default="scope"><el-tag :type="scope.row.status === 'ACTIVE' ? 'success' : 'info'">{{ scope.row.status === 'ACTIVE' ? '有效' : scope.row.status }}</el-tag></template></el-table-column>
+        </el-table>
+      </el-tab-pane>
     </el-tabs>
 
     <el-dialog v-model="rechargeVisible" title="会员充值" width="520px" destroy-on-close>
@@ -229,6 +301,19 @@ onMounted(load)
         <el-form-item label="调整原因" required><el-input v-model="pointForm.reason" type="textarea" maxlength="500" show-word-limit /></el-form-item>
       </el-form>
       <template #footer><el-button @click="pointVisible = false">取消</el-button><el-button type="primary" :loading="submitting" @click="submitPointAdjustment">确认调整</el-button></template>
+    </el-dialog>
+
+    <el-dialog v-model="cardVisible" title="办理次卡" width="560px" destroy-on-close>
+      <el-form label-width="100px">
+        <el-form-item label="次卡类型" required><el-select v-model="cardForm.cardTypeId" style="width: 100%"><el-option v-for="item in cardTypes" :key="item.id" :label="`${item.name}（${formatMoney(item.salePrice)}）`" :value="item.id" /></el-select></el-form-item>
+        <el-form-item label="购买数量"><el-input-number v-model="cardForm.quantity" :min="1" :max="20" /></el-form-item>
+        <el-form-item label="单卡次数"><span>{{ selectedCardType?.totalTimes ?? 0 }} 次</span></el-form-item>
+        <el-form-item label="收款合计"><strong>{{ formatMoney(Number(selectedCardType?.salePrice ?? 0) * cardForm.quantity) }}</strong></el-form-item>
+        <el-form-item label="销售员工"><el-select v-model="cardForm.salesEmployeeId" clearable style="width: 100%"><el-option v-for="item in salesEmployees" :key="item.id" :label="item.name" :value="item.id" /></el-select></el-form-item>
+        <el-form-item label="支付方式" required><el-select v-model="cardForm.paymentMethodId" style="width: 100%"><el-option v-for="item in paymentMethods.filter((method) => method.type !== 'STORED_VALUE')" :key="item.id" :label="item.name" :value="item.id" /></el-select></el-form-item>
+        <el-form-item v-if="selectedCardMethod?.needsExternalReference" label="外部凭证" required><el-input v-model="cardForm.externalReference" maxlength="128" /></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="cardVisible = false">取消</el-button><el-button type="primary" :loading="submitting" @click="submitCardPurchase">确认收款并发卡</el-button></template>
     </el-dialog>
   </div>
 </template>

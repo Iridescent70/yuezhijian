@@ -213,6 +213,113 @@ export interface RechargeOrder {
   version: string
 }
 
+export interface CardServiceRule {
+  serviceId: number
+  serviceCode: string
+  serviceName: string
+  includedTimes: number
+  deductTimes: number
+  priority: number
+}
+
+export interface CardTypeDetail {
+  id: number
+  code: string
+  name: string
+  salePrice: number
+  listPrice: number
+  totalTimes: number
+  validDays: number
+  purchaseThreshold: number
+  instructions?: string
+  autoRemindDays: number
+  storeIds: number[]
+  serviceRules: CardServiceRule[]
+  status: string
+  version: string
+}
+
+export interface CreateCardTypePayload {
+  code: string
+  name: string
+  salePrice: number
+  listPrice: number
+  totalTimes: number
+  validDays: number
+  purchaseThreshold: number
+  instructions?: string
+  autoRemindDays: number
+  storeIds: number[]
+  serviceRules: Array<{
+    serviceId: number
+    includedTimes: number
+    deductTimes: number
+    priority: number
+  }>
+}
+
+export interface MemberCardSummary {
+  id: number
+  cardNo: string
+  memberId: number
+  cardTypeId: number
+  cardTypeCode: string
+  cardTypeName: string
+  purchaseStoreId: number
+  purchaseStoreName: string
+  purchasePrice: number
+  totalTimes: number
+  remainingTimes: number
+  frozenTimes: number
+  startedAt: string
+  expiresAt: string
+  status: string
+  version: string
+}
+
+export interface MemberCardBalanceItem {
+  id: number
+  serviceId: number
+  serviceCode: string
+  serviceName: string
+  totalTimes: number
+  remainingTimes: number
+  frozenTimes: number
+  deductTimes: number
+  version: string
+}
+
+export interface MemberCardLedgerItem {
+  id: number
+  ledgerNo: string
+  serviceId: number
+  serviceName: string
+  transactionType: string
+  beforeTimes: number
+  changeTimes: number
+  afterTimes: number
+  valueAmount: number
+  sourceType: string
+  sourceId: number
+  occurredAt: string
+  correlationId: string
+  reversedLedgerId?: number
+  note?: string
+}
+
+export interface MemberCardDetail {
+  card: MemberCardSummary
+  balances: MemberCardBalanceItem[]
+  ledgers: MemberCardLedgerItem[]
+}
+
+export interface CardSaleResult {
+  orderId: number
+  orderNo: string
+  totalAmount: number
+  cards: MemberCardSummary[]
+}
+
 export interface CreateMemberPayload {
   fullName: string
   nickname?: string

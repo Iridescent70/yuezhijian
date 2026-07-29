@@ -80,6 +80,7 @@ plan/migration/
 | `V202607291120` | 预约主档、项目快照、人员占用及状态历史 | `apt_*`、`sys_cancel_reason` |
 | `V202607291130` | 账单、账单行、支付方式、试算及支付流水 | `trd_*`、`cat_payment_method*` |
 | `V202607291140` | 储值/积分不可变流水、充值试算和充值确认 | `ast_balance_ledger`、`ast_point_ledger`、`ast_recharge_*` |
+| `V202607291150` | 次卡类型、售卡订单、会员次卡余额和次数流水 | `cat_card_*`、`ast_card_sale_order`、`ast_member_card*` |
 | `R__reporting_views` | 可重复构建的统计视图 | `rpt_*` 视图/函数 |
 
 表中未落地版本仍属于设计基线；实际脚本只能在当前最高版本之后追加，逐个建立同号说明并记录各环境执行结果，禁止为了补齐旧编号而开启Flyway乱序执行。

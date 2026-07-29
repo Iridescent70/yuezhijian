@@ -11,6 +11,7 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             "workbench:view", "org:store:view", "iam:role:view", "iam:user:view",
             "member:member:view", "member:member:create",
             "member:asset:view", "member:asset:manage",
+            "catalog:card:view", "catalog:card:manage", "member:card:view", "member:card:manage",
             "org:employee:view", "org:employee:manage",
             "org:workstation:view", "org:workstation:manage",
             "catalog:service:view", "catalog:service:manage",
@@ -46,8 +47,11 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
                             new MenuItem(54L, "workstations", "工位管理", "/app/system/workstations", "OfficeBuilding", 40,
                                     "org:workstation:view", List.of()))),
             new MenuItem(6L, "catalog", "基础资料", "/app/catalog", "Collection", 60, null,
-                    List.of(new MenuItem(61L, "services", "服务项目", "/app/catalog/services", "Service", 10,
-                            "catalog:service:view", List.of()))));
+                    List.of(
+                            new MenuItem(61L, "services", "服务项目", "/app/catalog/services", "Service", 10,
+                                    "catalog:service:view", List.of()),
+                            new MenuItem(62L, "card-types", "次卡类型", "/app/catalog/card-types", "Postcard", 20,
+                                    "catalog:card:view", List.of()))));
 
     @Override
     public List<String> adminPermissions() {

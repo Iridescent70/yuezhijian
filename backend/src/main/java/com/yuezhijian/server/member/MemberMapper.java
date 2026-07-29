@@ -39,8 +39,8 @@ public interface MemberMapper {
             ) active_card
             OUTER APPLY (
                 SELECT COUNT(1) AS card_count
-                FROM dbo.mem_membership_card
-                WHERE member_id = m.id AND status = 'ACTIVE'
+                FROM dbo.ast_member_card
+                WHERE member_id = m.id AND status = 'ACTIVE' AND expires_at >= sysdatetime()
             ) card_stats
             """;
 

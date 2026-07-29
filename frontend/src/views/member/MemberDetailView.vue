@@ -15,10 +15,12 @@ const member = ref<MemberDetail>()
 const activeTab = ref('overview')
 const liveBalance = ref<BalanceAccount>()
 const livePoints = ref<PointAccount>()
+const liveCardCount = ref<number>()
 
-function updateAssets(payload: { balance: BalanceAccount; points: PointAccount }) {
+function updateAssets(payload: { balance: BalanceAccount; points: PointAccount; cardCount: number }) {
   liveBalance.value = payload.balance
   livePoints.value = payload.points
+  liveCardCount.value = payload.cardCount
 }
 
 const genderLabels: Record<string, string> = {
@@ -65,7 +67,7 @@ onMounted(loadMember)
       <div class="member-asset-grid">
         <article><span>可用储值</span><strong>{{ formatMoney(liveBalance?.availableBalance ?? member.assets.availableBalance) }}</strong></article>
         <article><span>可用积分</span><strong>{{ livePoints?.availablePoints ?? member.assets.availablePoints }}</strong></article>
-        <article><span>有效次卡</span><strong>{{ member.assets.cardCount }}</strong></article>
+        <article><span>有效次卡</span><strong>{{ liveCardCount ?? member.assets.cardCount }}</strong></article>
         <article><span>累计储值</span><strong>{{ formatMoney(liveBalance?.totalRecharged ?? member.assets.totalRecharged) }}</strong></article>
       </div>
 

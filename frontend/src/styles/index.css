@@ -793,7 +793,7 @@ button {
 
 .asset-account-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(320px, 1fr));
+  grid-template-columns: repeat(3, minmax(240px, 1fr));
   gap: 16px;
   margin-bottom: 18px;
 }
@@ -828,6 +828,28 @@ button {
 .asset-out {
   color: #c44747;
   font-weight: 600;
+}
+
+.card-rule-editor {
+  width: 100%;
+}
+
+.card-rule-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 1.4fr) 130px 70px 130px 78px 44px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.card-rule-row > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.field-suffix {
+  margin-left: 6px;
+  color: var(--muted);
 }
 
 @media (max-width: 1280px) {

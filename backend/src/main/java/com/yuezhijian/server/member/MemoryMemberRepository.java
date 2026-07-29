@@ -1,5 +1,6 @@
 package com.yuezhijian.server.member;
 
+import com.yuezhijian.server.asset.CardRepository;
 import com.yuezhijian.server.common.PageResult;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -36,6 +37,11 @@ public class MemoryMemberRepository implements MemberRepository {
                     LocalDateTime.now().minusDays(60), LocalDateTime.now().minusMonths(2),
                     BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0,
                     List.of())));
+    private final CardRepository cards;
+
+    public MemoryMemberRepository(CardRepository cards) {
+        this.cards = cards;
+    }
 
     @Override
     public synchronized PageResult<MemberSummary> search(MemberQuery query) {
@@ -99,7 +105,7 @@ public class MemoryMemberRepository implements MemberRepository {
         return new MemberSummary(
                 member.id(), member.memberNo(), member.fullName(), maskMobile(member.mobile()), member.gender(),
                 member.levelName(), member.ownerStoreId(), storeName(member.ownerStoreId()), member.availableBalance(),
-                member.availablePoints(), member.cardCount(), member.status(), member.lastVisitAt());
+                member.availablePoints(), activeCardCount(member.id()), member.status(), member.lastVisitAt());
     }
 
     private MemberDetail toDetail(MemoryMember member) {
@@ -110,7 +116,7 @@ public class MemoryMemberRepository implements MemberRepository {
                 storeName(member.ownerStoreId()), member.advisorEmployeeId(), member.levelName(), member.special(),
                 member.status(), member.lastVisitAt(), member.createdAt(),
                 new MemberAssets(member.availableBalance(), member.frozenBalance(), member.totalRecharged(),
-                        member.availablePoints(), member.lifetimePoints(), member.cardCount()),
+                        member.availablePoints(), member.lifetimePoints(), activeCardCount(member.id())),
                 member.tags(), "memory-" + member.id());
     }
 
@@ -120,6 +126,10 @@ public class MemoryMemberRepository implements MemberRepository {
 
     private String storeName(long storeId) {
         return storeId == 1L ? "悦指间总部" : "悦指间示范店";
+    }
+
+    private int activeCardCount(long memberId) {
+        return cards.memberCards(memberId, "ACTIVE").size();
     }
 
     private record MemoryMember(
