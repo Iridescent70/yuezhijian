@@ -23,6 +23,8 @@ public record MemberDetail(
         String levelName,
         boolean special,
         String status,
+        LocalDateTime frozenAt,
+        String freezeReason,
         LocalDateTime lastVisitAt,
         LocalDateTime createdAt,
         MemberAssets assets,

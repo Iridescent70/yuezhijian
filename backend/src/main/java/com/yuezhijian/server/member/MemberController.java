@@ -9,6 +9,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -48,5 +49,32 @@ public class MemberController {
             @Valid @RequestBody CreateMemberRequest request,
             Principal principal) {
         return ApiResponse.ok(memberService.create(request, principal.getName()));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('member:member:manage')")
+    public ApiResponse<MemberDetail> update(
+            @PathVariable long id,
+            @Valid @RequestBody UpdateMemberRequest request,
+            Principal principal) {
+        return ApiResponse.ok(memberService.update(id, request, principal.getName()));
+    }
+
+    @PostMapping("/{id}/status")
+    @PreAuthorize("hasAuthority('member:member:manage')")
+    public ApiResponse<MemberDetail> changeStatus(
+            @PathVariable long id,
+            @Valid @RequestBody ChangeMemberStatusRequest request,
+            Principal principal) {
+        return ApiResponse.ok(memberService.changeStatus(id, request, principal.getName()));
+    }
+
+    @PutMapping("/{id}/tags")
+    @PreAuthorize("hasAuthority('member:tag:manage')")
+    public ApiResponse<MemberDetail> updateTags(
+            @PathVariable long id,
+            @Valid @RequestBody UpdateMemberTagsRequest request,
+            Principal principal) {
+        return ApiResponse.ok(memberService.updateTags(id, request, principal.getName()));
     }
 }

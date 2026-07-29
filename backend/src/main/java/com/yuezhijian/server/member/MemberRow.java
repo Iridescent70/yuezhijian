@@ -23,6 +23,8 @@ public record MemberRow(
         String levelName,
         boolean specialFlag,
         String status,
+        LocalDateTime frozenAt,
+        String freezeReason,
         LocalDateTime lastVisitAt,
         LocalDateTime createdAt,
         BigDecimal availableBalance,

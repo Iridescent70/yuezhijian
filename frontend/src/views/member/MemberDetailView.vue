@@ -1,21 +1,49 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getMember } from '@/api/member'
-import type { MemberDetail } from '@/types/api'
+import {
+  changeMemberStatus,
+  getMember,
+  getMemberTagOptions,
+  updateMember,
+  updateMemberTags,
+} from '@/api/member'
+import { useAuthStore } from '@/stores/auth'
+import type { MemberDetail, MemberTagOption } from '@/types/api'
 import { formatMoney } from '@/utils/formatMoney'
 import MemberAssetsPanel from './MemberAssetsPanel.vue'
 import type { BalanceAccount, PointAccount } from '@/types/api'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const loading = ref(true)
 const member = ref<MemberDetail>()
 const activeTab = ref('overview')
 const liveBalance = ref<BalanceAccount>()
 const livePoints = ref<PointAccount>()
 const liveCardCount = ref<number>()
+const editVisible = ref(false)
+const editSaving = ref(false)
+const statusVisible = ref(false)
+const statusSaving = ref(false)
+const targetStatus = ref<'ACTIVE' | 'FROZEN' | 'INACTIVE'>('FROZEN')
+const statusReason = ref('')
+const tagsVisible = ref(false)
+const tagsLoading = ref(false)
+const tagsSaving = ref(false)
+const tagOptions = ref<MemberTagOption[]>([])
+const selectedTagIds = ref<number[]>([])
+const editForm = reactive({
+  fullName: '',
+  nickname: '',
+  mobile: '',
+  gender: 'UNKNOWN',
+  birthday: '',
+  email: '',
+  special: false,
+})
 
 function updateAssets(payload: { balance: BalanceAccount; points: PointAccount; cardCount: number }) {
   liveBalance.value = payload.balance
@@ -43,6 +71,108 @@ async function loadMember() {
   }
 }
 
+function openEdit() {
+  if (!member.value) return
+  editForm.fullName = member.value.fullName
+  editForm.nickname = member.value.nickname ?? ''
+  editForm.mobile = ''
+  editForm.gender = member.value.gender
+  editForm.birthday = member.value.birthday ?? ''
+  editForm.email = member.value.email ?? ''
+  editForm.special = member.value.special
+  editVisible.value = true
+}
+
+async function saveEdit() {
+  if (!member.value || !editForm.fullName.trim()) {
+    ElMessage.warning('请输入会员姓名')
+    return
+  }
+  editSaving.value = true
+  try {
+    member.value = await updateMember(member.value.id, {
+      fullName: editForm.fullName.trim(),
+      nickname: editForm.nickname.trim() || undefined,
+      mobile: editForm.mobile.trim() || undefined,
+      gender: editForm.gender,
+      birthday: editForm.birthday || undefined,
+      email: editForm.email.trim() || undefined,
+      advisorEmployeeId: member.value.advisorEmployeeId,
+      special: editForm.special,
+      version: member.value.version,
+    })
+    editVisible.value = false
+    ElMessage.success('会员档案已更新')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '会员档案更新失败')
+  } finally {
+    editSaving.value = false
+  }
+}
+
+function openStatus(status: 'ACTIVE' | 'FROZEN' | 'INACTIVE') {
+  targetStatus.value = status
+  statusReason.value = ''
+  statusVisible.value = true
+}
+
+async function saveStatus() {
+  if (!member.value || !statusReason.value.trim()) {
+    ElMessage.warning('请填写状态变更原因')
+    return
+  }
+  statusSaving.value = true
+  try {
+    member.value = await changeMemberStatus(member.value.id, {
+      status: targetStatus.value,
+      reason: statusReason.value.trim(),
+      version: member.value.version,
+    })
+    statusVisible.value = false
+    ElMessage.success(targetStatus.value === 'FROZEN' ? '会员已冻结' : '会员状态已恢复')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '会员状态更新失败')
+  } finally {
+    statusSaving.value = false
+  }
+}
+
+async function openTags() {
+  if (!member.value) return
+  tagsVisible.value = true
+  tagsLoading.value = true
+  selectedTagIds.value = member.value.tags.map((tag) => tag.id)
+  try {
+    tagOptions.value = await getMemberTagOptions()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '会员标签加载失败')
+    tagsVisible.value = false
+  } finally {
+    tagsLoading.value = false
+  }
+}
+
+async function saveTags() {
+  if (!member.value) return
+  const currentIds = member.value.tags.map((tag) => tag.id)
+  const addIds = selectedTagIds.value.filter((id) => !currentIds.includes(id))
+  const removeIds = currentIds.filter((id) => !selectedTagIds.value.includes(id))
+  tagsSaving.value = true
+  try {
+    member.value = await updateMemberTags(member.value.id, {
+      addIds,
+      removeIds,
+      version: member.value.version,
+    })
+    tagsVisible.value = false
+    ElMessage.success('会员标签已更新')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '会员标签更新失败')
+  } finally {
+    tagsSaving.value = false
+  }
+}
+
 onMounted(loadMember)
 </script>
 
@@ -60,7 +190,13 @@ onMounted(loadMember)
         </div>
         <p v-if="member">{{ member.memberNo }} · {{ member.maskedMobile }} · {{ member.ownerStoreName }}</p>
       </div>
-      <el-button disabled>编辑档案</el-button>
+      <div v-if="member && auth.hasPermission('member:member:manage')" class="member-actions">
+        <el-button @click="openEdit">编辑档案</el-button>
+        <el-button v-if="member.status === 'ACTIVE'" type="warning" plain @click="openStatus('FROZEN')">
+          冻结会员
+        </el-button>
+        <el-button v-else type="success" plain @click="openStatus('ACTIVE')">恢复正常</el-button>
+      </div>
     </div>
 
     <template v-if="member">
@@ -89,11 +225,24 @@ onMounted(loadMember)
                 <el-descriptions-item label="归属门店">{{ member.ownerStoreName }}</el-descriptions-item>
                 <el-descriptions-item label="会员来源">{{ member.sourceType }}</el-descriptions-item>
                 <el-descriptions-item label="建档时间">{{ member.createdAt.replace('T', ' ') }}</el-descriptions-item>
+                <el-descriptions-item v-if="member.status === 'FROZEN'" label="冻结原因" :span="2">
+                  {{ member.freezeReason }} · {{ member.frozenAt?.replace('T', ' ') }}
+                </el-descriptions-item>
               </el-descriptions>
             </el-card>
 
             <el-card shadow="never">
-              <template #header><strong>会员标签</strong></template>
+              <template #header>
+                <div class="card-header-row">
+                  <strong>会员标签</strong>
+                  <el-button
+                    v-if="auth.hasPermission('member:tag:manage')"
+                    link
+                    type="primary"
+                    @click="openTags"
+                  >维护标签</el-button>
+                </div>
+              </template>
               <div v-if="member.tags.length" class="member-tags">
                 <el-tag
                   v-for="tag in member.tags"
@@ -122,5 +271,100 @@ onMounted(loadMember)
         <el-tab-pane label="AI建议" name="ai" lazy><el-empty description="AI分析接入后在此展示依据和建议" /></el-tab-pane>
       </el-tabs>
     </template>
+
+    <el-dialog v-model="editVisible" title="编辑会员档案" width="620px" destroy-on-close>
+      <el-form label-width="90px">
+        <el-form-item label="会员姓名" required>
+          <el-input v-model="editForm.fullName" maxlength="100" show-word-limit />
+        </el-form-item>
+        <el-form-item label="昵称"><el-input v-model="editForm.nickname" maxlength="100" /></el-form-item>
+        <el-form-item label="手机号">
+          <el-input v-model="editForm.mobile" maxlength="11" placeholder="留空表示不修改" />
+        </el-form-item>
+        <el-form-item label="性别" required>
+          <el-radio-group v-model="editForm.gender">
+            <el-radio-button value="UNKNOWN">未填写</el-radio-button>
+            <el-radio-button value="FEMALE">女</el-radio-button>
+            <el-radio-button value="MALE">男</el-radio-button>
+            <el-radio-button value="OTHER">其他</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="生日">
+          <el-date-picker v-model="editForm.birthday" type="date" value-format="YYYY-MM-DD" clearable />
+        </el-form-item>
+        <el-form-item label="邮箱"><el-input v-model="editForm.email" maxlength="255" /></el-form-item>
+        <el-form-item label="特殊会员"><el-switch v-model="editForm.special" /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="editSaving" @click="saveEdit">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="statusVisible" :title="targetStatus === 'FROZEN' ? '冻结会员' : '恢复会员'" width="500px">
+      <el-alert
+        :title="targetStatus === 'FROZEN' ? '冻结后不能开单、充值或变更会员资产。' : '恢复后会员可重新参与正常业务。'"
+        type="warning"
+        :closable="false"
+        show-icon
+      />
+      <el-form label-width="90px" class="dialog-form">
+        <el-form-item label="变更原因" required>
+          <el-input v-model="statusReason" type="textarea" :rows="3" maxlength="500" show-word-limit />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="statusVisible = false">取消</el-button>
+        <el-button type="primary" :loading="statusSaving" @click="saveStatus">确认</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="tagsVisible" title="维护会员标签" width="560px">
+      <div v-loading="tagsLoading">
+        <el-select v-model="selectedTagIds" multiple filterable class="tag-select" placeholder="请选择标签">
+          <el-option v-for="tag in tagOptions" :key="tag.id" :label="tag.name" :value="tag.id">
+            <span>{{ tag.name }}</span>
+            <el-tag v-if="tag.negative" type="danger" size="small" class="tag-option-mark">负向</el-tag>
+          </el-option>
+        </el-select>
+        <p class="dialog-hint">本页只维护人工选中结果；规则标签和AI建议仍保留来源，不自动生成未经确认的标签。</p>
+      </div>
+      <template #footer>
+        <el-button @click="tagsVisible = false">取消</el-button>
+        <el-button type="primary" :loading="tagsSaving" :disabled="tagsLoading" @click="saveTags">保存</el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>
+
+<style scoped>
+.member-actions,
+.card-header-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-header-row {
+  justify-content: space-between;
+}
+
+.dialog-form {
+  margin-top: 18px;
+}
+
+.tag-select {
+  width: 100%;
+}
+
+.tag-option-mark {
+  margin-left: 8px;
+}
+
+.dialog-hint {
+  margin: 14px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+</style>

@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface MemberMapper {
@@ -16,7 +17,9 @@ public interface MemberMapper {
                    m.owner_store_id AS ownerStoreId, owner_store.store_name AS ownerStoreName,
                    m.advisor_employee_id AS advisorEmployeeId,
                    COALESCE(member_level.level_name, N'普通会员') AS levelName,
-                   m.special_flag AS specialFlag, m.status, m.last_visit_at AS lastVisitAt,
+                   m.special_flag AS specialFlag, m.status,
+                   m.frozen_at AS frozenAt, m.freeze_reason AS freezeReason,
+                   m.last_visit_at AS lastVisitAt,
                    m.created_at AS createdAt,
                    COALESCE(balance.available_balance, 0) AS availableBalance,
                    COALESCE(balance.frozen_balance, 0) AS frozenBalance,
@@ -126,6 +129,9 @@ public interface MemberMapper {
     @Select("SELECT COUNT(1) FROM dbo.mem_member WHERE mobile_hash = #{mobileHash}")
     int countByMobileHash(String mobileHash);
 
+    @Select("SELECT COUNT(1) FROM dbo.mem_member WHERE mobile_hash = #{mobileHash} AND id <> #{memberId}")
+    int countByMobileHashExcluding(@Param("mobileHash") String mobileHash, @Param("memberId") long memberId);
+
     @Select("SELECT TOP 1 id FROM dbo.mem_level WHERE level_code = 'STANDARD' AND status = 'ACTIVE'")
     Long findDefaultLevelId();
 
@@ -170,4 +176,97 @@ public interface MemberMapper {
             WHERE tag_code = 'NEW_MEMBER' AND status = 'ACTIVE'
             """)
     int insertNewMemberTag(@Param("memberId") long memberId, @Param("userId") long userId);
+
+    @Update("""
+            <script>
+            UPDATE dbo.mem_member
+            SET full_name = #{command.fullName}, nickname = #{command.nickname},
+                gender = #{command.gender}, birthday = #{command.birthday}, email = #{command.email},
+                advisor_employee_id = #{command.advisorEmployeeId}, special_flag = #{command.special},
+                <if test="mobileCiphertext != null">
+                mobile_ciphertext = #{mobileCiphertext}, mobile_hash = #{mobileHash}, mobile_last4 = #{mobileLast4},
+                </if>
+                updated_at = sysdatetime(), updated_by = #{command.operatorId}
+            WHERE id = #{command.id} AND row_version = #{rowVersion}
+            </script>
+            """)
+    int updateMember(
+            @Param("command") MemberUpdateCommand command,
+            @Param("mobileCiphertext") String mobileCiphertext,
+            @Param("mobileHash") String mobileHash,
+            @Param("mobileLast4") String mobileLast4,
+            @Param("rowVersion") byte[] rowVersion);
+
+    @Update("""
+            UPDATE dbo.mem_member
+            SET status = #{command.toStatus},
+                frozen_at = CASE WHEN #{command.toStatus} = 'FROZEN' THEN sysdatetime() ELSE NULL END,
+                freeze_reason = CASE WHEN #{command.toStatus} = 'FROZEN' THEN #{command.reason} ELSE NULL END,
+                updated_at = sysdatetime(), updated_by = #{command.operatorId}
+            WHERE id = #{command.id} AND status = #{command.fromStatus} AND row_version = #{rowVersion}
+            """)
+    int changeStatus(@Param("command") MemberStatusCommand command, @Param("rowVersion") byte[] rowVersion);
+
+    @Insert("""
+            INSERT INTO dbo.mem_member_status_log (
+                member_id, from_status, to_status, reason, changed_at, changed_by
+            ) VALUES (
+                #{command.id}, #{command.fromStatus}, #{command.toStatus}, #{command.reason},
+                sysdatetime(), #{command.operatorId}
+            )
+            """)
+    void insertStatusLog(@Param("command") MemberStatusCommand command);
+
+    @Select("""
+            SELECT id, tag_code AS code, tag_name AS name, tag_source AS source,
+                   color, negative_flag AS negative
+            FROM dbo.mem_tag
+            WHERE status = 'ACTIVE'
+            ORDER BY negative_flag, tag_name, id
+            """)
+    List<MemberTagOption> findTagOptions();
+
+    @Update("""
+            UPDATE dbo.mem_member
+            SET updated_at = sysdatetime(), updated_by = #{operatorId}
+            WHERE id = #{memberId} AND row_version = #{rowVersion}
+            """)
+    int touchMember(
+            @Param("memberId") long memberId,
+            @Param("rowVersion") byte[] rowVersion,
+            @Param("operatorId") long operatorId);
+
+    @Update("""
+            <script>
+            UPDATE dbo.mem_member_tag
+            SET removed_at = sysdatetime(), removed_by = #{operatorId}
+            WHERE member_id = #{memberId} AND removed_at IS NULL
+              AND tag_id IN
+              <foreach item="id" collection="tagIds" open="(" separator="," close=")">#{id}</foreach>
+            </script>
+            """)
+    int removeTags(
+            @Param("memberId") long memberId,
+            @Param("tagIds") List<Long> tagIds,
+            @Param("operatorId") long operatorId);
+
+    @Insert("""
+            <script>
+            INSERT INTO dbo.mem_member_tag (member_id, tag_id, source, assigned_by)
+            SELECT #{memberId}, tag.id, 'MANUAL', #{operatorId}
+            FROM dbo.mem_tag tag
+            WHERE tag.status = 'ACTIVE'
+              AND tag.id IN
+              <foreach item="id" collection="tagIds" open="(" separator="," close=")">#{id}</foreach>
+              AND NOT EXISTS (
+                  SELECT 1 FROM dbo.mem_member_tag current_tag
+                  WHERE current_tag.member_id = #{memberId}
+                    AND current_tag.tag_id = tag.id AND current_tag.removed_at IS NULL
+              )
+            </script>
+            """)
+    int addTags(
+            @Param("memberId") long memberId,
+            @Param("tagIds") List<Long> tagIds,
+            @Param("operatorId") long operatorId);
 }

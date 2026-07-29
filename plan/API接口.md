@@ -160,8 +160,8 @@
 | --- | --- | --- | --- | --- |
 | API-MEM-001 | `GET /members` | 关键词、卡号、手机号、等级、标签、门店、资产、到店频次、状态 | 会员分页；`member:view` | 会员管理-01、优化会员-01 |
 | API-MEM-002 | `POST /members` | 姓名、手机、性别、生日、入会店、顾问、来源 | memberId、会员卡号 | 会员管理-01、快捷入口-01 |
-| API-MEM-003 | `GET/PUT /members/{id}` | 详情/基础资料、version | 聚合头部/更新 | 会员管理-01、优化会员-02 |
-| API-MEM-004 | `POST /members/{id}/status` | ACTIVE/FROZEN/INACTIVE、原因 | 状态结果 | 会员管理-01、优化会员-06 |
+| API-MEM-003 | `GET/PUT /members/{id}` | 详情/姓名、昵称、可选新手机号、性别、生日、邮箱、顾问、特殊标记、version | 聚合详情/更新后详情；手机号不回显明文；`member:member:view/manage`；已实现 | 会员管理-01、优化会员-02 |
+| API-MEM-004 | `POST /members/{id}/status` | `ACTIVE/FROZEN/INACTIVE`、必填原因、version | 更新后详情；写状态历史；`member:member:manage`；已实现 | 会员管理-01、优化会员-06 |
 | API-MEM-005 | `POST /members/batch-freeze` | memberIds 或筛选快照、原因 | 任务 id | 优化会员-06 |
 | API-MEM-006 | `GET /members/{id}/assets` | 无 | 储值、积分、次卡、券汇总 | 优化会员-02 |
 | API-MEM-007 | `GET /members/{id}/transactions` | 类型、日期、门店 | 消费和资产流水 | 会员管理-01 |
@@ -172,12 +172,15 @@
 | API-MEM-012 | `POST /ownership-adjustments/{id}/approve`、`/reject` | 意见 | 审批结果 | 优化会员-05 |
 | API-MEM-013 | `GET/POST /member-levels` | 查询/代码、名称、储值门槛、生日优惠 | 列表/id | 会员管理-02 |
 | API-MEM-014 | `GET/PUT /member-levels/{id}` | 详情/规则、状态、version | 详情/更新 | 会员管理-02 |
-| API-MEM-015 | `GET/POST /member-tags` | 类型/名称、规则、颜色、自动标志 | 列表/id | 优化会员-03 |
-| API-MEM-016 | `PUT /members/{id}/tags` | addIds/removeIds、来源 | 最新标签 | 优化会员-03 |
+| API-MEM-015 | `GET/POST /member-tags` | 类型/名称、规则、颜色、自动标志 | 已实现GET启用标签选项；POST配置接口待标签规则页迭代；`member:tag:view` | 优化会员-03 |
+| API-MEM-016 | `PUT /members/{id}/tags` | `addIds/removeIds/version`；仅启用标签 | 更新后会员详情；保留分配/移除历史；`member:tag:manage`；已实现 | 优化会员-03 |
 | API-MEM-017 | `POST /members/tags/batch` | memberIds、addIds/removeIds | 批量结果 | 优化会员-01、03 |
 | API-MEM-018 | `GET/POST /member-segments` | 查询/名称、筛选条件 JSON | 客群视图/id | 优化会员-01 |
 | API-MEM-019 | `POST /member-segments/{id}/preview` | 无 | 命中数和样例 | 优化会员-01 |
 | API-MEM-020 | `POST /members/batch-assign-advisor` | memberIds、employeeId | 批量结果 | 优化会员-01 |
+
+`API-MEM-003~004、015(GET)、016`已落地。资料、状态和标签修改都要求提交会员`version`，过期版本返回冲突，避免多窗口覆盖。手机号留空表示不修改；填写新号码时重新加密并生成检索哈希，响应始终只返回尾号。冻结、解冻和停用都必须填写原因，当前状态写在会员主表，完整变更写入`mem_member_status_log`。标签分配采用追加与软移除，不覆盖原来源。批量冻结、标签定义配置和归属调整审批仍按各自接口继续开发。
+
 | API-AST-001 | `GET /members/{id}/balance-account` | 无 | 可用、冻结、累计储值 | 会员资产 |
 | API-AST-002 | `POST /members/{id}/recharges/quote` | 金额、赠送、支付方式 | 试算结果 | 结算管理-01、移动端-04 |
 | API-AST-003 | `POST /members/{id}/recharges` | quoteId、收款、门店、销售员工 | 充值单 id、待确认状态 | 会员资产 |

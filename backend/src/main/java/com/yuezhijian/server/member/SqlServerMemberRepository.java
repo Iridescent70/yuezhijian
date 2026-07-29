@@ -2,6 +2,7 @@ package com.yuezhijian.server.member;
 
 import com.yuezhijian.server.common.PageResult;
 import com.yuezhijian.server.common.SensitiveDataCodec;
+import com.yuezhijian.server.common.DuplicateResourceException;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
@@ -40,6 +41,11 @@ public class SqlServerMemberRepository implements MemberRepository {
     }
 
     @Override
+    public boolean existsByMobileExcluding(String normalizedMobile, long memberId) {
+        return mapper.countByMobileHashExcluding(codec.searchableHash(normalizedMobile), memberId) > 0;
+    }
+
+    @Override
     @Transactional
     public CreatedMember create(CreateMemberCommand command) {
         Long levelId = mapper.findDefaultLevelId();
@@ -55,6 +61,46 @@ public class SqlServerMemberRepository implements MemberRepository {
         mapper.insertPointAccount(memberId);
         mapper.insertNewMemberTag(memberId, command.createdBy());
         return new CreatedMember(memberId, command.memberNo(), command.membershipCardNo());
+    }
+
+    @Override
+    @Transactional
+    public MemberDetail update(MemberUpdateCommand command) {
+        String ciphertext = command.mobile() == null ? null : codec.encrypt(command.mobile());
+        String mobileHash = command.mobile() == null ? null : codec.searchableHash(command.mobile());
+        String last4 = command.mobile() == null ? null : command.mobile().substring(command.mobile().length() - 4);
+        if (mapper.updateMember(command, ciphertext, mobileHash, last4, decodeVersion(command.version())) != 1) {
+            throw stale();
+        }
+        return findById(command.id()).orElseThrow();
+    }
+
+    @Override
+    @Transactional
+    public MemberDetail changeStatus(MemberStatusCommand command) {
+        if (mapper.changeStatus(command, decodeVersion(command.version())) != 1) throw stale();
+        mapper.insertStatusLog(command);
+        return findById(command.id()).orElseThrow();
+    }
+
+    @Override
+    public List<MemberTagOption> tagOptions() {
+        return mapper.findTagOptions();
+    }
+
+    @Override
+    @Transactional
+    public MemberDetail updateTags(MemberTagUpdateCommand command) {
+        if (mapper.touchMember(command.memberId(), decodeVersion(command.version()), command.operatorId()) != 1) {
+            throw stale();
+        }
+        if (!command.removeIds().isEmpty()) {
+            mapper.removeTags(command.memberId(), command.removeIds(), command.operatorId());
+        }
+        if (!command.addIds().isEmpty()) {
+            mapper.addTags(command.memberId(), command.addIds(), command.operatorId());
+        }
+        return findById(command.memberId()).orElseThrow();
     }
 
     private MemberQuery withMobileHash(MemberQuery query) {
@@ -76,7 +122,8 @@ public class SqlServerMemberRepository implements MemberRepository {
                 row.id(), row.memberNo(), row.membershipCardNo(), row.fullName(), row.nickname(),
                 maskMobile(row.mobileLast4()), row.gender(), row.birthday(), row.email(), row.sourceType(),
                 row.joinStoreId(), row.joinStoreName(), row.ownerStoreId(), row.ownerStoreName(),
-                row.advisorEmployeeId(), row.levelName(), row.specialFlag(), row.status(), row.lastVisitAt(),
+                row.advisorEmployeeId(), row.levelName(), row.specialFlag(), row.status(),
+                row.frozenAt(), row.freezeReason(), row.lastVisitAt(),
                 row.createdAt(), new MemberAssets(row.availableBalance(), row.frozenBalance(),
                         row.totalRecharged(), row.availablePoints(), row.lifetimePoints(), row.cardCount()),
                 tags, Base64.getEncoder().encodeToString(row.rowVersion()));
@@ -84,5 +131,17 @@ public class SqlServerMemberRepository implements MemberRepository {
 
     private String maskMobile(String last4) {
         return "*******" + last4;
+    }
+
+    private byte[] decodeVersion(String version) {
+        try {
+            return Base64.getDecoder().decode(version);
+        } catch (IllegalArgumentException exception) {
+            throw stale();
+        }
+    }
+
+    private DuplicateResourceException stale() {
+        return new DuplicateResourceException("会员档案已被他人修改，请刷新后重试");
     }
 }

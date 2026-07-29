@@ -119,10 +119,45 @@ export interface MemberDetail {
   levelName: string
   special: boolean
   status: string
+  frozenAt?: string
+  freezeReason?: string
   lastVisitAt?: string
   createdAt: string
   assets: MemberAssets
   tags: MemberTag[]
+  version: string
+}
+
+export interface UpdateMemberPayload {
+  fullName: string
+  nickname?: string
+  mobile?: string
+  gender: string
+  birthday?: string
+  email?: string
+  advisorEmployeeId?: number
+  special: boolean
+  version: string
+}
+
+export interface ChangeMemberStatusPayload {
+  status: 'ACTIVE' | 'FROZEN' | 'INACTIVE'
+  reason: string
+  version: string
+}
+
+export interface MemberTagOption {
+  id: number
+  code: string
+  name: string
+  source: 'MANUAL' | 'RULE' | 'AI'
+  color?: string
+  negative: boolean
+}
+
+export interface UpdateMemberTagsPayload {
+  addIds: number[]
+  removeIds: number[]
   version: string
 }
 
