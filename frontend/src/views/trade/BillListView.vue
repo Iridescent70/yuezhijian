@@ -13,7 +13,7 @@ const loading = ref(false)
 const bills = ref<BillSummary[]>([])
 const today = localDate(new Date())
 const monthStart = `${today.slice(0, 8)}01`
-const defaultStore = auth.user?.stores.find((item) => item.id === 2)?.id ?? auth.user?.currentStoreId
+const defaultStore = auth.user?.currentStoreId ?? auth.user?.stores[0]?.id
 const filters = reactive({ storeId: defaultStore as number | undefined, dates: [monthStart, today], status: '', keyword: '' })
 const statusMap: Record<BillStatus, { label: string; type: 'success' | 'warning' | 'info' | 'danger' | 'primary' }> = {
   DRAFT: { label: '草稿', type: 'info' }, PENDING_PAYMENT: { label: '待结算', type: 'warning' },

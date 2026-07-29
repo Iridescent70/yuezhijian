@@ -32,9 +32,9 @@ class AsyncJobServiceTest {
                 new MemoryAsyncJobRepository(), new MemoryAccessCatalogService(), files,
                 new ObjectMapper(), new AsyncJobNumberGenerator(), new AsyncJobProperties(30, 3), List.of(handler));
         CreateExportRequest request = new CreateExportRequest("SERVICE_FEEDBACK", null, null, null);
-        for (int index = 0; index < 3; index++) service.createExport(request, "admin");
+        for (int index = 0; index < 3; index++) service.createExport(request, "admin", 1L);
 
-        assertThatThrownBy(() -> service.createExport(request, "admin"))
+        assertThatThrownBy(() -> service.createExport(request, "admin", 1L))
                 .isInstanceOf(DuplicateResourceException.class)
                 .hasMessageContaining("最多同时保留3个");
     }

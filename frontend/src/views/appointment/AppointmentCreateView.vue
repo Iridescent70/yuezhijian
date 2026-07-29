@@ -22,7 +22,7 @@ const members = ref<MemberSummary[]>([])
 const employees = ref<EmployeeSummary[]>([])
 const workstations = ref<WorkstationSummary[]>([])
 const services = ref<ServiceItemSummary[]>([])
-const defaultStore = auth.user?.stores.find((item) => item.id === 2)?.id ?? auth.user?.currentStoreId
+const defaultStore = auth.user?.currentStoreId ?? auth.user?.stores[0]?.id
 const form = reactive({
   customerType: 'MEMBER', memberId: undefined as number | undefined, guestName: '', guestMobile: '',
   storeId: defaultStore as number | undefined, startAt: nextStart(), personCount: 1,

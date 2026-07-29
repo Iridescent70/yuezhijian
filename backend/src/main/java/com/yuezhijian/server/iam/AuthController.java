@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.util.Map;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -54,12 +55,21 @@ public class AuthController {
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
         securityContextRepository.saveContext(context, request, response);
-        return ApiResponse.ok(currentUserService.from(authentication));
+        return ApiResponse.ok(currentUserService.from(authentication, request.getSession()));
     }
 
     @GetMapping("/me")
-    public ApiResponse<CurrentUser> me(Authentication authentication) {
-        return ApiResponse.ok(currentUserService.from(authentication));
+    public ApiResponse<CurrentUser> me(Authentication authentication, HttpSession session) {
+        return ApiResponse.ok(currentUserService.from(authentication, session));
+    }
+
+    @PostMapping("/current-store")
+    public ApiResponse<CurrentUser> switchStore(
+            @Valid @RequestBody SwitchStoreRequest switchStoreRequest,
+            Authentication authentication,
+            HttpSession session) {
+        return ApiResponse.ok(currentUserService.switchStore(
+                authentication, session, switchStoreRequest.storeId()));
     }
 
     @PostMapping("/session/renew")
@@ -80,5 +90,9 @@ public class AuthController {
     public record LoginRequest(
             @NotBlank(message = "请输入账号") String username,
             @NotBlank(message = "请输入密码") String password) {
+    }
+
+    public record SwitchStoreRequest(
+            @NotNull(message = "请选择门店") Long storeId) {
     }
 }

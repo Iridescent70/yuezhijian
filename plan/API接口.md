@@ -85,6 +85,7 @@
 | API-IAM-014 | `GET /menus/tree` | clientType、enabled | 菜单树 | 系统管理-06 |
 | API-IAM-015 | `POST/PUT /menus`、`/menus/{id}` | 父级、路由、图标、排序、权限码 | menuId/更新结果 | 系统管理-06 |
 | API-IAM-016 | `PUT /menus/sort` | 父级下有序 id | 保存结果 | 系统管理-06 |
+| API-IAM-017 | `POST /auth/current-store` | `storeId`；写入当前Spring Session | 返回更新后的当前用户和可选门店；总部可切换启用门店，门店角色不可越权 | 通用-多门店权限 |
 | API-ORG-001 | `GET /organizations/tree` | 类型、状态 | 公司/区域/门店树 | 多门店通用 |
 | API-ORG-002 | `POST /organizations` | 上级、类型、编码、名称 | organizationId | 多门店通用 |
 | API-ORG-003 | `GET/PUT /organizations/{id}` | 详情/资料、version | 详情/更新结果 | 多门店通用 |

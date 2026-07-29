@@ -93,6 +93,10 @@ class AsyncJobFlowTest {
     @Test
     void serviceCatalogExportUsesItsDedicatedPermissionAndCurrentStore() throws Exception {
         MockHttpSession session = login();
+        mockMvc.perform(post("/api/v1/auth/current-store").with(csrf()).session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"storeId\":2}"))
+                .andExpect(status().isOk());
         long id = json(mockMvc.perform(post("/api/v1/exports").with(csrf()).session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"exportType\":\"SERVICE_CATALOG\",\"keyword\":\"SVC001\"}"))
@@ -102,7 +106,7 @@ class AsyncJobFlowTest {
         assertThat(jobs.processNext()).isTrue();
         String csv = new String(mockMvc.perform(get("/api/v1/jobs/" + id + "/result").session(session))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
-        assertThat(csv).contains("项目编号", "门店售价").doesNotContain("SVC001");
+        assertThat(csv).contains("项目编号", "门店售价", "SVC001");
     }
 
     private MockHttpSession login() throws Exception {

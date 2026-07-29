@@ -39,9 +39,13 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function switchStore(storeId: number) {
+    user.value = await authApi.switchCurrentStore(storeId)
+  }
+
   function hasPermission(permission?: string): boolean {
     return !permission || user.value?.permissions.includes(permission) === true
   }
 
-  return { user, initialized, loading, isAuthenticated, initialize, login, logout, hasPermission }
+  return { user, initialized, loading, isAuthenticated, initialize, login, logout, switchStore, hasPermission }
 })

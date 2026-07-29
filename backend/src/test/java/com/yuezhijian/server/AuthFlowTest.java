@@ -74,6 +74,54 @@ class AuthFlowTest {
     }
 
     @Test
+    void headquartersUserCanSwitchStoreWithinTheCurrentSession() throws Exception {
+        var session = (org.springframework.mock.web.MockHttpSession) mockMvc.perform(post("/api/v1/auth/login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"test-admin","password":"TestPassword!2026"}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getRequest()
+                .getSession(false);
+
+        mockMvc.perform(post("/api/v1/auth/current-store")
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"storeId\":2}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.currentStoreId").value(2))
+                .andExpect(jsonPath("$.data.currentStoreName").value("悦指间示范店"));
+
+        mockMvc.perform(get("/api/v1/auth/me").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.currentStoreId").value(2));
+
+        var anotherSession = (org.springframework.mock.web.MockHttpSession) mockMvc.perform(post("/api/v1/auth/login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"test-admin","password":"TestPassword!2026"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.currentStoreId").value(1))
+                .andReturn()
+                .getRequest()
+                .getSession(false);
+        assertThat(anotherSession.getId()).isNotEqualTo(session.getId());
+
+        mockMvc.perform(post("/api/v1/auth/current-store")
+                        .with(csrf())
+                        .session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"storeId\":999}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("40002"));
+    }
+
+    @Test
     void loginWithoutCsrfTokenIsRejected() throws Exception {
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

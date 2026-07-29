@@ -4,15 +4,16 @@ import com.yuezhijian.server.common.ApiResponse;
 import com.yuezhijian.server.appointment.AppointmentQuery;
 import com.yuezhijian.server.appointment.AppointmentRepository;
 import com.yuezhijian.server.appointment.AppointmentSummary;
-import com.yuezhijian.server.iam.AccessCatalogService;
+import com.yuezhijian.server.iam.CurrentStoreContext;
 import com.yuezhijian.server.trade.BillQuery;
 import com.yuezhijian.server.trade.BillSummary;
 import com.yuezhijian.server.trade.TradeRepository;
-import java.security.Principal;
+import jakarta.servlet.http.HttpSession;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -21,21 +22,21 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/workbench")
 public class WorkbenchController {
     private final AppointmentRepository appointments;
-    private final AccessCatalogService accessCatalog;
+    private final CurrentStoreContext currentStoreContext;
     private final TradeRepository trade;
 
     public WorkbenchController(
-            AppointmentRepository appointments, AccessCatalogService accessCatalog, TradeRepository trade) {
+            AppointmentRepository appointments, CurrentStoreContext currentStoreContext, TradeRepository trade) {
         this.appointments = appointments;
-        this.accessCatalog = accessCatalog;
+        this.currentStoreContext = currentStoreContext;
         this.trade = trade;
     }
 
     @GetMapping("/overview")
     @PreAuthorize("hasAuthority('workbench:view')")
-    public ApiResponse<WorkbenchOverview> overview(Principal principal) {
+    public ApiResponse<WorkbenchOverview> overview(Authentication authentication, HttpSession session) {
         LocalDate businessDate = LocalDate.now();
-        long storeId = accessCatalog.userIdentity(principal.getName()).currentStoreId();
+        long storeId = currentStoreContext.currentStore(authentication, session).id();
         List<AppointmentSummary> today = appointments.search(
                 new AppointmentQuery(storeId, businessDate, businessDate, null));
         int customerTraffic = today.stream()

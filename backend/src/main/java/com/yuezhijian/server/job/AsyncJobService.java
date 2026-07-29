@@ -66,7 +66,7 @@ public class AsyncJobService {
                 AsyncJobHandler::jobType, Function.identity()));
     }
 
-    public AsyncJobItem createExport(CreateExportRequest request, String username) {
+    public AsyncJobItem createExport(CreateExportRequest request, String username, long storeId) {
         String exportType = normalize(request.exportType());
         UserIdentity operator = accessCatalog.userIdentity(username);
         if (repository.countActive(operator.id()) >= 3) {
@@ -75,6 +75,7 @@ public class AsyncJobService {
         return switch (exportType) {
             case "SERVICE_FEEDBACK" -> create(
                     operator,
+                    storeId,
                     "服务反馈导出",
                     ServiceFeedbackCsvJobHandler.JOB_TYPE,
                     new ServiceFeedbackExportRequest(
@@ -82,6 +83,7 @@ public class AsyncJobService {
                             request.overdue()));
             case "MEMBER" -> create(
                     operator,
+                    storeId,
                     "会员名单导出",
                     MemberCsvJobHandler.JOB_TYPE,
                     new MemberExportRequest(
@@ -89,6 +91,7 @@ public class AsyncJobService {
                             optionalStatus(request.status(), MEMBER_STATUSES, "会员状态无效")));
             case "SERVICE_CATALOG" -> create(
                     operator,
+                    storeId,
                     "服务项目导出",
                     ServiceCatalogCsvJobHandler.JOB_TYPE,
                     new ServiceCatalogExportRequest(limitedKeyword(request.keyword())));
@@ -205,9 +208,9 @@ public class AsyncJobService {
                 .orElseThrow(() -> new ResourceNotFoundException("任务不存在"));
     }
 
-    private AsyncJobItem create(UserIdentity operator, String name, String jobType, Object request) {
+    private AsyncJobItem create(UserIdentity operator, long storeId, String name, String jobType, Object request) {
         return repository.create(new AsyncJobDraft(
-                numbers.next(), name, jobType, json(request), operator.currentStoreId(),
+                numbers.next(), name, jobType, json(request), storeId,
                 LocalDateTime.now().plusDays(7), operator.id()));
     }
 

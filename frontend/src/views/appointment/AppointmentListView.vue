@@ -30,7 +30,7 @@ const detail = ref<AppointmentDetail | null>(null)
 const reasons = ref<CancelReasonOption[]>([])
 const today = localDate(new Date())
 const weekEnd = localDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
-const defaultStore = auth.user?.stores.find((item) => item.id === 2)?.id ?? auth.user?.currentStoreId
+const defaultStore = auth.user?.currentStoreId ?? auth.user?.stores[0]?.id
 const filters = reactive({ storeId: defaultStore as number | undefined, dates: [today, weekEnd], status: '' })
 const cancelForm = reactive({ action: 'cancel' as 'cancel' | 'no-show', reasonCode: '', note: '' })
 

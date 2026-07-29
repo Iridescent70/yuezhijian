@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import SidebarMenu from './SidebarMenu.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -9,12 +9,27 @@ const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const collapsed = ref(false)
+const switchingStore = ref(false)
 const activeMenu = computed(() => route.path)
 
 async function handleLogout() {
   await ElMessageBox.confirm('确认退出当前账号吗？', '退出登录', { type: 'warning' })
   await auth.logout()
   await router.replace('/login')
+}
+
+async function handleStoreChange(storeId: number) {
+  if (!storeId || storeId === auth.user?.currentStoreId) return
+  switchingStore.value = true
+  try {
+    await auth.switchStore(storeId)
+    ElMessage.success(`已切换到${auth.user?.currentStoreName}`)
+    window.location.reload()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '门店切换失败')
+  } finally {
+    switchingStore.value = false
+  }
 }
 </script>
 
@@ -44,7 +59,13 @@ async function handleLogout() {
           {{ collapsed ? '展开' : '收起' }}
         </button>
         <div class="header-actions">
-          <el-select :model-value="auth.user?.currentStoreId" class="store-selector" disabled>
+          <el-select
+            :model-value="auth.user?.currentStoreId"
+            class="store-selector"
+            :disabled="switchingStore || (auth.user?.stores.length ?? 0) <= 1"
+            :loading="switchingStore"
+            @change="handleStoreChange"
+          >
             <el-option
               v-for="store in auth.user?.stores"
               :key="store.id"

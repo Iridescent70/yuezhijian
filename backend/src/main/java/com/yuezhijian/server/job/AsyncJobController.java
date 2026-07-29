@@ -3,6 +3,8 @@ package com.yuezhijian.server.job;
 import com.yuezhijian.server.common.ApiResponse;
 import com.yuezhijian.server.common.PageResult;
 import com.yuezhijian.server.file.StoredFileDownload;
+import com.yuezhijian.server.iam.CurrentStoreContext;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
@@ -13,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,9 +29,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1")
 public class AsyncJobController {
     private final AsyncJobService service;
+    private final CurrentStoreContext currentStoreContext;
 
-    public AsyncJobController(AsyncJobService service) {
+    public AsyncJobController(AsyncJobService service, CurrentStoreContext currentStoreContext) {
         this.service = service;
+        this.currentStoreContext = currentStoreContext;
     }
 
     @PostMapping("/exports")
@@ -41,8 +46,11 @@ public class AsyncJobController {
             )
             """)
     public ApiResponse<AsyncJobItem> createExport(
-            @Valid @RequestBody CreateExportRequest request, Principal principal) {
-        return ApiResponse.ok(service.createExport(request, principal.getName()));
+            @Valid @RequestBody CreateExportRequest request,
+            Authentication authentication,
+            HttpSession session) {
+        long storeId = currentStoreContext.currentStore(authentication, session).id();
+        return ApiResponse.ok(service.createExport(request, authentication.getName(), storeId));
     }
 
     @GetMapping("/jobs")

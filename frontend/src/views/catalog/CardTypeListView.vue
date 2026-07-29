@@ -37,8 +37,7 @@ async function loadServices() {
 }
 
 async function openCreate() {
-  const defaultStore = auth.user?.stores.find((store) => store.level !== 'HEADQUARTERS')?.id
-    ?? auth.user?.currentStoreId ?? auth.user?.stores[0]?.id
+  const defaultStore = auth.user?.currentStoreId ?? auth.user?.stores[0]?.id
   Object.assign(form, {
     code: '', name: '', salePrice: 0, listPrice: 0, validDays: 365,
     purchaseThreshold: 0, autoRemindDays: 30, instructions: '',

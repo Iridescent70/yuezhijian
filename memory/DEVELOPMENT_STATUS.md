@@ -19,6 +19,7 @@
 | 公共后端 | DONE | 统一响应、traceId、异常、分页、OpenAPI、健康检查 |
 | 认证权限 | DONE | CSRF、登录、当前用户、续期、退出；memory与SQL Server双实现 |
 | 数据库认证 | DONE | MyBatis用户/角色/权限/菜单/门店查询，受控管理员初始化 |
+| 会话门店上下文 | DONE | 总部切换、门店角色固定、会话隔离，工作台/异步导出联动及页面默认门店统一 |
 | 会员基础闭环 | DONE | 分页、详情、建档、资料编辑、手机号安全变更、冻结/恢复、行版本并发控制 |
 | 会员标签维护 | DONE | 启用标签选项、手工添加/移除、来源和软移除历史；不虚构行业标签 |
 | 会员PC页面 | DONE | `/app/members`、`/new`、`/:memberId`，含资料、状态和标签维护弹窗 |
@@ -75,13 +76,13 @@
 
 ```text
 ./mvnw test
-  108 tests，0 failure，0 error
+  110 tests，0 failure，0 error
 
 pnpm test
   1个测试文件、2个测试通过
 
 pnpm build
-  含类型检查并通过；最大公共JS约172.41 KB（原约1.06 MB）
+  含类型检查并通过；最大公共JS约172.44 KB（原约1.06 MB）
 
 docker compose --env-file .env.example -f infra/compose.yaml config --quiet
   通过
@@ -90,6 +91,7 @@ docker compose --env-file .env.example -f infra/compose.yaml config --quiet
 ## 当前限制
 
 - 本地缺少`.env.local`且当前用户无Docker socket权限，31个Migration、数据库版Mapper、任务租约竞争/强杀恢复、到期结果清理及真实MinIO适配尚未联通验证。
+- 会话门店切换已约束可选门店、工作台和异步导出；存量业务详情接口仍需逐模块接入统一行级数据范围校验。
 - 甲方数据库备份、完整数据字典、齐总版和钇休版代码尚未进入工作区。
 - 数据中心5项、AI最终输出范围、支付/短信通道及部分计算口径仍需甲方确认。
 - 会员资料、状态、标签、归属调整和当前页批量冻结/标签/顾问已完成；任务中心已落地，但复杂客群批处理尚未接入，标签规则配置和独立冻结历史页尚未开发。

@@ -13,7 +13,7 @@ const saving = ref(false)
 const memberLoading = ref(false)
 const memberKeyword = ref('')
 const members = ref<MemberSummary[]>([])
-const defaultStore = auth.user?.stores.find((item) => item.id === 2)?.id ?? auth.user?.currentStoreId
+const defaultStore = auth.user?.currentStoreId ?? auth.user?.stores[0]?.id
 const form = reactive({ customerType: 'MEMBER', memberId: undefined as number | undefined, guestName: '', guestMobile: '', storeId: defaultStore as number | undefined, personCount: 1, note: '' })
 
 async function searchMemberOptions() {
