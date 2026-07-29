@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface MasterDataMapper {
@@ -97,6 +98,28 @@ public interface MasterDataMapper {
             """)
     List<ServiceItemSummary> findServices(@Param("storeId") Long storeId, @Param("keyword") String keyword);
 
+    @Select("""
+            SELECT service.id, service.service_code AS code, service.service_name AS name,
+                   service.category_id AS categoryId, category.name AS categoryName,
+                   service.duration_minutes AS durationMinutes, service.cost_amount AS costAmount,
+                   service.list_price AS listPrice, service.description, service.status,
+                   CONVERT(varchar(18), service.row_version, 1) AS version
+            FROM dbo.cat_service service
+            JOIN dbo.cat_category category ON category.id = service.category_id
+            WHERE service.id = #{id}
+            """)
+    ServiceItemRow findService(long id);
+
+    @Select("""
+            SELECT item_store.store_id AS storeId, store.store_name AS storeName,
+                   item_store.sale_price AS storePrice, item_store.sale_status AS saleStatus
+            FROM dbo.cat_item_store item_store
+            JOIN dbo.org_store store ON store.id = item_store.store_id
+            WHERE item_store.item_type = 'SERVICE' AND item_store.item_id = #{serviceId}
+            ORDER BY store.store_code, item_store.store_id
+            """)
+    List<ServiceStoreConfig> findServiceStores(long serviceId);
+
     @Select(value = """
             INSERT INTO dbo.org_employee (
                 employee_no, name, mobile_ciphertext, mobile_hash, mobile_last4,
@@ -142,4 +165,22 @@ public interface MasterDataMapper {
             @Param("storeId") long storeId,
             @Param("storePrice") BigDecimal storePrice,
             @Param("createdBy") long createdBy);
+
+    @Update("""
+            UPDATE dbo.cat_service
+            SET service_name = #{name}, category_id = #{categoryId},
+                duration_minutes = #{durationMinutes}, cost_amount = #{costAmount},
+                list_price = #{listPrice}, description = #{description}, status = #{status},
+                updated_at = sysdatetime(), updated_by = #{updatedBy}
+            WHERE id = #{id} AND row_version = CONVERT(binary(8), #{version}, 1)
+            """)
+    int updateService(ServiceItemUpdate update);
+
+    @Update("""
+            UPDATE dbo.cat_item_store
+            SET sale_price = #{update.storePrice}, sale_status = #{update.saleStatus},
+                updated_at = sysdatetime(), updated_by = #{update.updatedBy}
+            WHERE item_type = 'SERVICE' AND item_id = #{update.id} AND store_id = #{update.storeId}
+            """)
+    int updateServiceStore(@Param("update") ServiceItemUpdate update);
 }

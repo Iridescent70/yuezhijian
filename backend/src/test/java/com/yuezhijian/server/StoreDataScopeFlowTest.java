@@ -99,6 +99,7 @@ class StoreDataScopeFlowTest {
         assertForbidden(get("/api/v1/employees").param("storeId", "2"));
         assertForbidden(get("/api/v1/workstations").param("storeId", "2"));
         assertForbidden(get("/api/v1/services").param("storeId", "2"));
+        assertForbidden(get("/api/v1/services/301"));
         assertForbidden(get("/api/v1/commission-ledgers").param("storeId", "2"));
         assertForbidden(get("/api/v1/visit-tasks").param("storeId", "2"));
         assertForbidden(get("/api/v1/service-feedback").param("storeId", "2"));

@@ -6,9 +6,12 @@ import static org.hamcrest.Matchers.empty;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -26,6 +29,8 @@ import org.springframework.test.web.servlet.MockMvc;
 class MasterDataFlowTest {
     @Autowired
     private MockMvc mockMvc;
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @Test
     void adminCanMaintainAppointmentMasterData() throws Exception {
@@ -111,6 +116,47 @@ class MasterDataFlowTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("40002"));
+    }
+
+    @Test
+    void serviceCanBeEditedAndRejectsStaleVersion() throws Exception {
+        MockHttpSession session = login();
+        String createdJson = mockMvc.perform(post("/api/v1/services")
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code":"SVC-EDIT-902","name":"待编辑服务","categoryId":1,
+                                  "durationMinutes":60,"costAmount":20,"listPrice":180,
+                                  "storePrice":160,"storeIds":[2],"description":"初始说明"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long id = objectMapper.readTree(createdJson).path("data").path("id").asLong();
+        String detailJson = mockMvc.perform(get("/api/v1/services/{id}", id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.stores[0].storeId").value(2))
+                .andReturn().getResponse().getContentAsString();
+        JsonNode detail = objectMapper.readTree(detailJson).path("data");
+        String version = detail.path("version").asText();
+        String update = """
+                {
+                  "name":"已编辑服务","categoryId":1,"durationMinutes":90,
+                  "costAmount":25,"listPrice":200,"storeId":2,"storePrice":188,
+                  "saleStatus":"OFF_SALE","status":"ACTIVE","description":"更新说明",
+                  "version":"%s"
+                }
+                """.formatted(version);
+        mockMvc.perform(put("/api/v1/services/{id}", id)
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON).content(update))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("已编辑服务"))
+                .andExpect(jsonPath("$.data.stores[0].storePrice").value(188))
+                .andExpect(jsonPath("$.data.stores[0].saleStatus").value("OFF_SALE"));
+
+        mockMvc.perform(put("/api/v1/services/{id}", id)
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON).content(update))
+                .andExpect(status().isConflict());
     }
 
     private MockHttpSession login() throws Exception {

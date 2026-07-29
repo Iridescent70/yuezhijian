@@ -2,6 +2,7 @@ package com.yuezhijian.server.masterdata;
 
 import com.yuezhijian.server.common.SensitiveDataCodec;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +44,12 @@ public class SqlServerMasterDataRepository implements MasterDataRepository {
     }
 
     @Override
+    public Optional<ServiceItemDetail> findService(long id) {
+        ServiceItemRow row = mapper.findService(id);
+        return row == null ? Optional.empty() : Optional.of(detail(row));
+    }
+
+    @Override
     public CreatedResource createEmployee(NewEmployee employee) {
         String ciphertext = employee.mobile() == null ? null : codec.encrypt(employee.mobile());
         String hash = employee.mobile() == null ? null : codec.searchableHash(employee.mobile());
@@ -67,5 +74,27 @@ public class SqlServerMasterDataRepository implements MasterDataRepository {
         service.storeIds().forEach(storeId -> mapper.insertServiceStore(
                 id, storeId, service.storePrice(), service.createdBy()));
         return new CreatedResource(id);
+    }
+
+    @Override
+    @Transactional
+    public ServiceItemDetail updateService(ServiceItemUpdate update) {
+        if (mapper.updateService(update) == 0) {
+            throw new com.yuezhijian.server.common.DuplicateResourceException(
+                    "服务项目已被他人修改，请刷新后重试");
+        }
+        if (mapper.updateServiceStore(update) == 0) {
+            throw new IllegalArgumentException("服务项目未配置到所选门店");
+        }
+        ServiceItemRow row = mapper.findService(update.id());
+        if (row == null) throw new IllegalStateException("服务项目更新后不存在");
+        return detail(row);
+    }
+
+    private ServiceItemDetail detail(ServiceItemRow row) {
+        return new ServiceItemDetail(
+                row.id(), row.code(), row.name(), row.categoryId(), row.categoryName(), row.durationMinutes(),
+                row.costAmount(), row.listPrice(), row.description(), row.status(),
+                mapper.findServiceStores(row.id()), row.version());
     }
 }

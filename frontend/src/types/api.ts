@@ -655,6 +655,28 @@ export interface ServiceItemSummary {
   status: string
 }
 
+export interface ServiceStoreConfig {
+  storeId: number
+  storeName: string
+  storePrice: number
+  saleStatus: string
+}
+
+export interface ServiceItemDetail {
+  id: number
+  code: string
+  name: string
+  categoryId: number
+  categoryName: string
+  durationMinutes: number
+  costAmount: number
+  listPrice: number
+  description?: string
+  status: string
+  stores: ServiceStoreConfig[]
+  version: string
+}
+
 export interface CreateEmployeePayload {
   employeeNo: string
   name: string
@@ -683,6 +705,20 @@ export interface CreateServiceItemPayload {
   storePrice: number
   storeIds: number[]
   description?: string
+}
+
+export interface UpdateServiceItemPayload {
+  name: string
+  categoryId: number
+  durationMinutes: number
+  costAmount: number
+  listPrice: number
+  storeId: number
+  storePrice: number
+  saleStatus: string
+  status: string
+  description?: string
+  version: string
 }
 
 export type AppointmentStatus =

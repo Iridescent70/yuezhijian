@@ -3,10 +3,11 @@ package com.yuezhijian.server.masterdata;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
@@ -28,19 +29,23 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
     private final List<WorkstationSummary> workstations = new ArrayList<>(List.of(
             new WorkstationSummary(201L, 2L, "悦指间示范店", "W01", "一号美甲台", 1, 10, "ACTIVE"),
             new WorkstationSummary(202L, 2L, "悦指间示范店", "W02", "二号美甲台", 1, 20, "ACTIVE")));
-    private final List<ServiceItemSummary> services = new ArrayList<>(List.of(
-            new ServiceItemSummary(301L, "SVC001", "基础单色美甲", 1L, "美甲服务", 60,
-                    new BigDecimal("30.00"), new BigDecimal("168.00"), new BigDecimal("168.00"),
-                    "ON_SALE", "ACTIVE"),
-            new ServiceItemSummary(302L, "SVC002", "精致款式美甲", 1L, "美甲服务", 120,
-                    new BigDecimal("60.00"), new BigDecimal("298.00"), new BigDecimal("298.00"),
-                    "ON_SALE", "ACTIVE")));
-    private final Map<Long, List<Long>> serviceStores = new ConcurrentHashMap<>(Map.of(
-            301L, List.of(2L),
-            302L, List.of(2L)));
+    private final Map<Long, ServiceItemDetail> services = new LinkedHashMap<>();
     private final AtomicLong employeeIds = new AtomicLong(102);
     private final AtomicLong workstationIds = new AtomicLong(202);
     private final AtomicLong serviceIds = new AtomicLong(302);
+
+    public MemoryMasterDataRepository() {
+        services.put(301L, new ServiceItemDetail(
+                301L, "SVC001", "基础单色美甲", 1L, "美甲服务", 60,
+                new BigDecimal("30.00"), new BigDecimal("168.00"), "基础单色服务", "ACTIVE",
+                List.of(new ServiceStoreConfig(
+                        2L, "悦指间示范店", new BigDecimal("168.00"), "ON_SALE")), "1"));
+        services.put(302L, new ServiceItemDetail(
+                302L, "SVC002", "精致款式美甲", 1L, "美甲服务", 120,
+                new BigDecimal("60.00"), new BigDecimal("298.00"), "精致款式服务", "ACTIVE",
+                List.of(new ServiceStoreConfig(
+                        2L, "悦指间示范店", new BigDecimal("298.00"), "ON_SALE")), "1"));
+    }
 
     @Override
     public List<PositionOption> positions() {
@@ -75,14 +80,20 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
     @Override
     public synchronized List<ServiceItemSummary> services(Long storeId, String keyword) {
         String normalized = keyword == null ? null : keyword.toLowerCase(Locale.ROOT);
-        return services.stream()
-                .filter(service -> storeId == null
-                        || serviceStores.getOrDefault(service.id(), List.of()).contains(storeId))
+        return services.values().stream()
+                .filter(service -> storeId == null || service.stores().stream()
+                        .anyMatch(store -> store.storeId() == storeId))
                 .filter(service -> normalized == null
                         || service.name().toLowerCase(Locale.ROOT).contains(normalized)
                         || service.code().toLowerCase(Locale.ROOT).contains(normalized))
+                .map(service -> summary(service, storeId))
                 .sorted(Comparator.comparingLong(ServiceItemSummary::id).reversed())
                 .toList();
+    }
+
+    @Override
+    public synchronized Optional<ServiceItemDetail> findService(long id) {
+        return Optional.ofNullable(services.get(id));
     }
 
     @Override
@@ -111,11 +122,53 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
         long id = serviceIds.incrementAndGet();
         String categoryName = categories.stream().filter(category -> category.id() == service.categoryId())
                 .findFirst().map(CategoryOption::name).orElse("未分类");
-        services.add(new ServiceItemSummary(
+        List<ServiceStoreConfig> stores = service.storeIds().stream()
+                .map(storeId -> new ServiceStoreConfig(
+                        storeId, storeName(storeId), service.storePrice(), "ON_SALE"))
+                .toList();
+        services.put(id, new ServiceItemDetail(
                 id, service.code(), service.name(), service.categoryId(), categoryName, service.durationMinutes(),
-                service.costAmount(), service.listPrice(), service.storePrice(), "ON_SALE", "ACTIVE"));
-        serviceStores.put(id, List.copyOf(service.storeIds()));
+                service.costAmount(), service.listPrice(), service.description(), "ACTIVE", stores, "1"));
         return new CreatedResource(id);
+    }
+
+    @Override
+    public synchronized ServiceItemDetail updateService(ServiceItemUpdate update) {
+        ServiceItemDetail current = services.get(update.id());
+        if (current == null || !current.version().equals(update.version())) {
+            throw new com.yuezhijian.server.common.DuplicateResourceException(
+                    "服务项目已被他人修改，请刷新后重试");
+        }
+        String categoryName = categories.stream().filter(category -> category.id() == update.categoryId())
+                .findFirst().map(CategoryOption::name).orElse("未分类");
+        boolean storeFound = current.stores().stream().anyMatch(store -> store.storeId() == update.storeId());
+        if (!storeFound) throw new IllegalArgumentException("服务项目未配置到所选门店");
+        List<ServiceStoreConfig> stores = current.stores().stream()
+                .map(store -> store.storeId() == update.storeId()
+                        ? new ServiceStoreConfig(
+                                store.storeId(), store.storeName(), update.storePrice(), update.saleStatus())
+                        : store)
+                .toList();
+        ServiceItemDetail saved = new ServiceItemDetail(
+                current.id(), current.code(), update.name(), update.categoryId(), categoryName,
+                update.durationMinutes(), update.costAmount(), update.listPrice(), update.description(),
+                update.status(), stores, nextVersion(current.version()));
+        services.put(saved.id(), saved);
+        return saved;
+    }
+
+    private ServiceItemSummary summary(ServiceItemDetail service, Long storeId) {
+        ServiceStoreConfig store = service.stores().stream()
+                .filter(item -> storeId == null || item.storeId() == storeId)
+                .findFirst().orElseThrow();
+        return new ServiceItemSummary(
+                service.id(), service.code(), service.name(), service.categoryId(), service.categoryName(),
+                service.durationMinutes(), service.costAmount(), service.listPrice(), store.storePrice(),
+                store.saleStatus(), service.status());
+    }
+
+    private String nextVersion(String version) {
+        return String.valueOf(Long.parseLong(version) + 1);
     }
 
     private String mask(String mobile) {

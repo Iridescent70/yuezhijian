@@ -7,7 +7,9 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -41,6 +43,12 @@ public class ServiceCatalogController {
         return ApiResponse.ok(service.services(storeId, keyword));
     }
 
+    @GetMapping("/services/{id}")
+    @PreAuthorize("hasAuthority('catalog:service:view')")
+    public ApiResponse<ServiceItemDetail> service(@PathVariable long id) {
+        return ApiResponse.ok(service.service(id));
+    }
+
     @PostMapping("/services")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('catalog:service:manage')")
@@ -48,5 +56,14 @@ public class ServiceCatalogController {
             @Valid @RequestBody CreateServiceItemRequest request,
             Principal principal) {
         return ApiResponse.ok(service.createService(request, principal.getName()));
+    }
+
+    @PutMapping("/services/{id}")
+    @PreAuthorize("hasAuthority('catalog:service:manage')")
+    public ApiResponse<ServiceItemDetail> updateService(
+            @PathVariable long id,
+            @Valid @RequestBody UpdateServiceItemRequest request,
+            Principal principal) {
+        return ApiResponse.ok(service.updateService(id, request, principal.getName()));
     }
 }

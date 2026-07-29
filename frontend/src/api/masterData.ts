@@ -8,6 +8,8 @@ import type {
   EmployeeSummary,
   PositionOption,
   ServiceItemSummary,
+  ServiceItemDetail,
+  UpdateServiceItemPayload,
   WorkstationSummary,
 } from '@/types/api'
 
@@ -39,6 +41,14 @@ export function getServices(params?: { storeId?: number; keyword?: string }): Pr
   return apiRequest<ServiceItemSummary[]>({ method: 'GET', url: '/services', params })
 }
 
+export function getService(id: number): Promise<ServiceItemDetail> {
+  return apiRequest<ServiceItemDetail>({ method: 'GET', url: `/services/${id}` })
+}
+
 export function createService(payload: CreateServiceItemPayload): Promise<CreatedResource> {
   return apiRequest<CreatedResource>({ method: 'POST', url: '/services', data: payload })
+}
+
+export function updateService(id: number, payload: UpdateServiceItemPayload): Promise<ServiceItemDetail> {
+  return apiRequest<ServiceItemDetail>({ method: 'PUT', url: `/services/${id}`, data: payload })
 }

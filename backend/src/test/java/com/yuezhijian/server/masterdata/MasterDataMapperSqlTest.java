@@ -6,6 +6,7 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 import org.apache.ibatis.mapping.BoundSql;
 import org.apache.ibatis.mapping.SqlSource;
 import org.apache.ibatis.scripting.xmltags.XMLLanguageDriver;
@@ -27,6 +28,21 @@ class MasterDataMapperSqlTest {
         assertThat(serviceSql.getSql()).contains("item_store.store_id = ?");
         assertThat(serviceSql.getSql()).contains("store_cfg.store_id IS NOT NULL");
         assertThat(serviceSql.getParameterMappings()).hasSize(3);
+    }
+
+    @Test
+    void serviceUpdatesUseRowVersionAndStoreIdentity() throws Exception {
+        Update service = MasterDataMapper.class.getMethod("updateService", ServiceItemUpdate.class)
+                .getAnnotation(Update.class);
+        assertThat(String.join(" ", service.value()))
+                .contains("row_version = CONVERT(binary(8), #{version}, 1)")
+                .contains("updated_by = #{updatedBy}");
+
+        Update store = MasterDataMapper.class.getMethod("updateServiceStore", ServiceItemUpdate.class)
+                .getAnnotation(Update.class);
+        assertThat(String.join(" ", store.value()))
+                .contains("item_type = 'SERVICE'")
+                .contains("store_id = #{update.storeId}");
     }
 
     private BoundSql parse(Method method, Map<String, Object> parameters) {
