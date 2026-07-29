@@ -4,6 +4,7 @@ import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.PageResult;
 import com.yuezhijian.server.common.ResourceNotFoundException;
 import com.yuezhijian.server.iam.AccessCatalogService;
+import com.yuezhijian.server.iam.StoreDataScope;
 import com.yuezhijian.server.masterdata.MasterDataService;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -18,16 +19,19 @@ public class MemberService {
     private final BusinessNumberGenerator numberGenerator;
     private final AccessCatalogService accessCatalog;
     private final MasterDataService masterData;
+    private final StoreDataScope storeDataScope;
 
     public MemberService(
             MemberRepository repository,
             BusinessNumberGenerator numberGenerator,
             AccessCatalogService accessCatalog,
-            MasterDataService masterData) {
+            MasterDataService masterData,
+            StoreDataScope storeDataScope) {
         this.repository = repository;
         this.numberGenerator = numberGenerator;
         this.accessCatalog = accessCatalog;
         this.masterData = masterData;
+        this.storeDataScope = storeDataScope;
     }
 
     public PageResult<MemberSummary> search(String keyword, Long storeId, String status, int page, int size) {
@@ -41,21 +45,27 @@ public class MemberService {
                 throw new IllegalArgumentException("会员状态不正确");
             }
         }
+        Long scopedStoreId = storeDataScope.constrainNullable(storeId);
         return repository.search(new MemberQuery(
-                normalizedKeyword, storeId, normalizedStatus, safePage, safeSize, null));
+                normalizedKeyword, scopedStoreId, normalizedStatus, safePage, safeSize, null));
     }
 
     public MemberDetail detail(long id) {
-        return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("会员不存在"));
+        MemberDetail member = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("会员不存在"));
+        storeDataScope.require(member.ownerStoreId());
+        return member;
     }
 
     public CreatedMember create(CreateMemberRequest request, String username) {
         String mobile = normalizeMobile(request.mobile());
+        long ownerStoreId = request.ownerStoreId() == null ? request.joinStoreId() : request.ownerStoreId();
+        storeDataScope.require(request.joinStoreId());
+        storeDataScope.require(ownerStoreId);
         if (repository.existsByMobile(mobile)) {
             throw new DuplicateResourceException("该手机号已经存在会员档案");
         }
         validateStore(request.joinStoreId());
-        long ownerStoreId = request.ownerStoreId() == null ? request.joinStoreId() : request.ownerStoreId();
         validateStore(ownerStoreId);
         validateAdvisor(request.advisorEmployeeId(), ownerStoreId);
         long createdBy = accessCatalog.userIdentity(username).id();

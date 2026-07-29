@@ -18,7 +18,7 @@ public class CurrentStoreContext {
 
     public List<StoreSummary> availableStores(Authentication authentication) {
         List<StoreSummary> activeStores = accessCatalog.stores();
-        if (hasHeadquartersScope(authentication)) return activeStores;
+        if (hasAllStoreAccess(authentication)) return activeStores;
 
         Long primaryStoreId = accessCatalog.userIdentity(authentication.getName()).currentStoreId();
         return activeStores.stream()
@@ -50,12 +50,16 @@ public class CurrentStoreContext {
         return store;
     }
 
+    public boolean isActiveStore(long storeId) {
+        return accessCatalog.stores().stream().anyMatch(store -> Objects.equals(store.id(), storeId));
+    }
+
     private static StoreSummary find(List<StoreSummary> stores, Long storeId) {
         if (storeId == null) return null;
         return stores.stream().filter(store -> Objects.equals(store.id(), storeId)).findFirst().orElse(null);
     }
 
-    private static boolean hasHeadquartersScope(Authentication authentication) {
+    public boolean hasAllStoreAccess(Authentication authentication) {
         return authentication.getAuthorities().stream()
                 .anyMatch(authority -> ("ROLE_" + AccessCatalogService.ROLE_ADMIN).equals(authority.getAuthority()));
     }

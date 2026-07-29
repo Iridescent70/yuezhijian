@@ -38,7 +38,7 @@ const advisorEmployeeId = ref<number>()
 const batchResult = ref<MemberBatchResult>()
 const filters = reactive<{ keyword: string; storeId?: number; status: string }>({
   keyword: '',
-  storeId: undefined,
+  storeId: auth.user?.currentStoreId,
   status: '',
 })
 
@@ -86,7 +86,7 @@ function search() {
 
 function reset() {
   filters.keyword = ''
-  filters.storeId = undefined
+  filters.storeId = auth.user?.currentStoreId
   filters.status = ''
   search()
 }

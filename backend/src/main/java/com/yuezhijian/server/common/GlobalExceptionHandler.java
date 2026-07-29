@@ -1,6 +1,7 @@
 package com.yuezhijian.server.common;
 
 import com.yuezhijian.server.file.FileStorageException;
+import com.yuezhijian.server.iam.StoreAccessDeniedException;
 import java.util.stream.Collectors;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -37,6 +38,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessRule(IllegalArgumentException exception) {
         return ResponseEntity.badRequest().body(ApiResponse.error("40002", exception.getMessage()));
+    }
+
+    @ExceptionHandler(StoreAccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDenied() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error("40301", "没有访问该门店数据的权限"));
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)

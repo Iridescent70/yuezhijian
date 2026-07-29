@@ -1,0 +1,95 @@
+package com.yuezhijian.server;
+
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.is;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+
+@SpringBootTest(properties = {
+        "spring.profiles.active=memory",
+        "app.bootstrap.username=test-admin",
+        "app.bootstrap.password=TestPassword!2026"
+})
+@AutoConfigureMockMvc
+class StoreDataScopeFlowTest {
+    @Autowired private MockMvc mockMvc;
+
+    @Test
+    void storeRoleIsRestrictedToItsPrimaryStoreAcrossCoreBusinessApis() throws Exception {
+        mockMvc.perform(get("/api/v1/members").with(storeManager()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].ownerStoreId").value(1))
+                .andExpect(jsonPath("$.data.items[*].ownerStoreId", everyItem(is(1))));
+        mockMvc.perform(get("/api/v1/members/1003").with(storeManager()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.ownerStoreId").value(1));
+
+        assertForbidden(get("/api/v1/members").param("storeId", "2"));
+        assertForbidden(get("/api/v1/members/1001"));
+        assertForbidden(get("/api/v1/appointments").param("storeId", "2"));
+        assertForbidden(get("/api/v1/bills").param("storeId", "2"));
+        assertForbidden(get("/api/v1/payment-methods").param("storeId", "2"));
+
+        mockMvc.perform(post("/api/v1/members")
+                        .with(storeManager()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"fullName":"越权测试会员","mobile":"13588889999","joinStoreId":2}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("40301"));
+
+        mockMvc.perform(post("/api/v1/appointments")
+                        .with(storeManager()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "memberId":1001,"storeId":2,"startAt":"2026-08-20T10:00:00",
+                                  "personCount":1,"employeeId":101,"workstationId":201,
+                                  "serviceIds":[301],"idempotencyKey":"SCOPE-APT-001"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("40301"));
+
+        mockMvc.perform(post("/api/v1/bills")
+                        .with(storeManager()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"memberId":1001,"storeId":2,"personCount":1,"idempotencyKey":"SCOPE-BILL-001"}
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("40301"));
+    }
+
+    private void assertForbidden(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request)
+            throws Exception {
+        mockMvc.perform(request.with(storeManager()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("40301"));
+    }
+
+    private RequestPostProcessor storeManager() {
+        return user("store-manager").authorities(
+                new SimpleGrantedAuthority("ROLE_STORE_MANAGER"),
+                new SimpleGrantedAuthority("member:member:view"),
+                new SimpleGrantedAuthority("member:member:create"),
+                new SimpleGrantedAuthority("appointment:appointment:view"),
+                new SimpleGrantedAuthority("appointment:appointment:create"),
+                new SimpleGrantedAuthority("trade:bill:view"),
+                new SimpleGrantedAuthority("trade:bill:create"));
+    }
+}

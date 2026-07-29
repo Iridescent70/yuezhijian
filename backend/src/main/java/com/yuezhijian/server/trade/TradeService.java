@@ -21,6 +21,7 @@ import com.yuezhijian.server.benefit.VoucherCodeSummary;
 import com.yuezhijian.server.benefit.VoucherSettlementConsumption;
 import com.yuezhijian.server.benefit.VoucherSettlementOption;
 import com.yuezhijian.server.iam.AccessCatalogService;
+import com.yuezhijian.server.iam.StoreDataScope;
 import com.yuezhijian.server.masterdata.EmployeeSummary;
 import com.yuezhijian.server.masterdata.MasterDataRepository;
 import com.yuezhijian.server.masterdata.ServiceItemSummary;
@@ -59,6 +60,7 @@ public class TradeService {
     private final VisitService visits;
     private final AccessCatalogService accessCatalog;
     private final TradeNumberGenerator numbers;
+    private final StoreDataScope storeDataScope;
 
     public TradeService(
             TradeRepository repository,
@@ -71,7 +73,8 @@ public class TradeService {
             CommissionService commissions,
             VisitService visits,
             AccessCatalogService accessCatalog,
-            TradeNumberGenerator numbers) {
+            TradeNumberGenerator numbers,
+            StoreDataScope storeDataScope) {
         this.repository = repository;
         this.appointments = appointments;
         this.masterData = masterData;
@@ -83,11 +86,12 @@ public class TradeService {
         this.visits = visits;
         this.accessCatalog = accessCatalog;
         this.numbers = numbers;
+        this.storeDataScope = storeDataScope;
     }
 
     public List<BillSummary> search(
             Long storeId, LocalDate startDate, LocalDate endDate, String status, String keyword) {
-        long resolvedStoreId = storeId == null ? accessCatalog.stores().getFirst().id() : storeId;
+        long resolvedStoreId = storeDataScope.resolveRequired(storeId);
         validateStore(resolvedStoreId);
         LocalDate start = startDate == null ? LocalDate.now() : startDate;
         LocalDate end = endDate == null ? start : endDate;
@@ -99,18 +103,26 @@ public class TradeService {
     }
 
     public BillDetail detail(long id) {
-        return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("账单不存在"));
+        BillDetail bill = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("账单不存在"));
+        storeDataScope.require(bill.bill().storeId());
+        return bill;
     }
 
     public List<PaymentMethodOption> paymentMethods(long storeId) {
+        storeDataScope.require(storeId);
         validateStore(storeId);
         return repository.paymentMethods(storeId);
     }
 
     public CreatedBill create(CreateBillRequest request, String username) {
+        storeDataScope.require(request.storeId());
         String key = trimToNull(request.idempotencyKey());
         Optional<CreatedBill> existing = repository.findByIdempotencyKey(key);
-        if (existing.isPresent()) return existing.get();
+        if (existing.isPresent()) {
+            detail(existing.get().id());
+            return existing.get();
+        }
         validateStore(request.storeId());
         validateCustomer(request.memberId(), request.guestName(), request.guestMobile());
         return repository.create(new BillDraft(
@@ -126,10 +138,12 @@ public class TradeService {
         Optional<BillSummary> existing = repository.findByAppointmentId(appointmentId);
         if (existing.isPresent()) {
             BillSummary bill = existing.get();
+            storeDataScope.require(bill.storeId());
             return new CreatedBill(bill.id(), bill.billNo(), bill.status(), bill.version());
         }
         AppointmentDetail appointment = appointments.findById(appointmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("预约不存在"));
+        storeDataScope.require(appointment.appointment().storeId());
         if (!Set.of("ARRIVED", "SERVING", "COMPLETED").contains(appointment.appointment().status())) {
             throw new IllegalArgumentException("预约到店后才能转为账单");
         }
@@ -430,6 +444,7 @@ public class TradeService {
         Optional<BillDetail> existing = repository.findBySettlementIdempotencyKey(idempotencyKey);
         if (existing.isPresent()) {
             if (existing.get().bill().id() != billId) throw new IllegalArgumentException("结算幂等键已被其他账单使用");
+            storeDataScope.require(existing.get().bill().storeId());
             visits.ensureForSettledBill(existing.get(), currentUserId(username));
             return existing.get();
         }

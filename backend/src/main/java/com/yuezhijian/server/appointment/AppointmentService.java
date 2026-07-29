@@ -3,6 +3,7 @@ package com.yuezhijian.server.appointment;
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
 import com.yuezhijian.server.iam.AccessCatalogService;
+import com.yuezhijian.server.iam.StoreDataScope;
 import com.yuezhijian.server.masterdata.EmployeeSummary;
 import com.yuezhijian.server.masterdata.MasterDataRepository;
 import com.yuezhijian.server.masterdata.ServiceItemSummary;
@@ -42,22 +43,25 @@ public class AppointmentService {
     private final MemberRepository members;
     private final AccessCatalogService accessCatalog;
     private final AppointmentNumberGenerator numberGenerator;
+    private final StoreDataScope storeDataScope;
 
     public AppointmentService(
             AppointmentRepository repository,
             MasterDataRepository masterData,
             MemberRepository members,
             AccessCatalogService accessCatalog,
-            AppointmentNumberGenerator numberGenerator) {
+            AppointmentNumberGenerator numberGenerator,
+            StoreDataScope storeDataScope) {
         this.repository = repository;
         this.masterData = masterData;
         this.members = members;
         this.accessCatalog = accessCatalog;
         this.numberGenerator = numberGenerator;
+        this.storeDataScope = storeDataScope;
     }
 
     public List<AppointmentSummary> search(Long storeId, LocalDate startDate, LocalDate endDate, String status) {
-        long resolvedStoreId = storeId == null ? accessCatalog.stores().getFirst().id() : storeId;
+        long resolvedStoreId = storeDataScope.resolveRequired(storeId);
         validateStore(resolvedStoreId);
         LocalDate resolvedStart = startDate == null ? LocalDate.now() : startDate;
         LocalDate resolvedEnd = endDate == null ? resolvedStart : endDate;
@@ -69,11 +73,14 @@ public class AppointmentService {
     }
 
     public AppointmentDetail detail(long id) {
-        return repository.findById(id)
+        AppointmentDetail appointment = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("预约不存在"));
+        storeDataScope.require(appointment.appointment().storeId());
+        return appointment;
     }
 
     public List<AvailabilitySlot> availability(long storeId, long serviceId, long employeeId, LocalDate date) {
+        storeDataScope.require(storeId);
         validateStore(storeId);
         ServiceItemSummary service = masterData.services(storeId, null).stream()
                 .filter(item -> item.id() == serviceId && "ACTIVE".equals(item.status())
@@ -95,9 +102,13 @@ public class AppointmentService {
     }
 
     public CreatedAppointment create(CreateAppointmentRequest request, String username) {
+        storeDataScope.require(request.storeId());
         String idempotencyKey = trimToNull(request.idempotencyKey());
         Optional<CreatedAppointment> existing = repository.findByIdempotencyKey(idempotencyKey);
-        if (existing.isPresent()) return existing.get();
+        if (existing.isPresent()) {
+            detail(existing.get().id());
+            return existing.get();
+        }
         validateStore(request.storeId());
         validateCustomer(request.memberId(), request.guestName(), request.guestMobile());
         List<AppointmentServiceLine> lines = resolveServices(request.storeId(), request.serviceIds());
