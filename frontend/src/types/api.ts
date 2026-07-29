@@ -145,3 +145,91 @@ export interface CreatedMember {
   memberNo: string
   membershipCardNo: string
 }
+
+export interface CreatedResource {
+  id: number
+}
+
+export interface PositionOption {
+  id: number
+  code: string
+  name: string
+  status: string
+}
+
+export interface CategoryOption {
+  id: number
+  code: string
+  name: string
+  type: string
+  status: string
+}
+
+export interface EmployeeSummary {
+  id: number
+  employeeNo: string
+  name: string
+  maskedMobile?: string
+  positionId: number
+  positionName: string
+  storeId: number
+  storeName: string
+  canService: boolean
+  canSell: boolean
+  status: string
+}
+
+export interface WorkstationSummary {
+  id: number
+  storeId: number
+  storeName: string
+  code: string
+  name: string
+  capacity: number
+  sortNo: number
+  status: string
+}
+
+export interface ServiceItemSummary {
+  id: number
+  code: string
+  name: string
+  categoryId: number
+  categoryName: string
+  durationMinutes: number
+  costAmount: number
+  listPrice: number
+  storePrice: number
+  saleStatus: string
+  status: string
+}
+
+export interface CreateEmployeePayload {
+  employeeNo: string
+  name: string
+  mobile?: string
+  positionId: number
+  primaryStoreId: number
+  canService: boolean
+  canSell: boolean
+}
+
+export interface CreateWorkstationPayload {
+  storeId: number
+  code: string
+  name: string
+  capacity: number
+  sortNo: number
+}
+
+export interface CreateServiceItemPayload {
+  code: string
+  name: string
+  categoryId: number
+  durationMinutes: number
+  costAmount: number
+  listPrice: number
+  storePrice: number
+  storeIds: number[]
+  description?: string
+}

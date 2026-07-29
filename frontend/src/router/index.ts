@@ -41,6 +41,24 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '角色管理', permission: 'iam:role:view' },
       },
       {
+        path: 'system/employees',
+        name: 'employees',
+        component: () => import('@/views/system/EmployeeListView.vue'),
+        meta: { title: '员工管理', permission: 'org:employee:view' },
+      },
+      {
+        path: 'system/workstations',
+        name: 'workstations',
+        component: () => import('@/views/system/WorkstationListView.vue'),
+        meta: { title: '工位管理', permission: 'org:workstation:view' },
+      },
+      {
+        path: 'catalog/services',
+        name: 'services',
+        component: () => import('@/views/catalog/ServiceListView.vue'),
+        meta: { title: '服务项目', permission: 'catalog:service:view' },
+      },
+      {
         path: 'members',
         name: 'members',
         component: () => import('@/views/member/MemberListView.vue'),

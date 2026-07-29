@@ -1,0 +1,44 @@
+import { apiRequest } from './http'
+import type {
+  CategoryOption,
+  CreateEmployeePayload,
+  CreatedResource,
+  CreateServiceItemPayload,
+  CreateWorkstationPayload,
+  EmployeeSummary,
+  PositionOption,
+  ServiceItemSummary,
+  WorkstationSummary,
+} from '@/types/api'
+
+export function getPositions(): Promise<PositionOption[]> {
+  return apiRequest<PositionOption[]>({ method: 'GET', url: '/positions' })
+}
+
+export function getEmployees(params?: { storeId?: number; keyword?: string }): Promise<EmployeeSummary[]> {
+  return apiRequest<EmployeeSummary[]>({ method: 'GET', url: '/employees', params })
+}
+
+export function createEmployee(payload: CreateEmployeePayload): Promise<CreatedResource> {
+  return apiRequest<CreatedResource>({ method: 'POST', url: '/employees', data: payload })
+}
+
+export function getWorkstations(storeId?: number): Promise<WorkstationSummary[]> {
+  return apiRequest<WorkstationSummary[]>({ method: 'GET', url: '/workstations', params: { storeId } })
+}
+
+export function createWorkstation(payload: CreateWorkstationPayload): Promise<CreatedResource> {
+  return apiRequest<CreatedResource>({ method: 'POST', url: '/workstations', data: payload })
+}
+
+export function getServiceCategories(): Promise<CategoryOption[]> {
+  return apiRequest<CategoryOption[]>({ method: 'GET', url: '/item-categories', params: { type: 'SERVICE' } })
+}
+
+export function getServices(params?: { storeId?: number; keyword?: string }): Promise<ServiceItemSummary[]> {
+  return apiRequest<ServiceItemSummary[]>({ method: 'GET', url: '/services', params })
+}
+
+export function createService(payload: CreateServiceItemPayload): Promise<CreatedResource> {
+  return apiRequest<CreatedResource>({ method: 'POST', url: '/services', data: payload })
+}

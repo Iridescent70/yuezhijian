@@ -1,0 +1,145 @@
+package com.yuezhijian.server.masterdata;
+
+import java.math.BigDecimal;
+import java.util.List;
+import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+
+@Mapper
+public interface MasterDataMapper {
+    @Select("""
+            SELECT id, position_code AS code, position_name AS name, status
+            FROM dbo.org_position
+            WHERE status = 'ACTIVE'
+            ORDER BY position_level DESC, id
+            """)
+    List<PositionOption> findPositions();
+
+    @Select("""
+            SELECT id, category_code AS code, name, category_type AS type, status
+            FROM dbo.cat_category
+            WHERE category_type = 'SERVICE' AND status = 'ACTIVE'
+            ORDER BY sort_no, id
+            """)
+    List<CategoryOption> findServiceCategories();
+
+    @Select("""
+            <script>
+            SELECT e.id, e.employee_no AS employeeNo, e.name,
+                   CASE WHEN e.mobile_last4 IS NULL THEN NULL
+                        ELSE CONCAT('*******', RTRIM(e.mobile_last4)) END AS maskedMobile,
+                   e.position_id AS positionId, p.position_name AS positionName,
+                   e.primary_store_id AS storeId, s.store_name AS storeName,
+                   e.can_service AS canService, e.can_sell AS canSell, e.status
+            FROM dbo.org_employee e
+            LEFT JOIN dbo.org_position p ON p.id = e.position_id
+            LEFT JOIN dbo.org_store s ON s.id = e.primary_store_id
+            WHERE 1 = 1
+            <if test="storeId != null">
+              AND e.primary_store_id = #{storeId}
+            </if>
+            <if test="keyword != null">
+              AND (e.employee_no LIKE CONCAT('%', #{keyword}, '%')
+                   OR e.name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            ORDER BY e.id DESC
+            </script>
+            """)
+    List<EmployeeSummary> findEmployees(@Param("storeId") Long storeId, @Param("keyword") String keyword);
+
+    @Select("""
+            <script>
+            SELECT w.id, w.store_id AS storeId, s.store_name AS storeName,
+                   w.workstation_code AS code, w.name, w.capacity, w.sort_no AS sortNo, w.status
+            FROM dbo.org_workstation w
+            JOIN dbo.org_store s ON s.id = w.store_id
+            WHERE 1 = 1
+            <if test="storeId != null">
+              AND w.store_id = #{storeId}
+            </if>
+            ORDER BY s.store_code, w.sort_no, w.id
+            </script>
+            """)
+    List<WorkstationSummary> findWorkstations(@Param("storeId") Long storeId);
+
+    @Select("""
+            <script>
+            SELECT service.id, service.service_code AS code, service.service_name AS name,
+                   service.category_id AS categoryId, category.name AS categoryName,
+                   service.duration_minutes AS durationMinutes, service.cost_amount AS costAmount,
+                   service.list_price AS listPrice,
+                   COALESCE(store_cfg.sale_price, service.list_price) AS storePrice,
+                   COALESCE(store_cfg.sale_status, 'OFF_SALE') AS saleStatus, service.status
+            FROM dbo.cat_service service
+            JOIN dbo.cat_category category ON category.id = service.category_id
+            OUTER APPLY (
+                SELECT TOP 1 item_store.store_id, item_store.sale_price, item_store.sale_status
+                FROM dbo.cat_item_store item_store
+                WHERE item_store.item_type = 'SERVICE'
+                  AND item_store.item_id = service.id
+                  <if test="storeId != null">
+                    AND item_store.store_id = #{storeId}
+                  </if>
+                ORDER BY item_store.store_id
+            ) store_cfg
+            WHERE 1 = 1
+            <if test="storeId != null">
+              AND store_cfg.store_id IS NOT NULL
+            </if>
+            <if test="keyword != null">
+              AND (service.service_code LIKE CONCAT('%', #{keyword}, '%')
+                   OR service.service_name LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            ORDER BY service.id DESC
+            </script>
+            """)
+    List<ServiceItemSummary> findServices(@Param("storeId") Long storeId, @Param("keyword") String keyword);
+
+    @Select(value = """
+            INSERT INTO dbo.org_employee (
+                employee_no, name, mobile_ciphertext, mobile_hash, mobile_last4,
+                position_id, primary_store_id, can_service, can_sell, created_by, updated_by
+            )
+            OUTPUT INSERTED.id
+            VALUES (
+                #{employeeNo}, #{name}, #{mobileCiphertext}, #{mobileHash}, #{mobileLast4},
+                #{positionId}, #{primaryStoreId}, #{canService}, #{canSell}, #{createdBy}, #{createdBy}
+            )
+            """, affectData = true)
+    long insertEmployee(ProtectedEmployeeRow employee);
+
+    @Select(value = """
+            INSERT INTO dbo.org_workstation (
+                store_id, workstation_code, name, capacity, sort_no, created_by, updated_by
+            )
+            OUTPUT INSERTED.id
+            VALUES (#{storeId}, #{code}, #{name}, #{capacity}, #{sortNo}, #{createdBy}, #{createdBy})
+            """, affectData = true)
+    long insertWorkstation(NewWorkstation workstation);
+
+    @Select(value = """
+            INSERT INTO dbo.cat_service (
+                service_code, service_name, category_id, duration_minutes,
+                cost_amount, list_price, description, created_by, updated_by
+            )
+            OUTPUT INSERTED.id
+            VALUES (
+                #{code}, #{name}, #{categoryId}, #{durationMinutes},
+                #{costAmount}, #{listPrice}, #{description}, #{createdBy}, #{createdBy}
+            )
+            """, affectData = true)
+    long insertService(NewServiceItem service);
+
+    @Insert("""
+            INSERT INTO dbo.cat_item_store (
+                item_type, item_id, store_id, sale_price, created_by, updated_by
+            ) VALUES ('SERVICE', #{serviceId}, #{storeId}, #{storePrice}, #{createdBy}, #{createdBy})
+            """)
+    void insertServiceStore(
+            @Param("serviceId") long serviceId,
+            @Param("storeId") long storeId,
+            @Param("storePrice") BigDecimal storePrice,
+            @Param("createdBy") long createdBy);
+}

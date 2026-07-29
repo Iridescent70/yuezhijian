@@ -440,6 +440,25 @@ button {
   width: 170px;
 }
 
+.master-filter-select {
+  width: 190px;
+}
+
+.dialog-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 2px 18px;
+}
+
+.dialog-form-grid .el-select,
+.dialog-full-control {
+  width: 100%;
+}
+
+.dialog-form-wide {
+  grid-column: 1 / -1;
+}
+
 .member-link {
   display: inline-flex;
   flex-direction: column;

@@ -10,6 +10,9 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
     private static final List<String> ADMIN_PERMISSIONS = List.of(
             "workbench:view", "org:store:view", "iam:role:view", "iam:user:view",
             "member:member:view", "member:member:create",
+            "org:employee:view", "org:employee:manage",
+            "org:workstation:view", "org:workstation:manage",
+            "catalog:service:view", "catalog:service:manage",
             "appointment:appointment:view", "appointment:appointment:create",
             "trade:bill:view", "trade:bill:create");
 
@@ -36,7 +39,14 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
                             new MenuItem(51L, "stores", "组织门店", "/app/system/stores", "Shop", 10,
                                     "org:store:view", List.of()),
                             new MenuItem(52L, "roles", "角色管理", "/app/system/roles", "Lock", 20,
-                                    "iam:role:view", List.of()))));
+                                    "iam:role:view", List.of()),
+                            new MenuItem(53L, "employees", "员工管理", "/app/system/employees", "UserFilled", 30,
+                                    "org:employee:view", List.of()),
+                            new MenuItem(54L, "workstations", "工位管理", "/app/system/workstations", "OfficeBuilding", 40,
+                                    "org:workstation:view", List.of()))),
+            new MenuItem(6L, "catalog", "基础资料", "/app/catalog", "Collection", 60, null,
+                    List.of(new MenuItem(61L, "services", "服务项目", "/app/catalog/services", "Service", 10,
+                            "catalog:service:view", List.of()))));
 
     @Override
     public List<String> adminPermissions() {
