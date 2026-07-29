@@ -150,6 +150,18 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '代金券管理', permission: 'benefit:voucher:view' },
       },
       {
+        path: 'commission/plans',
+        name: 'commission-plans',
+        component: () => import('@/views/commission/CommissionPlanView.vue'),
+        meta: { title: '提成方案', permission: 'commission:plan:view' },
+      },
+      {
+        path: 'commission/ledgers',
+        name: 'commission-ledgers',
+        component: () => import('@/views/commission/CommissionLedgerView.vue'),
+        meta: { title: '提成流水', permission: 'commission:ledger:view' },
+      },
+      {
         path: 'forbidden',
         name: 'forbidden',
         component: () => import('@/views/ForbiddenView.vue'),

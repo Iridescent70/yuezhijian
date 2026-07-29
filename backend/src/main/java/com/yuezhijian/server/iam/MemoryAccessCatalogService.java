@@ -14,6 +14,7 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             "catalog:card:view", "catalog:card:manage", "member:card:view", "member:card:manage",
             "member:card:refund:view", "member:card:refund:manage", "member:card:refund:approve",
             "benefit:voucher:view", "benefit:voucher:manage", "benefit:voucher:issue",
+            "commission:plan:view", "commission:plan:manage", "commission:ledger:view",
             "org:employee:view", "org:employee:manage",
             "org:workstation:view", "org:workstation:manage",
             "catalog:service:view", "catalog:service:manage",
@@ -45,6 +46,12 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
                     "member:card:refund:view", List.of()),
             new MenuItem(9L, "vouchers", "代金券管理", "/app/benefits/vouchers", "Ticket", 58,
                     "benefit:voucher:view", List.of()),
+            new MenuItem(10L, "commission", "薪酬提成", "/app/commission", "Money", 60, null,
+                    List.of(
+                            new MenuItem(101L, "commission-plans", "提成方案", "/app/commission/plans", "SetUp", 10,
+                                    "commission:plan:view", List.of()),
+                            new MenuItem(102L, "commission-ledgers", "提成流水", "/app/commission/ledgers", "List", 20,
+                                    "commission:ledger:view", List.of()))),
             new MenuItem(5L, "system", "系统管理", "/app/system", "Setting", 90, null,
                     List.of(
                             new MenuItem(51L, "stores", "组织门店", "/app/system/stores", "Shop", 10,

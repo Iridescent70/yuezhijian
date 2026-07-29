@@ -941,3 +941,64 @@ export interface SettlementQuote {
   expiresAt: string
   used: boolean
 }
+
+export type CommissionScene = 'SERVICE' | 'CARD_SALE' | 'CARD_CONSUME'
+export type CommissionCalculationMode = 'RATE' | 'FIXED' | 'NONE'
+
+export interface CommissionPlan {
+  id: number
+  code: string
+  name: string
+  scene: CommissionScene
+  calculationMode: CommissionCalculationMode
+  rate?: number
+  fixedAmount?: number
+  storeId?: number
+  storeName?: string
+  positionId?: number
+  positionName?: string
+  effectiveFrom: string
+  effectiveTo?: string
+  status: 'ACTIVE' | 'INACTIVE'
+  ruleVersion: number
+  version: string
+}
+
+export interface CommissionPlanPayload {
+  code?: string
+  name: string
+  scene: CommissionScene
+  calculationMode: CommissionCalculationMode
+  rate?: number
+  fixedAmount?: number
+  storeId?: number
+  positionId?: number
+  effectiveFrom: string
+  effectiveTo?: string
+}
+
+export interface CommissionLedgerItem {
+  id: number
+  ledgerNo: string
+  employeeId: number
+  employeeName: string
+  storeId: number
+  storeName: string
+  commissionType: CommissionScene
+  sourceType: 'BILL' | 'BILL_REVERSAL' | 'CARD_SALE' | 'CARD_REFUND' | 'CARD_EXCHANGE'
+  sourceId: number
+  sourceNo: string
+  sourceLineId?: number
+  sourceLineName?: string
+  baseAmount: number
+  rate?: number
+  commissionAmount: number
+  calculationStatus: 'CALCULATED' | 'PENDING_RULE'
+  planId?: number
+  planName?: string
+  planRuleVersion?: number
+  formulaSnapshot: string
+  occurredAt: string
+  correlationId: string
+  reversedLedgerId?: number
+}

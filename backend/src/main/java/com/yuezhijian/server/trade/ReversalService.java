@@ -7,6 +7,7 @@ import com.yuezhijian.server.asset.CardRepository;
 import com.yuezhijian.server.asset.PointRefundCommand;
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
+import com.yuezhijian.server.commission.CommissionService;
 import com.yuezhijian.server.benefit.BenefitRepository;
 import com.yuezhijian.server.benefit.VoucherRefundCommand;
 import com.yuezhijian.server.iam.AccessCatalogService;
@@ -26,6 +27,7 @@ public class ReversalService {
     private final AssetRepository assets;
     private final CardRepository cards;
     private final BenefitRepository benefits;
+    private final CommissionService commissions;
     private final AccessCatalogService accessCatalog;
     private final TradeNumberGenerator numbers;
 
@@ -34,12 +36,14 @@ public class ReversalService {
             AssetRepository assets,
             CardRepository cards,
             BenefitRepository benefits,
+            CommissionService commissions,
             AccessCatalogService accessCatalog,
             TradeNumberGenerator numbers) {
         this.trades = trades;
         this.assets = assets;
         this.cards = cards;
         this.benefits = benefits;
+        this.commissions = commissions;
         this.accessCatalog = accessCatalog;
         this.numbers = numbers;
     }
@@ -123,8 +127,10 @@ public class ReversalService {
                 default -> throw new IllegalArgumentException("不支持的冲销资产类型：" + impact.assetType());
             }
         }
-        return trades.executeReversal(new ReversalExecutionCommand(
+        ReversalDetail executed = trades.executeReversal(new ReversalExecutionCommand(
                 reversal, request.version(), key, operatorId));
+        commissions.reverseBill(bill, executed, operatorId);
+        return executed;
     }
 
     private void validateImpacts(ReversalDetail reversal, BillDetail bill) {

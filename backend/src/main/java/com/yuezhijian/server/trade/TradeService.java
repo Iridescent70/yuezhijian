@@ -15,6 +15,7 @@ import com.yuezhijian.server.asset.PointAccount;
 import com.yuezhijian.server.asset.PointSettlementConsumption;
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
+import com.yuezhijian.server.commission.CommissionService;
 import com.yuezhijian.server.benefit.BenefitRepository;
 import com.yuezhijian.server.benefit.VoucherCodeSummary;
 import com.yuezhijian.server.benefit.VoucherSettlementConsumption;
@@ -53,6 +54,7 @@ public class TradeService {
     private final AssetRepository assets;
     private final CardRepository cards;
     private final BenefitRepository benefits;
+    private final CommissionService commissions;
     private final AccessCatalogService accessCatalog;
     private final TradeNumberGenerator numbers;
 
@@ -64,6 +66,7 @@ public class TradeService {
             AssetRepository assets,
             CardRepository cards,
             BenefitRepository benefits,
+            CommissionService commissions,
             AccessCatalogService accessCatalog,
             TradeNumberGenerator numbers) {
         this.repository = repository;
@@ -73,6 +76,7 @@ public class TradeService {
         this.assets = assets;
         this.cards = cards;
         this.benefits = benefits;
+        this.commissions = commissions;
         this.accessCatalog = accessCatalog;
         this.numbers = numbers;
     }
@@ -457,8 +461,10 @@ public class TradeService {
                 default -> throw new IllegalArgumentException("不支持的会员资产类型");
             }
         }
-        return repository.settle(new SettleBillCommand(
+        BillDetail settled = repository.settle(new SettleBillCommand(
                 billId, quote, idempotencyKey, operatorId));
+        commissions.recordSettledBill(settled, operatorId);
+        return settled;
     }
 
     public BillDetail voidBill(long billId, VoidBillRequest request, String username) {

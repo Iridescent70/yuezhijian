@@ -88,6 +88,7 @@ plan/migration/
 | `V202607291200` | 次卡转赠、接收会员新卡和双方流水 | `ast_card_transfer`、`ast_member_card*` |
 | `V202607291210` | 退卡试算、申请审批、退款事实和卡清零 | `ast_card_refund_*`、`ast_member_card*` |
 | `V202607291220` | 代金券定义、发放绑定、结算核销和冲销返券 | `cat_voucher`、`ben_voucher_*`、`trd_*_asset*` |
+| `V202607291230` | 版本化提成方案、服务计提事实和账单冲销负向流水 | `comm_plan*`、`comm_ledger` |
 | `R__reporting_views` | 可重复构建的统计视图 | `rpt_*` 视图/函数 |
 
 表中未落地版本仍属于设计基线；实际脚本只能在当前最高版本之后追加，逐个建立同号说明并记录各环境执行结果，禁止为了补齐旧编号而开启Flyway乱序执行。

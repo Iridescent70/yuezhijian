@@ -282,10 +282,10 @@
 
 | API 编号 | 方法与路径 | 用途及主要入参 | 主要返回/权限 | 需求来源 |
 | --- | --- | --- | --- | --- |
-| API-COMM-001 | `GET/POST /commission-plans` | 查询/名称、模式、适用门店/职务、有效期 | 分页/id | 系统管理-34、薪酬-01 |
-| API-COMM-002 | `GET/PUT /commission-plans/{id}` | 详情/规则、阶梯、version | 详情/更新 | 系统管理-34、薪酬-01 |
+| API-COMM-001 | `GET/POST /commission-plans` | 查询/编码、名称、场景、基础模式、适用门店/职务、有效期 | 列表/详情；已实现 | 系统管理-34、薪酬-01 |
+| API-COMM-002 | `GET/PUT /commission-plans/{id}` | 详情/基础规则、状态、version | 详情/更新；已实现 | 系统管理-34、薪酬-01 |
 | API-COMM-003 | `POST /commission-plans/{id}/simulate` | 员工、样例业绩、期间 | 逐步计算结果 | 薪酬-01 |
-| API-COMM-004 | `GET /commission-ledgers` | 员工、门店、来源单、期间、正负向 | 提成流水 | 薪酬全模块 |
+| API-COMM-004 | `GET /commission-ledgers` | 员工、门店、期间、正负向、计算状态 | 提成流水；服务账单和冲销已实现 | 薪酬全模块 |
 | API-COMM-005 | `GET /commission-ledgers/{id}/calculation` | 流水 id | 公式、参数、阶梯和结果 | 统计分析优化-04 |
 | API-COMM-006 | `GET/POST /third-party-share-rules` | 查询/项目、第三方、比例、有效期 | 规则列表/id | 薪酬-02 |
 | API-COMM-007 | `GET /third-party-share-ledgers` | 第三方、门店、期间、结算状态 | 分润流水 | 薪酬-02 |
@@ -300,6 +300,8 @@
 | API-COMM-016 | `GET /payroll-runs/{id}` | 批次 id | 进度、汇总、异常 | 统计分析-09、27 |
 | API-COMM-017 | `GET /payroll-runs/{id}/employees/{employeeId}` | 员工 | 工资项和提成来源明细 | 统计分析-27 |
 | API-COMM-018 | `POST /payroll-runs/{id}/confirm` | 说明 | 锁定工资单 | 统计分析-27 |
+
+`API-COMM-001/002/004`首版已落地。基础计算方式为`RATE/FIXED/NONE`，服务账单结算后按行生成流水，未匹配规则时生成`PENDING_RULE`事实；整单冲销追加负向流水。售卡、次卡实耗、六种完整模式、阶梯、模拟计算、人工调账和工资批次仍按后续接口实施，当前不得用基础比例替代甲方未确认口径。
 
 ## 8. 到家服务与移动端
 
