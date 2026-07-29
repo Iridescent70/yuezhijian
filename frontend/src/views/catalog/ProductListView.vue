@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { createExport } from '@/api/jobs'
 import { createProduct, getProduct, getProductCategories, getProducts, getUnits, updateProduct } from '@/api/product'
 import { useAuthStore } from '@/stores/auth'
 import type { CategoryOption, ProductStoreConfig, ProductSummary, UnitOption } from '@/types/api'
 import { formatMoney } from '@/utils/formatMoney'
 
 const auth = useAuthStore()
+const router = useRouter()
 const loading = ref(false)
+const exporting = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref<number>()
@@ -40,6 +44,26 @@ async function load() {
     ElMessage.error(error instanceof Error ? error.message : '产品资料加载失败')
   } finally {
     loading.value = false
+  }
+}
+
+async function exportCurrentStore() {
+  if (filters.storeId && filters.storeId !== auth.user?.currentStoreId) {
+    ElMessage.warning('产品资料导出固定使用当前登录门店，请切换门店后再导出')
+    return
+  }
+  exporting.value = true
+  try {
+    await createExport({
+      exportType: 'PRODUCT_CATALOG',
+      keyword: filters.keyword.trim() || undefined,
+    })
+    ElMessage.success('产品资料导出任务已创建')
+    await router.push('/app/system/downloads')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '产品资料导出任务创建失败')
+  } finally {
+    exporting.value = false
   }
 }
 
@@ -134,7 +158,14 @@ onMounted(() => {
   <section class="page-content">
     <div class="section-title-row">
       <div><h1>产品管理</h1><p>维护零售产品和服务耗用物料的基础资料、库存属性及门店售价。</p></div>
-      <el-button v-if="auth.hasPermission('catalog:product:manage')" type="primary" @click="openCreate">新建产品</el-button>
+      <div>
+        <el-button
+          v-if="auth.hasPermission('system:job:create') && auth.hasPermission('system:job:view') && auth.hasPermission('catalog:product:export')"
+          :loading="exporting"
+          @click="exportCurrentStore"
+        >导出当前门店</el-button>
+        <el-button v-if="auth.hasPermission('catalog:product:manage')" type="primary" @click="openCreate">新建产品</el-button>
+      </div>
     </div>
     <el-card class="filter-card" shadow="never">
       <el-form inline @submit.prevent="load">

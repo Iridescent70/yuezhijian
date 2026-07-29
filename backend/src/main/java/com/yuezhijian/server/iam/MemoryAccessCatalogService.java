@@ -25,7 +25,7 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             "org:employee:view", "org:employee:manage",
             "org:workstation:view", "org:workstation:manage",
             "catalog:service:view", "catalog:service:manage", "catalog:service:export",
-            "catalog:product:view", "catalog:product:manage",
+            "catalog:product:view", "catalog:product:manage", "catalog:product:export",
             "appointment:appointment:view", "appointment:appointment:create", "appointment:appointment:manage",
             "trade:bill:view", "trade:bill:create", "trade:bill:manage", "trade:bill:settle",
             "trade:reversal:view", "trade:reversal:manage", "trade:reversal:approve");

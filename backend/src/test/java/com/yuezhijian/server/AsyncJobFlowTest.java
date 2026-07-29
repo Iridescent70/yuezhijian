@@ -112,6 +112,25 @@ class AsyncJobFlowTest {
     }
 
     @Test
+    void productCatalogExportUsesItsDedicatedPermissionAndCurrentStore() throws Exception {
+        MockHttpSession session = login();
+        mockMvc.perform(post("/api/v1/auth/current-store").with(csrf()).session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"storeId\":2}"))
+                .andExpect(status().isOk());
+        long id = json(mockMvc.perform(post("/api/v1/exports").with(csrf()).session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"exportType\":\"PRODUCT_CATALOG\",\"keyword\":\"PRD001\"}"))
+                .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString())
+                .path("data").path("id").asLong();
+
+        assertThat(jobs.processNext()).isTrue();
+        String csv = new String(mockMvc.perform(get("/api/v1/jobs/" + id + "/result").session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
+        assertThat(csv).contains("产品编号", "门店售价", "库存跟踪", "PRD001", "98.00");
+    }
+
+    @Test
     void serviceCatalogImportCreatesValidRowsAndReturnsRowErrors() throws Exception {
         MockHttpSession session = login();
         String csv = "\ufeff\"项目编号\",\"项目名称\",\"分类编号\",\"时长(分钟)\",\"成本\",\"标准售价\",\"门店售价\",\"项目说明\"\r\n"

@@ -94,6 +94,12 @@ public class AsyncJobService {
                     "服务项目导出",
                     ServiceCatalogCsvJobHandler.JOB_TYPE,
                     new ServiceCatalogExportRequest(limitedKeyword(request.keyword())));
+            case "PRODUCT_CATALOG" -> create(
+                    operator,
+                    storeId,
+                    "产品资料导出",
+                    ProductCatalogCsvJobHandler.JOB_TYPE,
+                    new ProductCatalogExportRequest(limitedKeyword(request.keyword())));
             default -> throw new IllegalArgumentException("暂不支持该导出类型");
         };
     }

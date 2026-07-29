@@ -103,7 +103,7 @@
 | API-ORG-014 | `GET/POST /terminals` | 门店/设备指纹、名称、状态 | 终端列表/id | 系统管理-15 |
 | API-COM-001 | `POST /files` | multipart 文件、用途 | 通用独立入口尚未开放；服务反馈和任务结果已使用业务专用入口 | 通用-导入导出 |
 | API-COM-002 | `GET /files/{id}` | fileId | 通用独立入口尚未开放；文件只能从已授权业务或本人任务下载，不提供公开URL | 通用-导入导出 |
-| API-COM-003 | `POST /exports` | `exportType=SERVICE_FEEDBACK/MEMBER/SERVICE_CATALOG`及对应筛选条件 | 当前门店导出任务；除`system:job:create`外还校验业务查看/导出权限；202；已实现 | 系统管理-01 |
+| API-COM-003 | `POST /exports` | `exportType=SERVICE_FEEDBACK/MEMBER/SERVICE_CATALOG/PRODUCT_CATALOG`及对应筛选条件 | 当前门店导出任务；除`system:job:create`外还校验业务查看/导出权限；202；已实现 | 系统管理-01 |
 | API-COM-004 | `GET /jobs/{id}`、`POST /jobs/{id}/cancel`、`GET /jobs/{id}/result` | 本人任务id | 详情、等待任务取消、7天内私有结果文件；到期后定时物理清理但保留审计元数据；后台执行使用30分钟可续租租约，失联最多重领3次；`system:job:view/cancel`；已实现 | 系统管理-01 |
 | API-COM-005 | `GET /jobs` | `jobType/status/page/size` | 只返回当前创建人的任务分页；`system:job:view`；已实现 | 系统管理-01 |
 | API-COM-006 | `GET /audit-logs` | 用户、模块、动作、对象、日期 | 审计分页 | 系统管理-07 |
@@ -122,7 +122,7 @@
 | API-CAT-004 | `GET/POST /products` | 门店、分类、销售状态、关键词/产品、单位、成本、售价、门店配置 | 基础列表/id；`catalog:product:view/manage`；已实现 | 系统管理-11 |
 | API-CAT-005 | `GET/PUT /products/{id}` | 详情/产品资料、门店价格和状态、version | 详情/并发安全更新；已实现 | 系统管理-11 |
 | API-CAT-006 | `POST /products/batch-status` | ids、ON_SALE/OFF_SALE | 批量结果 | 优化系统管理-01 |
-| API-CAT-007 | `POST /products/import`、`POST /products/export` | 文件/筛选条件 | 异步任务 id | 系统管理-11 |
+| API-CAT-007 | `POST /products/import`、`POST /exports` | 当前门店UTF-8 CSV导入；`exportType=PRODUCT_CATALOG`及编号/名称/条码关键词导出 | 导出需`catalog:product:export`且已实现；导入待实现 | 系统管理-11 |
 | API-CAT-008 | `GET/POST /services` | 查询/项目、时长、售价、成本、分类 | 分页/id | 系统管理-21、优化系统管理-01 |
 | API-CAT-009 | `GET/PUT /services/{id}` | 基础详情、门店价格和状态、version；标签和物料消耗待后续 | 基础资料与单门店配置更新已实现；`catalog:service:view/manage` | 系统管理-21、优化系统管理-01 |
 | API-CAT-010 | `POST /services/batch-update` | ids、分类/标签/门店/状态 | 批量结果 | 优化系统管理-01 |
