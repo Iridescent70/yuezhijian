@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import SidebarMenu from './SidebarMenu.vue'
 import { useAuthStore } from '@/stores/auth'
+import { getUnreadNotificationCount } from '@/api/notification'
 
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const collapsed = ref(false)
 const switchingStore = ref(false)
+const unreadCount = ref(0)
+let unreadTimer: number | undefined
 const activeMenu = computed(() => route.path)
 
 async function handleLogout() {
@@ -31,6 +34,24 @@ async function handleStoreChange(storeId: number) {
     switchingStore.value = false
   }
 }
+
+async function refreshUnreadCount() {
+  if (!auth.hasPermission('notification:view')) return
+  try { unreadCount.value = await getUnreadNotificationCount() }
+  catch { unreadCount.value = 0 }
+}
+
+function openNotifications() { void router.push('/app/notifications') }
+
+onMounted(() => {
+  void refreshUnreadCount()
+  window.addEventListener('notification-read', refreshUnreadCount)
+  unreadTimer = window.setInterval(refreshUnreadCount, 60_000)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('notification-read', refreshUnreadCount)
+  if (unreadTimer !== undefined) window.clearInterval(unreadTimer)
+})
 </script>
 
 <template>
@@ -59,6 +80,9 @@ async function handleStoreChange(storeId: number) {
           {{ collapsed ? '展开' : '收起' }}
         </button>
         <div class="header-actions">
+          <el-badge v-if="auth.hasPermission('notification:view')" :value="unreadCount" :hidden="unreadCount === 0" :max="99">
+            <button class="notification-button" type="button" aria-label="消息中心" @click="openNotifications">消息</button>
+          </el-badge>
           <el-select
             :model-value="auth.user?.currentStoreId"
             class="store-selector"
@@ -99,3 +123,8 @@ async function handleStoreChange(storeId: number) {
     </el-container>
   </el-container>
 </template>
+
+<style scoped>
+.notification-button { height: 34px; padding: 0 12px; color: var(--brand-dark); border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.notification-button:hover { border-color: var(--brand); background: var(--brand-soft); }
+</style>

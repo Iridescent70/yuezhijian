@@ -12,6 +12,7 @@ import com.yuezhijian.server.benefit.BenefitRepository;
 import com.yuezhijian.server.benefit.VoucherRefundCommand;
 import com.yuezhijian.server.iam.AccessCatalogService;
 import com.yuezhijian.server.iam.StoreDataScope;
+import com.yuezhijian.server.notification.NotificationService;
 import com.yuezhijian.server.visit.VisitService;
 import java.math.BigDecimal;
 import java.util.List;
@@ -31,6 +32,7 @@ public class ReversalService {
     private final BenefitRepository benefits;
     private final CommissionService commissions;
     private final VisitService visits;
+    private final NotificationService notifications;
     private final AccessCatalogService accessCatalog;
     private final StoreDataScope storeDataScope;
     private final TradeNumberGenerator numbers;
@@ -42,6 +44,7 @@ public class ReversalService {
             BenefitRepository benefits,
             CommissionService commissions,
             VisitService visits,
+            NotificationService notifications,
             AccessCatalogService accessCatalog,
             StoreDataScope storeDataScope,
             TradeNumberGenerator numbers) {
@@ -51,6 +54,7 @@ public class ReversalService {
         this.benefits = benefits;
         this.commissions = commissions;
         this.visits = visits;
+        this.notifications = notifications;
         this.accessCatalog = accessCatalog;
         this.storeDataScope = storeDataScope;
         this.numbers = numbers;
@@ -157,6 +161,7 @@ public class ReversalService {
                 reversal, request.version(), key, operatorId));
         commissions.reverseBill(bill, executed, operatorId);
         visits.cancelPendingByBill(bill.bill().id(), "账单已整单冲销：" + executed.reversal().reversalNo(), operatorId);
+        notifications.publishBillReversal(bill, executed, operatorId);
         return executed;
     }
 

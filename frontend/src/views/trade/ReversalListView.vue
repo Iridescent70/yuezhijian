@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { executeReversal, getReversal, getReversals, reviewReversal } from '@/api/trade'
 import { useAuthStore } from '@/stores/auth'
@@ -8,6 +8,7 @@ import type { ReversalDetail, ReversalStatus, ReversalSummary } from '@/types/ap
 import { formatMoney } from '@/utils/formatMoney'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 const loading = ref(false)
 const saving = ref(false)
@@ -96,7 +97,13 @@ async function execute() {
 function dateTime(value?: string) { return value?.replace('T', ' ').slice(0, 19) ?? '—' }
 function assetName(value: string) { return ({ BALANCE: '储值', POINT: '积分', CARD: '次卡' } as Record<string, string>)[value] ?? value }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  const reversalId = Number(route.query.reversalId)
+  if (Number.isSafeInteger(reversalId) && reversalId > 0) {
+    await open({ id: reversalId } as ReversalSummary)
+  }
+})
 </script>
 
 <template>

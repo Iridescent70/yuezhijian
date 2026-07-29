@@ -4,23 +4,31 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { activeBannerImageUrl, getActiveBanners } from '@/api/banner'
 import { getWorkbenchOverview } from '@/api/platform'
-import type { ActiveBanner, WorkbenchOverview } from '@/types/api'
+import { getNotifications } from '@/api/notification'
+import { useAuthStore } from '@/stores/auth'
+import type { ActiveBanner, NotificationItem, WorkbenchOverview } from '@/types/api'
 import { formatMoney } from '@/utils/formatMoney'
 
 const router = useRouter()
+const auth = useAuthStore()
 const loading = ref(true)
 const overview = ref<WorkbenchOverview | null>(null)
 const banners = ref<ActiveBanner[]>([])
+const announcements = ref<NotificationItem[]>([])
 
 async function load() {
   loading.value = true
   try {
-    const [overviewResult, bannerResult] = await Promise.allSettled([
+    const [overviewResult, bannerResult, announcementResult] = await Promise.allSettled([
       getWorkbenchOverview(), getActiveBanners('PC_HOME'),
+      auth.hasPermission('notification:view')
+        ? getNotifications({ messageType: 'ANNOUNCEMENT', page: 1, size: 5 })
+        : Promise.resolve({ items: [], page: 1, size: 5, total: 0 }),
     ])
     if (overviewResult.status === 'rejected') throw overviewResult.reason
     overview.value = overviewResult.value
     banners.value = bannerResult.status === 'fulfilled' ? bannerResult.value : []
+    announcements.value = announcementResult.status === 'fulfilled' ? announcementResult.value.items : []
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '工作台加载失败')
   } finally {
@@ -36,6 +44,8 @@ function openBanner(banner: ActiveBanner) {
   }
   window.open(banner.linkValue, '_blank', 'noopener,noreferrer')
 }
+
+function dateTime(value: string) { return value.replace('T', ' ').slice(5, 16) }
 
 onMounted(load)
 </script>
@@ -80,6 +90,15 @@ onMounted(load)
       </article>
     </div>
 
+    <el-card v-if="auth.hasPermission('notification:view')" class="notice-card" shadow="never">
+      <template #header><div class="notice-header"><strong>通知公告</strong><el-button link type="primary" @click="router.push('/app/notifications')">查看全部</el-button></div></template>
+      <button v-for="item in announcements" :key="item.id" type="button" class="notice-row" @click="router.push(`/app/notifications?notificationId=${item.id}`)">
+        <span class="notice-title"><i v-if="!item.read" />{{ item.title }}</span>
+        <time>{{ dateTime(item.publishedAt) }}</time>
+      </button>
+      <el-empty v-if="announcements.length === 0" description="暂无有效公告" :image-size="54" />
+    </el-card>
+
     <el-card class="shortcut-card" shadow="never">
       <template #header><strong>常用功能</strong></template>
       <div class="shortcut-grid">
@@ -105,4 +124,11 @@ onMounted(load)
 .banner-card span { position: absolute; left: 14px; bottom: 12px; max-width: calc(100% - 28px); padding: 4px 9px; overflow: hidden; color: white; background: rgb(0 0 0 / 52%); border-radius: 5px; text-overflow: ellipsis; white-space: nowrap; }
 .banner-card.clickable { cursor: pointer; }
 .banner-card:disabled { color: inherit; }
+.notice-card { margin-bottom: 20px; }
+.notice-header { display: flex; align-items: center; justify-content: space-between; }
+.notice-row { display: flex; width: 100%; align-items: center; justify-content: space-between; padding: 11px 0; border: 0; border-bottom: 1px solid var(--border); color: inherit; background: transparent; text-align: left; }
+.notice-row:last-child { border-bottom: 0; }
+.notice-title { display: flex; align-items: center; min-width: 0; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.notice-title i { flex: 0 0 auto; width: 7px; height: 7px; margin-right: 8px; border-radius: 50%; background: #e65f78; }
+.notice-row time { flex: 0 0 auto; margin-left: 20px; color: var(--muted); font-size: 13px; }
 </style>

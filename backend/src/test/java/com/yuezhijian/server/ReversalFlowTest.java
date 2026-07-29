@@ -97,6 +97,13 @@ class ReversalFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[*].reversalNo", hasItem(
                         submitted.path("reversal").path("reversalNo").asText())));
+        postJson(session, "/api/v1/auth/current-store", "{\"storeId\":2}", 200);
+        mockMvc.perform(get("/api/v1/notifications").session(session)
+                        .param("messageType", "BILL_REVERSAL").param("size", "100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[?(@.businessId == %d)]".formatted(reversalId), hasSize(1)))
+                .andExpect(jsonPath("$.data.items[?(@.businessId == %d)].route".formatted(reversalId),
+                        hasItem("/app/settlement/reversals?reversalId=" + reversalId)));
     }
 
     @Test

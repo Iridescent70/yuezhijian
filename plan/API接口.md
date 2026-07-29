@@ -297,19 +297,21 @@
 | API-MKT-007 | `POST /sms-inbounds/export` | filters、选中 ids | 导出任务 id | 短信-04 |
 | API-MKT-008 | `GET /sms-templates` | 类型、状态 | 模板列表 | 短信通道 |
 | API-MKT-009 | `POST /members/batch-issue-voucher` | memberIds、voucherId、数量 | 批量发券任务 | 优化会员-01 |
-| API-NTF-001 | `GET /notifications` | 类型、已读状态、日期 | 当前用户消息分页 | 通知-01 |
-| API-NTF-002 | `POST /notifications/{id}/read`、`POST /notifications/read-all` | id/范围 | 已读结果 | 通知-01 |
-| API-NTF-003 | `GET/POST /notification-templates` | 查询/事件、渠道、标题、正文、变量 | 模板列表/id | 通知-01 |
-| API-NTF-004 | `PUT /notification-templates/{id}` | 模板、状态、version | 更新结果 | 通知-01 |
-| API-NTF-005 | `POST /notifications/test` | templateId、channel、recipient | 测试发送结果 | 通知-01 |
-| API-NTF-006 | `GET/POST /announcements` | 查询/标题、内容、门店、有效期 | 公告列表/id | 系统管理-18 |
-| API-NTF-007 | `PUT /announcements/{id}` | 公告内容、状态、version | 更新结果 | 系统管理-18 |
+| API-NTF-001 | `GET /notifications`、`GET /notifications/{id}`、`GET /notifications/unread-count` | `messageType/readStatus/publishedFrom/publishedTo/page/size`；当前会话门店 | 当前用户消息分页、详情和未读数；`notification:view`；已实现 | 通知-01、系统管理-18 |
+| API-NTF-002 | `POST /notifications/{id}/read`、`POST /notifications/read-all` | 消息id；全部已读可限定`messageType` | 幂等阅读结果/实际新增阅读数；`notification:view`；已实现 | 通知-01、系统管理-18 |
+| API-NTF-003 | `GET/POST /notification-templates`、`GET /notification-templates/{id}` | 事件编码/名称、站内标题和正文、声明变量、状态 | 模板列表/详情/新模板；`system:notification-template:view/manage`；已实现 | 通知-01 |
+| API-NTF-004 | `PUT /notification-templates/{id}` | 名称、模板、变量、状态、`version`；事件编码不可改 | rowversion更新结果；`system:notification-template:manage`；已实现 | 通知-01 |
+| API-NTF-005 | `POST /notifications/test` | `templateId`及与声明完全一致的变量值 | 当前门店真实站内测试消息；不调用短信/微信；已实现 | 通知-01 |
+| API-NTF-006 | `GET/POST /announcements`、`GET /announcements/{id}` | 门店/状态/关键字分页；标题、纯文本内容、全部/指定门店、有效期、优先级、置顶、状态 | 公告分页/详情/新公告；`system:announcement:view/manage`；已实现 | 系统管理-18 |
+| API-NTF-007 | `PUT /announcements/{id}` | 公告字段、状态、`version`；已发布公告不能退回草稿 | rowversion更新和操作审计；已实现 | 系统管理-18 |
 
 `API-VIS-001~005`基础闭环已落地。会员账单确认结算后在同一事务中生成一张回访任务，同一账单重复结算不会重复生成。到期时间读取`VISIT/AFTER_SALE_DUE_HOURS`系统参数，默认24小时，参数只影响新任务。每位服务技师生成一个参与项，无技师账单生成“待分配”项。`CONTACTED`必须填写1至5分满意度，`NO_ANSWER/FOLLOW_UP`必须填写未来的下次跟进时间，`DECLINED`直接结束该技师参与项；所有参与项完成后任务自动完成。整单冲销只取消尚未完成的任务。
 
 满意度规则按优先级从小到大执行字面包含匹配，同一规则内优先测试较长关键词；不执行正则或大模型推断，未命中时不生成分值。组件映射保存为甲方定义的字符串键值。样例试算只返回命中结果，不写会员、回访或短信数据；自动识别短信须等上行短信通道接入。
 
 `API-VIS-006~010`客诉闭环已落地。只有回访人员明确勾选客诉时才自动建反馈单，低评分不会擅自转客诉；一条回访记录最多一张反馈单。客诉未评分时不伪造分值。状态按`OPEN → PROCESSING → RESOLVED → CLOSED`流转，已解决或已关闭可以`REOPEN`回到处理中。分配、备注、解决、关闭和重开均追加`vis_feedback_action`，不覆盖原客诉内容。建单和重开分别保存处理时限快照，未完成反馈实时派生超时状态。处理附件已接入私有文件服务，列表只返回元数据，文件流必须通过反馈权限接口下载；不提供公开URL。当前超时提醒只在页面展示，主动消息和非回访渠道反馈仍待甲方口径确认。
+
+`API-NTF-001~007`站内消息基础闭环已落地。消息按当前会话门店隔离，全部门店公告或明确分配到当前门店的消息才可见；草稿、停用、未到生效时间或已过期消息不进入收件箱。公告正文按纯文本保存和展示，不执行旧系统富文本HTML。阅读记录按用户和消息唯一，重复已读不重复写入。业务消息以`eventCode + businessType + businessId`幂等，整单账单冲销已在原事务内生成`BILL_REVERSAL`消息并可跳转冲销详情。储值冲销、次卡冲销以及预约、到期、生日、日报等自动触发仍须在对应业务状态机或调度任务落地后接入，不能仅因模板已存在就标记完成；短信和微信公众号仍未接入。
 
 ## 7. 薪酬、提成、目标和分润
 

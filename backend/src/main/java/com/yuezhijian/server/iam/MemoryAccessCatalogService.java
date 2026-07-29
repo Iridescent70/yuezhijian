@@ -25,6 +25,9 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             "system:cancel-reason:view", "system:cancel-reason:manage",
             "system:banner:view", "system:banner:manage",
             "system:color-style:view", "system:color-style:manage",
+            "notification:view",
+            "system:announcement:view", "system:announcement:manage",
+            "system:notification-template:view", "system:notification-template:manage",
             "system:job:view", "system:job:create", "system:job:cancel",
             "org:employee:view", "org:employee:manage",
             "org:position:view", "org:position:manage",
@@ -49,6 +52,7 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
                             "member:member:export",
                             "member:tag:view", "member:tag:manage", "member:ownership:view",
                             "member:ownership:manage", "trade:bill:view",
+                            "notification:view",
                             "home:service-area:view", "home:service-area:manage",
                             "system:job:view", "system:job:create", "system:job:cancel")));
 
@@ -87,6 +91,8 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
                                     "visit:feedback:view", List.of()),
                             new MenuItem(113L, "satisfaction-rules", "满意度规则", "/app/service/satisfaction-rules", "Star", 30,
                                     "visit:satisfaction:view", List.of()))),
+            new MenuItem(12L, "notifications", "消息中心", "/app/notifications", "Bell", 70,
+                    "notification:view", List.of()),
             new MenuItem(5L, "system", "系统管理", "/app/system", "Setting", 90, null,
                     List.of(
                             new MenuItem(51L, "stores", "组织门店", "/app/system/stores", "Shop", 10,
@@ -113,7 +119,11 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
                                     "system:banner:view", List.of()),
                             new MenuItem(67L, "color-styles", "线上试色", "/app/system/color-styles", "Brush", 70,
                                     "system:color-style:view", List.of()),
-                            new MenuItem(58L, "audit-logs", "操作日志", "/app/system/audit-logs", "Document", 75,
+                            new MenuItem(68L, "announcements", "通知公告", "/app/system/announcements", "Notification", 72,
+                                    "system:announcement:view", List.of()),
+                            new MenuItem(69L, "notification-templates", "通知模板", "/app/system/notification-templates", "ChatLineSquare", 74,
+                                    "system:notification-template:view", List.of()),
+                            new MenuItem(58L, "audit-logs", "操作日志", "/app/system/audit-logs", "Document", 85,
                                     "system:audit:view", List.of()))),
             new MenuItem(6L, "catalog", "基础资料", "/app/catalog", "Collection", 60, null,
                     List.of(

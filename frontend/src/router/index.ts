@@ -29,6 +29,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '工作台', permission: 'workbench:view' },
       },
       {
+        path: 'notifications',
+        name: 'notifications',
+        component: () => import('@/views/notification/NotificationCenterView.vue'),
+        meta: { title: '消息中心', permission: 'notification:view' },
+      },
+      {
         path: 'system/stores',
         name: 'stores',
         component: () => import('@/views/system/StoreListView.vue'),
@@ -93,6 +99,18 @@ const routes: RouteRecordRaw[] = [
         name: 'color-styles',
         component: () => import('@/views/system/ColorStyleView.vue'),
         meta: { title: '线上试色', permission: 'system:color-style:view' },
+      },
+      {
+        path: 'system/announcements',
+        name: 'announcements',
+        component: () => import('@/views/system/AnnouncementView.vue'),
+        meta: { title: '通知公告', permission: 'system:announcement:view' },
+      },
+      {
+        path: 'system/notification-templates',
+        name: 'notification-templates',
+        component: () => import('@/views/system/NotificationTemplateView.vue'),
+        meta: { title: '通知模板', permission: 'system:notification-template:view' },
       },
       {
         path: 'catalog/products',

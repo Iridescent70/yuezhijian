@@ -67,6 +67,86 @@ export interface PageResult<T> {
   total: number
 }
 
+export type AnnouncementStatus = 'DRAFT' | 'PUBLISHED' | 'DISABLED'
+export type NotificationMessageType =
+  | 'ANNOUNCEMENT' | 'APPOINTMENT' | 'CARD_EXPIRY' | 'BIRTHDAY' | 'BALANCE_LOW'
+  | 'CONSUMPTION' | 'SYSTEM' | 'DAILY_REPORT' | 'BILL_ALERT' | 'RECONCILIATION'
+  | 'BILL_REVERSAL' | 'BALANCE_REVERSAL' | 'CARD_REVERSAL'
+
+export interface Announcement {
+  id: number
+  notificationNo: string
+  title: string
+  body: string
+  scopeType: 'ALL' | 'STORES'
+  storeIds: number[]
+  validFrom?: string
+  validTo?: string
+  priority: number
+  pinned: boolean
+  status: AnnouncementStatus
+  publishedAt?: string
+  createdAt: string
+  updatedAt: string
+  updatedBy: number
+  updatedByName: string
+  version: string
+}
+
+export interface AnnouncementPayload {
+  title: string
+  body: string
+  scopeType: 'ALL' | 'STORES'
+  storeIds: number[]
+  validFrom?: string
+  validTo?: string
+  priority: number
+  pinned: boolean
+  status: AnnouncementStatus
+}
+
+export interface NotificationItem {
+  id: number
+  notificationNo: string
+  messageType: NotificationMessageType
+  eventCode: string
+  title: string
+  body: string
+  businessType?: string
+  businessId?: number
+  route?: string
+  priority: number
+  pinned: boolean
+  publishedAt: string
+  validTo?: string
+  read: boolean
+  readAt?: string
+}
+
+export interface NotificationTemplate {
+  id: number
+  eventCode: string
+  eventName: string
+  channel: 'IN_APP'
+  titleTemplate: string
+  bodyTemplate: string
+  variables: string[]
+  status: 'ACTIVE' | 'DISABLED'
+  updatedAt: string
+  updatedBy?: number
+  updatedByName: string
+  version: string
+}
+
+export interface NotificationTemplatePayload {
+  eventCode: string
+  eventName: string
+  titleTemplate: string
+  bodyTemplate: string
+  variables: string[]
+  status: 'ACTIVE' | 'DISABLED'
+}
+
 export interface OperationChange {
   field: string
   label: string
