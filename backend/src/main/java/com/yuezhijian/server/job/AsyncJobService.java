@@ -105,6 +105,17 @@ public class AsyncJobService {
     }
 
     public AsyncJobItem createServiceImport(MultipartFile upload, String username, long storeId) {
+        return createCatalogImport(
+                upload, username, storeId, "服务项目导入", ServiceCatalogImportJobHandler.JOB_TYPE);
+    }
+
+    public AsyncJobItem createProductImport(MultipartFile upload, String username, long storeId) {
+        return createCatalogImport(
+                upload, username, storeId, "产品资料导入", ProductCatalogImportJobHandler.JOB_TYPE);
+    }
+
+    private AsyncJobItem createCatalogImport(
+            MultipartFile upload, String username, long storeId, String jobName, String jobType) {
         UserIdentity operator = accessCatalog.userIdentity(username);
         requireCapacity(operator.id());
         FileObjectItem input = files.storeJobInput(upload, operator.id());
@@ -112,8 +123,8 @@ public class AsyncJobService {
             return create(
                     operator,
                     storeId,
-                    "服务项目导入",
-                    ServiceCatalogImportJobHandler.JOB_TYPE,
+                    jobName,
+                    jobType,
                     Map.of("originalName", input.originalName()),
                     input.id());
         } catch (RuntimeException exception) {

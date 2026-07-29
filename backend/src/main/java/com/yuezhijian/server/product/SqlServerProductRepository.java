@@ -32,6 +32,11 @@ public class SqlServerProductRepository implements ProductRepository {
     }
 
     @Override
+    public Optional<ProductDetail> findByBarcode(String barcode) {
+        return detail(mapper.findByBarcode(barcode));
+    }
+
+    @Override
     @Transactional
     public long create(NewProduct product) {
         long id = mapper.insert(product);

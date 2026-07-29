@@ -4,7 +4,9 @@ import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
 import com.yuezhijian.server.iam.AccessCatalogService;
 import com.yuezhijian.server.iam.StoreDataScope;
+import com.yuezhijian.server.masterdata.CategoryOption;
 import com.yuezhijian.server.masterdata.MasterDataRepository;
+import com.yuezhijian.server.masterdata.UnitOption;
 import java.math.BigDecimal;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -47,13 +49,15 @@ public class ProductService {
         requireReferences(request.categoryId(), request.unitId());
         String code = request.code().trim().toUpperCase(Locale.ROOT);
         if (repository.findByCode(code).isPresent()) throw new DuplicateResourceException("产品编号已存在");
+        String barcode = blankToNull(request.barcode());
+        requireAvailableBarcode(barcode, null);
         validateAmount(request.costPrice(), "成本");
         validateAmount(request.salePrice(), "标准售价");
         validateAmount(request.storePrice(), "门店售价");
         List<Long> storeIds = new LinkedHashSet<>(request.storeIds()).stream().toList();
         storeIds.forEach(storeDataScope::require);
         return repository.create(new NewProduct(
-                code, request.name().trim(), request.categoryId(), request.unitId(), blankToNull(request.barcode()),
+                code, request.name().trim(), request.categoryId(), request.unitId(), barcode,
                 request.costPrice(), request.salePrice(), request.storePrice(), request.trackStock(), storeIds,
                 blankToNull(request.description()), operatorId(username)));
     }
@@ -69,6 +73,7 @@ public class ProductService {
         validateAmount(request.salePrice(), "标准售价");
         validateAmount(request.storePrice(), "门店售价");
         String barcode = blankToNull(request.barcode());
+        requireAvailableBarcode(barcode, id);
         String description = blankToNull(request.description());
         String status = normalize(request.status(), Set.of("ACTIVE", "DISABLED"), "产品状态无效");
         String saleStatus = normalize(request.saleStatus(), Set.of("ON_SALE", "OFF_SALE"), "销售状态无效");
@@ -83,10 +88,73 @@ public class ProductService {
                 .filter(store -> storeDataScope.canAccess(store.storeId())).toList());
     }
 
+    public ProductImportOutcome importProduct(ProductImportRow row, long storeId, long operatorId) {
+        String code = required(row.code(), 64, "产品编号").toUpperCase(Locale.ROOT);
+        String name = required(row.name(), 200, "产品名称");
+        String categoryCode = required(row.categoryCode(), 64, "分类编号").toUpperCase(Locale.ROOT);
+        String unitCode = required(row.unitCode(), 64, "单位编号").toUpperCase(Locale.ROOT);
+        CategoryOption category = masterData.categories("PRODUCT").stream()
+                .filter(item -> item.code().equalsIgnoreCase(categoryCode) && "ACTIVE".equals(item.status()))
+                .findFirst().orElseThrow(() -> new IllegalArgumentException("分类编号不存在或已停用"));
+        UnitOption unit = masterData.units().stream()
+                .filter(item -> item.code().equalsIgnoreCase(unitCode) && "ACTIVE".equals(item.status()))
+                .findFirst().orElseThrow(() -> new IllegalArgumentException("单位编号不存在或已停用"));
+        String barcode = blankToNull(row.barcode());
+        if (barcode != null && barcode.length() > 64) throw new IllegalArgumentException("条码不能超过64个字符");
+        validateAmount(row.costPrice(), "成本");
+        validateAmount(row.salePrice(), "标准售价");
+        validateAmount(row.storePrice(), "门店售价");
+        String description = blankToNull(row.description());
+        if (description != null && description.length() > 1000) {
+            throw new IllegalArgumentException("产品说明不能超过1000个字符");
+        }
+        ProductDetail existing = repository.findByCode(code).orElse(null);
+        if (existing != null) {
+            if (sameImport(existing, name, category.id(), unit.id(), row, barcode, description, storeId)) {
+                return new ProductImportOutcome(existing.id(), false, "已存在且内容一致");
+            }
+            throw new DuplicateResourceException("产品编号已存在且内容不一致");
+        }
+        requireAvailableBarcode(barcode, null);
+        long id = repository.create(new NewProduct(
+                code, name, category.id(), unit.id(), barcode, row.costPrice(), row.salePrice(),
+                row.storePrice(), row.trackStock(), List.of(storeId), description, operatorId));
+        return new ProductImportOutcome(id, true, "已新建");
+    }
+
     private ProductDetail requireProduct(long id) {
         ProductDetail item = repository.find(id).orElseThrow(() -> new ResourceNotFoundException("产品不存在"));
         storeDataScope.requireAny(item.stores().stream().map(ProductStoreConfig::storeId).toList());
         return item;
+    }
+
+    private boolean sameImport(
+            ProductDetail existing,
+            String name,
+            long categoryId,
+            long unitId,
+            ProductImportRow row,
+            String barcode,
+            String description,
+            long storeId) {
+        ProductStoreConfig store = existing.stores().stream()
+                .filter(item -> item.storeId() == storeId).findFirst().orElse(null);
+        return store != null && existing.name().equals(name) && existing.categoryId() == categoryId
+                && existing.unitId() == unitId && Objects.equals(existing.barcode(), barcode)
+                && existing.costPrice().compareTo(row.costPrice()) == 0
+                && existing.salePrice().compareTo(row.salePrice()) == 0
+                && store.storePrice().compareTo(row.storePrice()) == 0
+                && existing.trackStock() == row.trackStock()
+                && "ACTIVE".equals(existing.status()) && "ON_SALE".equals(store.saleStatus())
+                && Objects.equals(existing.description(), description);
+    }
+
+    private void requireAvailableBarcode(String barcode, Long currentId) {
+        if (barcode == null) return;
+        ProductDetail existing = repository.findByBarcode(barcode).orElse(null);
+        if (existing != null && (currentId == null || existing.id() != currentId)) {
+            throw new DuplicateResourceException("产品条码已存在");
+        }
     }
 
     private void requireReferences(long categoryId, long unitId) {
@@ -120,6 +188,15 @@ public class ProductService {
         if (value == null || value.signum() < 0 || value.scale() > 4 || value.precision() - value.scale() > 15) {
             throw new IllegalArgumentException(field + "必须是最多15位整数、4位小数的非负金额");
         }
+    }
+
+    private String required(String value, int maxLength, String field) {
+        String normalized = blankToNull(value);
+        if (normalized == null) throw new IllegalArgumentException(field + "不能为空");
+        if (normalized.length() > maxLength) {
+            throw new IllegalArgumentException(field + "不能超过" + maxLength + "个字符");
+        }
+        return normalized;
     }
 
     private long operatorId(String username) {

@@ -1,5 +1,6 @@
 import { apiRequest } from './http'
 import type {
+  AsyncJobItem,
   CategoryOption,
   CreateProductPayload,
   CreatedResource,
@@ -36,4 +37,10 @@ export function createProduct(payload: CreateProductPayload): Promise<CreatedRes
 
 export function updateProduct(id: number, payload: UpdateProductPayload): Promise<ProductDetail> {
   return apiRequest<ProductDetail>({ method: 'PUT', url: `/products/${id}`, data: payload })
+}
+
+export function importProducts(file: File): Promise<AsyncJobItem> {
+  const data = new FormData()
+  data.append('file', file)
+  return apiRequest<AsyncJobItem>({ method: 'POST', url: '/products/import', data })
 }

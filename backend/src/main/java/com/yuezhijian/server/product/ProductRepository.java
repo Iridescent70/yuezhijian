@@ -10,6 +10,8 @@ public interface ProductRepository {
 
     Optional<ProductDetail> findByCode(String code);
 
+    Optional<ProductDetail> findByBarcode(String barcode);
+
     long create(NewProduct product);
 
     ProductDetail update(ProductUpdate update);

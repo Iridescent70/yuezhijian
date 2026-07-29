@@ -159,6 +159,39 @@ class AsyncJobFlowTest {
         assertThat(services).contains("SVC-IMPORT-1", "导入服务");
     }
 
+    @Test
+    void productCatalogImportCreatesValidRowsAndReturnsRowErrors() throws Exception {
+        MockHttpSession session = login();
+        mockMvc.perform(post("/api/v1/auth/current-store").with(csrf()).session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"storeId\":2}"))
+                .andExpect(status().isOk());
+        String csv = "\ufeff\"产品编号\",\"产品名称\",\"分类编号\",\"单位编号\",\"条码\",\"成本\",\"标准售价\",\"门店售价\",\"跟踪库存\",\"产品说明\"\r\n"
+                + "\"PRD-IMPORT-1\",\"导入产品\",\"RETAIL_PRODUCT\",\"PIECE\",\"690000009999\",\"20.00\",\"88.00\",\"78.00\",\"是\",\"自动化测试\"\r\n"
+                + "\"PRD001\",\"冲突产品\",\"RETAIL_PRODUCT\",\"BOTTLE\",\"690000000001\",\"35.00\",\"98.00\",\"98.00\",\"是\",\"\"\r\n";
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "产品资料.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8));
+        JsonNode created = json(mockMvc.perform(multipart("/api/v1/products/import").file(file)
+                        .with(csrf()).session(session))
+                .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString()).path("data");
+        assertThat(created.has("inputFileId")).isFalse();
+        long id = created.path("id").asLong();
+
+        assertThat(jobs.processNext()).isTrue();
+        JsonNode detail = json(mockMvc.perform(get("/api/v1/jobs/" + id).session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data");
+        assertThat(detail.path("status").asText()).isEqualTo("PARTIAL");
+        assertThat(detail.path("successCount").asInt()).isEqualTo(1);
+        assertThat(detail.path("failureCount").asInt()).isEqualTo(1);
+
+        String result = new String(mockMvc.perform(get("/api/v1/jobs/" + id + "/result").session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
+        assertThat(result).contains("PRD-IMPORT-1", "成功", "PRD001", "失败", "内容不一致");
+        String products = mockMvc.perform(get("/api/v1/products?storeId=2&keyword=PRD-IMPORT-1").session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(products).contains("PRD-IMPORT-1", "导入产品", "690000009999");
+    }
+
     private MockHttpSession login() throws Exception {
         return (MockHttpSession) mockMvc.perform(post("/api/v1/auth/login").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)

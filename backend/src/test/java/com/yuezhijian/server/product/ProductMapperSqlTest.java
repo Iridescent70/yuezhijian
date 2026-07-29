@@ -30,9 +30,11 @@ class ProductMapperSqlTest {
 
     @Test
     void updatesUseRowVersionAndProductStoreIdentity() throws Exception {
+        Select barcode = ProductMapper.class.getMethod("findByBarcode", String.class).getAnnotation(Select.class);
         Update product = ProductMapper.class.getMethod("update", ProductUpdate.class).getAnnotation(Update.class);
         Update store = ProductMapper.class.getMethod("updateStore", ProductUpdate.class).getAnnotation(Update.class);
 
+        assertThat(String.join(" ", barcode.value())).contains("product.barcode = #{barcode}");
         assertThat(String.join(" ", product.value()))
                 .contains("row_version = CONVERT(binary(8), #{version}, 1)", "updated_by = #{updatedBy}");
         assertThat(String.join(" ", store.value()))

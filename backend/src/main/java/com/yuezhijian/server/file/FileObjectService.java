@@ -107,7 +107,7 @@ public class FileObjectService {
         byte[] content = read(upload);
         String name = normalizeName(upload.getOriginalFilename());
         if (!name.toLowerCase(Locale.ROOT).endsWith(".csv")) {
-            throw new IllegalArgumentException("服务项目导入只支持CSV文件");
+            throw new IllegalArgumentException("批量导入只支持CSV文件");
         }
         validateUtf8Csv(content);
         String objectKey = jobObjectKey("ASYNC_JOB_INPUT", ".csv");

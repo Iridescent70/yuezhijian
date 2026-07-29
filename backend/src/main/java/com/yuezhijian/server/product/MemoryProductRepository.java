@@ -51,8 +51,16 @@ public class MemoryProductRepository implements ProductRepository {
     }
 
     @Override
+    public synchronized Optional<ProductDetail> findByBarcode(String barcode) {
+        return products.values().stream().filter(item -> java.util.Objects.equals(item.barcode(), barcode)).findFirst();
+    }
+
+    @Override
     public synchronized long create(NewProduct product) {
         if (findByCode(product.code()).isPresent()) throw new DuplicateResourceException("产品编号已存在");
+        if (product.barcode() != null && findByBarcode(product.barcode()).isPresent()) {
+            throw new DuplicateResourceException("产品条码已存在");
+        }
         long id = ids.incrementAndGet();
         ProductDetail detail = new ProductDetail(
                 id, product.code(), product.name(), product.categoryId(), "零售产品", product.unitId(),

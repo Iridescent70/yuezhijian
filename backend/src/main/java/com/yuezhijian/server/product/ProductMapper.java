@@ -65,6 +65,9 @@ public interface ProductMapper {
     @Select(ROW_SELECT + " WHERE product.product_code = #{code}")
     ProductRow findByCode(String code);
 
+    @Select(ROW_SELECT + " WHERE product.barcode = #{barcode}")
+    ProductRow findByBarcode(String barcode);
+
     @Select("""
             SELECT cfg.store_id AS storeId, store.store_name AS storeName,
                    cfg.sale_price AS storePrice, cfg.sale_status AS saleStatus

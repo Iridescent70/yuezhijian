@@ -74,7 +74,8 @@ class ProductFlowTest {
         String request = """
                 {
                   "code":"PRD-DUP-902","name":"测试产品","categoryId":2,"unitId":2,
-                  "costPrice":20,"salePrice":88,"storePrice":78,"trackStock":true,"storeIds":[2]
+                  "barcode":"690000009902","costPrice":20,"salePrice":88,"storePrice":78,
+                  "trackStock":true,"storeIds":[2]
                 }
                 """;
         mockMvc.perform(post("/api/v1/products").with(csrf()).session(session)
@@ -82,6 +83,10 @@ class ProductFlowTest {
                 .andExpect(status().isCreated());
         mockMvc.perform(post("/api/v1/products").with(csrf()).session(session)
                         .contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/v1/products").with(csrf()).session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request.replace("PRD-DUP-902", "PRD-DUP-BARCODE-902")))
                 .andExpect(status().isConflict());
         mockMvc.perform(post("/api/v1/products").with(csrf()).session(session)
                         .contentType(MediaType.APPLICATION_JSON).content(request.replace("\"categoryId\":2", "\"categoryId\":999")))

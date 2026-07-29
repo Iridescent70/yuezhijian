@@ -3,7 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { createExport } from '@/api/jobs'
-import { createProduct, getProduct, getProductCategories, getProducts, getUnits, updateProduct } from '@/api/product'
+import { createProduct, getProduct, getProductCategories, getProducts, getUnits, importProducts, updateProduct } from '@/api/product'
 import { useAuthStore } from '@/stores/auth'
 import type { CategoryOption, ProductStoreConfig, ProductSummary, UnitOption } from '@/types/api'
 import { formatMoney } from '@/utils/formatMoney'
@@ -12,6 +12,8 @@ const auth = useAuthStore()
 const router = useRouter()
 const loading = ref(false)
 const exporting = ref(false)
+const importing = ref(false)
+const importInput = ref<HTMLInputElement>()
 const saving = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref<number>()
@@ -64,6 +66,36 @@ async function exportCurrentStore() {
     ElMessage.error(error instanceof Error ? error.message : '产品资料导出任务创建失败')
   } finally {
     exporting.value = false
+  }
+}
+
+function downloadImportTemplate() {
+  const categoryCode = categories.value[0]?.code ?? ''
+  const unitCode = units.value.find(item => item.code === 'PIECE')?.code ?? units.value[0]?.code ?? ''
+  const content = '\ufeff"产品编号","产品名称","分类编号","单位编号","条码","成本","标准售价","门店售价","跟踪库存","产品说明"\r\n'
+    + `"PRD-DEMO","示例产品","${categoryCode}","${unitCode}","690000000000","20.00","68.00","58.00","是","请删除示例行后填写"\r\n`
+  const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }))
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = '产品资料导入模板.csv'
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
+async function uploadImport(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  importing.value = true
+  try {
+    await importProducts(file)
+    ElMessage.success('产品资料导入任务已创建，请在下载中心查看结果')
+    await router.push('/app/system/downloads')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '产品资料导入任务创建失败')
+  } finally {
+    importing.value = false
   }
 }
 
@@ -159,6 +191,11 @@ onMounted(() => {
     <div class="section-title-row">
       <div><h1>产品管理</h1><p>维护零售产品和服务耗用物料的基础资料、库存属性及门店售价。</p></div>
       <div>
+        <template v-if="auth.hasPermission('catalog:product:manage') && auth.hasPermission('system:job:create') && auth.hasPermission('system:job:view')">
+          <el-button @click="downloadImportTemplate">下载导入模板</el-button>
+          <el-button :loading="importing" @click="importInput?.click()">批量导入</el-button>
+          <input ref="importInput" class="file-input" type="file" accept=".csv,text/csv" @change="uploadImport">
+        </template>
         <el-button
           v-if="auth.hasPermission('system:job:create') && auth.hasPermission('system:job:view') && auth.hasPermission('catalog:product:export')"
           :loading="exporting"
@@ -201,3 +238,7 @@ onMounted(() => {
     </el-dialog>
   </section>
 </template>
+
+<style scoped>
+.file-input { display: none; }
+</style>
