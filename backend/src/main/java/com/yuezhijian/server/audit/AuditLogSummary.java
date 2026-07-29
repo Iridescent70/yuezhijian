@@ -2,7 +2,7 @@ package com.yuezhijian.server.audit;
 
 import java.time.LocalDateTime;
 
-public record AuditLogRow(
+public record AuditLogSummary(
         long id,
         String traceId,
         Long userId,
@@ -12,10 +12,7 @@ public record AuditLogRow(
         String action,
         String objectType,
         String objectId,
-        String beforeJson,
-        String afterJson,
         String result,
         String errorCode,
-        String ip,
         LocalDateTime occurredAt) {
 }

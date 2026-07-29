@@ -59,6 +59,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '工位管理', permission: 'org:workstation:view' },
       },
       {
+        path: 'system/audit-logs',
+        name: 'audit-logs',
+        component: () => import('@/views/system/AuditLogView.vue'),
+        meta: { title: '操作日志', permission: 'system:audit:view' },
+      },
+      {
         path: 'catalog/products',
         name: 'products',
         component: () => import('@/views/catalog/ProductListView.vue'),

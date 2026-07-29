@@ -86,6 +86,27 @@ export interface OperationHistoryItem {
   changes: OperationChange[]
 }
 
+export interface AuditLogSummary {
+  id: number
+  traceId: string
+  userId?: number
+  operatorName: string
+  storeId?: number
+  module: string
+  action: string
+  objectType?: string
+  objectId?: string
+  result: 'SUCCESS' | 'FAILURE'
+  errorCode?: string
+  occurredAt: string
+}
+
+export interface AuditLogDetail extends AuditLogSummary {
+  ip?: string
+  beforeValues: Record<string, string | undefined>
+  afterValues: Record<string, string | undefined>
+}
+
 export type AsyncJobStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'PARTIAL' | 'FAILED' | 'CANCELLED'
 
 export interface AsyncJobItem {

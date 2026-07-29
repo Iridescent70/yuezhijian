@@ -21,6 +21,7 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             "visit:task:view", "visit:task:manage", "visit:feedback:view", "visit:feedback:manage",
             "visit:satisfaction:view", "visit:satisfaction:manage",
             "system:parameter:view", "system:parameter:manage",
+            "system:audit:view",
             "system:job:view", "system:job:create", "system:job:cancel",
             "org:employee:view", "org:employee:manage",
             "org:position:view", "org:position:manage",
@@ -95,7 +96,9 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
                             new MenuItem(55L, "system-parameters", "系统参数", "/app/system/parameters", "Operation", 50,
                                     "system:parameter:view", List.of()),
                             new MenuItem(56L, "download-center", "下载中心", "/app/system/downloads", "Download", 60,
-                                    "system:job:view", List.of()))),
+                                    "system:job:view", List.of()),
+                            new MenuItem(58L, "audit-logs", "操作日志", "/app/system/audit-logs", "Document", 70,
+                                    "system:audit:view", List.of()))),
             new MenuItem(6L, "catalog", "基础资料", "/app/catalog", "Collection", 60, null,
                     List.of(
                             new MenuItem(63L, "products", "产品管理", "/app/catalog/products", "Goods", 5,

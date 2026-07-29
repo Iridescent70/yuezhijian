@@ -3,8 +3,11 @@ package com.yuezhijian.server.audit;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yuezhijian.server.common.PageResult;
+import com.yuezhijian.server.common.ResourceNotFoundException;
 import com.yuezhijian.server.common.TraceIds;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -68,6 +71,54 @@ public class AuditService {
                 .toList();
     }
 
+    public PageResult<AuditLogSummary> search(
+            Long userId,
+            String operator,
+            String module,
+            String action,
+            String objectType,
+            String objectId,
+            String result,
+            LocalDate occurredFrom,
+            LocalDate occurredTo,
+            int page,
+            int size) {
+        if (occurredFrom != null && occurredTo != null && occurredTo.isBefore(occurredFrom)) {
+            throw new IllegalArgumentException("结束日期不能早于开始日期");
+        }
+        String normalizedResult = optional(result);
+        if (normalizedResult != null) {
+            normalizedResult = normalizedResult.toUpperCase(Locale.ROOT);
+            if (!Set.of("SUCCESS", "FAILURE").contains(normalizedResult)) {
+                throw new IllegalArgumentException("审计结果无效");
+            }
+        }
+        AuditLogQuery query = new AuditLogQuery(
+                userId, limited(operator, 100, "操作人"), limited(module, 64, "模块"), limited(action, 64, "动作"),
+                limited(objectType, 64, "对象类型"), limited(objectId, 64, "对象编号"), normalizedResult,
+                occurredFrom == null ? null : occurredFrom.atStartOfDay(),
+                occurredTo == null ? null : occurredTo.plusDays(1).atStartOfDay(),
+                Math.max(page, 1), Math.min(Math.max(size, 1), 100));
+        PageResult<AuditLogRow> resultPage = repository.search(query);
+        List<AuditLogSummary> items = resultPage.items().stream().map(this::summary).toList();
+        return new PageResult<>(items, resultPage.page(), resultPage.size(), resultPage.total());
+    }
+
+    public AuditLogDetail detail(long id) {
+        AuditLogRow row = repository.find(id)
+                .orElseThrow(() -> new ResourceNotFoundException("操作日志不存在"));
+        return new AuditLogDetail(
+                row.id(), row.traceId(), row.userId(), row.operatorName(), row.storeId(), row.module(),
+                row.action(), row.objectType(), row.objectId(), row.result(), row.errorCode(), row.ip(),
+                row.occurredAt(), displayMap(row.beforeJson()), displayMap(row.afterJson()));
+    }
+
+    private AuditLogSummary summary(AuditLogRow row) {
+        return new AuditLogSummary(
+                row.id(), row.traceId(), row.userId(), row.operatorName(), row.storeId(), row.module(),
+                row.action(), row.objectType(), row.objectId(), row.result(), row.errorCode(), row.occurredAt());
+    }
+
     private OperationHistoryItem toItem(AuditLogRow row, Map<String, String> labels) {
         Map<String, JsonNode> before = parse(row.beforeJson());
         Map<String, JsonNode> after = parse(row.afterJson());
@@ -114,6 +165,12 @@ public class AuditService {
         }
     }
 
+    private Map<String, String> displayMap(String value) {
+        Map<String, String> displayValues = new LinkedHashMap<>();
+        parse(value).forEach((key, jsonValue) -> displayValues.put(key, display(jsonValue)));
+        return displayValues;
+    }
+
     private String display(JsonNode value) {
         if (value == null || value.isNull()) return null;
         if (value.isBoolean()) return value.asBoolean() ? "是" : "否";
@@ -126,6 +183,18 @@ public class AuditService {
             case "OFF_SALE" -> "未上架";
             default -> text;
         };
+    }
+
+    private String limited(String value, int maxLength, String field) {
+        String normalized = optional(value);
+        if (normalized != null && normalized.length() > maxLength) {
+            throw new IllegalArgumentException(field + "查询不能超过" + maxLength + "个字符");
+        }
+        return normalized;
+    }
+
+    private String optional(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private static Map<String, String> orderedLabels(String... values) {

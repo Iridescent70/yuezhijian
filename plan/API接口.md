@@ -106,8 +106,8 @@
 | API-COM-003 | `POST /exports` | `exportType=SERVICE_FEEDBACK/MEMBER/SERVICE_CATALOG/PRODUCT_CATALOG`及对应筛选条件 | 当前门店导出任务；除`system:job:create`外还校验业务查看/导出权限；202；已实现 | 系统管理-01 |
 | API-COM-004 | `GET /jobs/{id}`、`POST /jobs/{id}/cancel`、`GET /jobs/{id}/result` | 本人任务id | 详情、等待任务取消、7天内私有结果文件；到期后定时物理清理但保留审计元数据；后台执行使用30分钟可续租租约，失联最多重领3次；`system:job:view/cancel`；已实现 | 系统管理-01 |
 | API-COM-005 | `GET /jobs` | `jobType/status/page/size` | 只返回当前创建人的任务分页；`system:job:view`；已实现 | 系统管理-01 |
-| API-COM-006 | `GET /audit-logs` | 用户、模块、动作、对象、日期 | 审计分页 | 系统管理-07 |
-| API-COM-007 | `GET /audit-logs/{id}` | 日志 id | 前后值摘要、结果、traceId | 系统管理-07 |
+| API-COM-006 | `GET /audit-logs` | `userId/operator/module/action/objectType/objectId/result/occurredFrom/occurredTo/page/size` | 按发生时间倒序的审计分页，size最大100；独立权限`system:audit:view`；已实现 | 系统管理-07 |
+| API-COM-007 | `GET /audit-logs/{id}` | 日志 id | 操作人、门店、对象、结果、错误码、IP、traceId及格式化前后值；只读，不返回原始JSON；`system:audit:view`；已实现 | 系统管理-07 |
 | API-COM-008 | `GET /system-parameters`、`PUT /system-parameters/{id}` | `group`/`value/status/version` | 非密钥参数列表/更新结果；`system:parameter:view/manage`；已实现 | 系统管理-17 |
 | API-COM-009 | `GET/POST /cancel-reasons` | 业务类型/代码、名称、状态 | 列表/id | 系统管理-31 |
 | API-COM-010 | `GET /operation-history/{objectType}/{objectId}` | `PRODUCT/SERVICE`及对象id | 按当前产品/服务查看权限和门店范围返回新建、导入、编辑、上下架的字段变化、操作人、时间和traceId；已实现 | 通用-历史追踪 |
