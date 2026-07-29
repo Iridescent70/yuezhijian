@@ -162,7 +162,7 @@
 | API-MEM-002 | `POST /members` | 姓名、手机、性别、生日、入会店、顾问、来源 | memberId、会员卡号 | 会员管理-01、快捷入口-01 |
 | API-MEM-003 | `GET/PUT /members/{id}` | 详情/姓名、昵称、可选新手机号、性别、生日、邮箱、顾问、特殊标记、version | 聚合详情/更新后详情；手机号不回显明文；`member:member:view/manage`；已实现 | 会员管理-01、优化会员-02 |
 | API-MEM-004 | `POST /members/{id}/status` | `ACTIVE/FROZEN/INACTIVE`、必填原因、version | 更新后详情；写状态历史；`member:member:manage`；已实现 | 会员管理-01、优化会员-06 |
-| API-MEM-005 | `POST /members/batch-freeze` | memberIds 或筛选快照、原因 | 任务 id | 优化会员-06 |
+| API-MEM-005 | `POST /members/batch-freeze` | 1~100个memberIds、原因 | 逐条`SUCCESS/SKIPPED/FAILED`结果；`member:member:manage`；已实现 | 优化会员-06 |
 | API-MEM-006 | `GET /members/{id}/assets` | 无 | 储值、积分、次卡、券汇总 | 优化会员-02 |
 | API-MEM-007 | `GET /members/{id}/transactions` | 类型、日期、门店 | 消费和资产流水 | 会员管理-01 |
 | API-MEM-008 | `GET/POST /members/{id}/notes` | 查询/类型、内容、负向标志 | 跟进记录/id | 会员管理-01、优化会员-03 |
@@ -174,12 +174,14 @@
 | API-MEM-014 | `GET/PUT /member-levels/{id}` | 详情/规则、状态、version | 详情/更新 | 会员管理-02 |
 | API-MEM-015 | `GET/POST /member-tags` | 类型/名称、规则、颜色、自动标志 | 已实现GET启用标签选项；POST配置接口待标签规则页迭代；`member:tag:view` | 优化会员-03 |
 | API-MEM-016 | `PUT /members/{id}/tags` | `addIds/removeIds/version`；仅启用标签 | 更新后会员详情；保留分配/移除历史；`member:tag:manage`；已实现 | 优化会员-03 |
-| API-MEM-017 | `POST /members/tags/batch` | memberIds、addIds/removeIds | 批量结果 | 优化会员-01、03 |
+| API-MEM-017 | `POST /members/tags/batch` | 1~100个memberIds、addIds/removeIds | 去重后逐条结果；只写实际变化；`member:tag:manage`；已实现 | 优化会员-01、03 |
 | API-MEM-018 | `GET/POST /member-segments` | 查询/名称、筛选条件 JSON | 客群视图/id | 优化会员-01 |
 | API-MEM-019 | `POST /member-segments/{id}/preview` | 无 | 命中数和样例 | 优化会员-01 |
-| API-MEM-020 | `POST /members/batch-assign-advisor` | memberIds、employeeId | 批量结果 | 优化会员-01 |
+| API-MEM-020 | `POST /members/batch-assign-advisor` | 1~100个memberIds、employeeId | 逐条结果；校验顾问在职且属于会员归属门店；`member:member:manage`；已实现 | 优化会员-01 |
 
-`API-MEM-003~004、011~012、015(GET)、016`已落地。资料、状态、归属申请和标签修改都要求提交版本，过期版本返回冲突，避免多窗口覆盖。手机号留空表示不修改；填写新号码时重新加密并生成检索哈希，响应始终只返回尾号。冻结、解冻和停用都必须填写原因，当前状态写在会员主表，完整变更写入`mem_member_status_log`。标签分配采用追加与软移除，不覆盖原来源。批量冻结、标签定义配置和批量顾问仍按各自接口继续开发。
+`API-MEM-003~005、011~012、015(GET)、016~017、020`已落地。资料、状态、归属申请和标签修改都要求提交版本，过期版本返回冲突，避免多窗口覆盖。手机号留空表示不修改；填写新号码时重新加密并生成检索哈希，响应始终只返回尾号。冻结、解冻和停用都必须填写原因，当前状态写在会员主表，完整变更写入`mem_member_status_log`。标签分配采用追加与软移除，不覆盖原来源；批量顾问保存变更前后历史。
+
+三项批量接口当前处理页面明确勾选的会员，单次上限100人。服务端按会员读取最新版本并逐条提交事务，一条失败不会回滚其他成功项；重复会员先去重，已经冻结、标签无变化或顾问相同的记录返回`SKIPPED`且不重复写历史。按筛选条件处理大客群、后台任务进度和失败重试属于后续任务中心，不把本轮同步结果伪装成异步任务。
 
 归属调整不允许填写历史日期，也不在普通会员编辑中直接改门店。同日申请审批通过后立即执行，未来日期保持`APPROVED/WAITING`并由运行档定时任务到期领取；执行只修改会员当前归属并清空原门店顾问，历史账单、提成和业绩快照不变。同一会员只允许一张`WAITING/PROCESSING`申请。`shareRule`仅保存甲方确认的JSON快照，当前不宣称已完成第三方分润计算。
 

@@ -23,5 +23,7 @@ public interface MemberRepository {
 
     MemberDetail updateTags(MemberTagUpdateCommand command);
 
+    MemberDetail assignAdvisor(MemberAdvisorCommand command);
+
     boolean applyOwnership(long memberId, long oldStoreId, long newStoreId, long operatorId);
 }

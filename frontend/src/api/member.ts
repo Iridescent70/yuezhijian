@@ -7,6 +7,10 @@ import type {
   MemberSummary,
   PageResult,
   ChangeMemberStatusPayload,
+  BatchAssignMemberAdvisorPayload,
+  BatchFreezeMembersPayload,
+  BatchUpdateMemberTagsPayload,
+  MemberBatchResult,
   UpdateMemberPayload,
   UpdateMemberTagsPayload,
 } from '@/types/api'
@@ -45,4 +49,16 @@ export function getMemberTagOptions(): Promise<MemberTagOption[]> {
 
 export function updateMemberTags(id: number, payload: UpdateMemberTagsPayload): Promise<MemberDetail> {
   return apiRequest<MemberDetail>({ method: 'PUT', url: `/members/${id}/tags`, data: payload })
+}
+
+export function batchFreezeMembers(payload: BatchFreezeMembersPayload): Promise<MemberBatchResult> {
+  return apiRequest<MemberBatchResult>({ method: 'POST', url: '/members/batch-freeze', data: payload })
+}
+
+export function batchUpdateMemberTags(payload: BatchUpdateMemberTagsPayload): Promise<MemberBatchResult> {
+  return apiRequest<MemberBatchResult>({ method: 'POST', url: '/members/tags/batch', data: payload })
+}
+
+export function batchAssignMemberAdvisor(payload: BatchAssignMemberAdvisorPayload): Promise<MemberBatchResult> {
+  return apiRequest<MemberBatchResult>({ method: 'POST', url: '/members/batch-assign-advisor', data: payload })
 }

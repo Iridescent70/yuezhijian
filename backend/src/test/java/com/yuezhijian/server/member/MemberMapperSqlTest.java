@@ -73,4 +73,21 @@ class MemberMapperSqlTest {
                 "memberId", 1L, "tagIds", java.util.List.of(2L, 3L), "operatorId", 1L));
         assertThat(addSql.getSql()).contains("INSERT INTO dbo.mem_member_tag", "tag.status = 'ACTIVE'", "NOT EXISTS");
     }
+
+    @Test
+    void advisorAssignmentUsesStoreVersionAndAppendOnlyHistory() throws Exception {
+        Method assignMethod = MemberMapper.class.getMethod(
+                "assignAdvisor", MemberAdvisorCommand.class, byte[].class);
+        String assignSql = String.join(" ", assignMethod.getAnnotation(Update.class).value());
+        assertThat(assignSql).contains(
+                "advisor_employee_id = #{command.newAdvisorEmployeeId}",
+                "owner_store_id = #{command.ownerStoreId}",
+                "row_version = #{rowVersion}");
+
+        Method historyMethod = MemberMapper.class.getMethod("insertAdvisorLog", MemberAdvisorCommand.class);
+        String historySql = String.join(" ", historyMethod.getAnnotation(Insert.class).value());
+        assertThat(historySql).contains(
+                "INSERT INTO dbo.mem_member_advisor_log", "old_advisor_employee_id",
+                "new_advisor_employee_id", "#{changeSource}");
+    }
 }

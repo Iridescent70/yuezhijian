@@ -173,6 +173,25 @@ public class MemoryMemberRepository implements MemberRepository {
     }
 
     @Override
+    public synchronized MemberDetail assignAdvisor(MemberAdvisorCommand command) {
+        MemoryMember old = requireVersion(command.memberId(), command.version());
+        if (old.ownerStoreId() != command.ownerStoreId()
+                || !java.util.Objects.equals(old.advisorEmployeeId(), command.oldAdvisorEmployeeId())) {
+            throw new com.yuezhijian.server.common.DuplicateResourceException(
+                    "会员归属或当前顾问已变化，请刷新后重试");
+        }
+        MemoryMember updated = new MemoryMember(
+                old.id(), old.memberNo(), old.membershipCardNo(), old.fullName(), old.nickname(), old.mobile(),
+                old.gender(), old.birthday(), old.email(), old.sourceType(), old.joinStoreId(), old.ownerStoreId(),
+                command.newAdvisorEmployeeId(), old.levelName(), old.special(), old.status(),
+                old.frozenAt(), old.freezeReason(), old.lastVisitAt(), old.createdAt(), old.availableBalance(),
+                old.frozenBalance(), old.totalRecharged(), old.availablePoints(), old.lifetimePoints(),
+                old.cardCount(), old.tags(), old.version() + 1);
+        replace(updated);
+        return toDetail(updated);
+    }
+
+    @Override
     public synchronized boolean applyOwnership(long memberId, long oldStoreId, long newStoreId, long operatorId) {
         MemoryMember old = members.stream().filter(item -> item.id() == memberId).findFirst().orElse(null);
         if (old == null || old.ownerStoreId() != oldStoreId) return false;

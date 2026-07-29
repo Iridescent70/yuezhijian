@@ -20,9 +20,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/members")
 public class MemberController {
     private final MemberService memberService;
+    private final MemberBatchService batchService;
 
-    public MemberController(MemberService memberService) {
+    public MemberController(MemberService memberService, MemberBatchService batchService) {
         this.memberService = memberService;
+        this.batchService = batchService;
     }
 
     @GetMapping
@@ -76,5 +78,29 @@ public class MemberController {
             @Valid @RequestBody UpdateMemberTagsRequest request,
             Principal principal) {
         return ApiResponse.ok(memberService.updateTags(id, request, principal.getName()));
+    }
+
+    @PostMapping("/batch-freeze")
+    @PreAuthorize("hasAuthority('member:member:manage')")
+    public ApiResponse<MemberBatchResult> batchFreeze(
+            @Valid @RequestBody BatchFreezeMembersRequest request,
+            Principal principal) {
+        return ApiResponse.ok(batchService.freeze(request, principal.getName()));
+    }
+
+    @PostMapping("/tags/batch")
+    @PreAuthorize("hasAuthority('member:tag:manage')")
+    public ApiResponse<MemberBatchResult> batchTags(
+            @Valid @RequestBody BatchUpdateMemberTagsRequest request,
+            Principal principal) {
+        return ApiResponse.ok(batchService.updateTags(request, principal.getName()));
+    }
+
+    @PostMapping("/batch-assign-advisor")
+    @PreAuthorize("hasAuthority('member:member:manage')")
+    public ApiResponse<MemberBatchResult> batchAssignAdvisor(
+            @Valid @RequestBody BatchAssignMemberAdvisorRequest request,
+            Principal principal) {
+        return ApiResponse.ok(batchService.assignAdvisor(request, principal.getName()));
     }
 }

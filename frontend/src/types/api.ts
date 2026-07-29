@@ -161,6 +161,39 @@ export interface UpdateMemberTagsPayload {
   version: string
 }
 
+export interface MemberBatchItemResult {
+  memberId: number
+  memberNo?: string
+  memberName?: string
+  status: 'SUCCESS' | 'SKIPPED' | 'FAILED'
+  message: string
+}
+
+export interface MemberBatchResult {
+  operation: 'FREEZE' | 'UPDATE_TAGS' | 'ASSIGN_ADVISOR'
+  total: number
+  succeeded: number
+  skipped: number
+  failed: number
+  items: MemberBatchItemResult[]
+}
+
+export interface BatchFreezeMembersPayload {
+  memberIds: number[]
+  reason: string
+}
+
+export interface BatchUpdateMemberTagsPayload {
+  memberIds: number[]
+  addIds: number[]
+  removeIds: number[]
+}
+
+export interface BatchAssignMemberAdvisorPayload {
+  memberIds: number[]
+  employeeId: number
+}
+
 export interface OwnershipAdjustment {
   id: number
   adjustmentNo: string

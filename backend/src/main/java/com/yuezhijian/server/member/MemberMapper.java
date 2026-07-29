@@ -272,6 +272,29 @@ public interface MemberMapper {
 
     @Update("""
             UPDATE dbo.mem_member
+            SET advisor_employee_id = #{command.newAdvisorEmployeeId},
+                updated_at = sysdatetime(), updated_by = #{command.operatorId}
+            WHERE id = #{command.memberId}
+              AND owner_store_id = #{command.ownerStoreId}
+              AND row_version = #{rowVersion}
+            """)
+    int assignAdvisor(
+            @Param("command") MemberAdvisorCommand command,
+            @Param("rowVersion") byte[] rowVersion);
+
+    @Insert("""
+            INSERT INTO dbo.mem_member_advisor_log (
+                member_id, owner_store_id, old_advisor_employee_id, new_advisor_employee_id,
+                change_source, changed_by
+            ) VALUES (
+                #{memberId}, #{ownerStoreId}, #{oldAdvisorEmployeeId}, #{newAdvisorEmployeeId},
+                #{changeSource}, #{operatorId}
+            )
+            """)
+    void insertAdvisorLog(MemberAdvisorCommand command);
+
+    @Update("""
+            UPDATE dbo.mem_member
             SET owner_store_id = #{newStoreId}, advisor_employee_id = NULL,
                 updated_at = sysdatetime(), updated_by = #{operatorId}
             WHERE id = #{memberId} AND owner_store_id = #{oldStoreId}

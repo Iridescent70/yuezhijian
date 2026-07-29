@@ -66,11 +66,17 @@ public class SqlServerMemberRepository implements MemberRepository {
     @Override
     @Transactional
     public MemberDetail update(MemberUpdateCommand command) {
+        MemberDetail current = findById(command.id()).orElseThrow();
         String ciphertext = command.mobile() == null ? null : codec.encrypt(command.mobile());
         String mobileHash = command.mobile() == null ? null : codec.searchableHash(command.mobile());
         String last4 = command.mobile() == null ? null : command.mobile().substring(command.mobile().length() - 4);
         if (mapper.updateMember(command, ciphertext, mobileHash, last4, decodeVersion(command.version())) != 1) {
             throw stale();
+        }
+        if (!java.util.Objects.equals(current.advisorEmployeeId(), command.advisorEmployeeId())) {
+            mapper.insertAdvisorLog(new MemberAdvisorCommand(
+                    command.id(), current.ownerStoreId(), current.advisorEmployeeId(), command.advisorEmployeeId(),
+                    command.version(), command.operatorId(), "MANUAL"));
         }
         return findById(command.id()).orElseThrow();
     }
@@ -100,6 +106,14 @@ public class SqlServerMemberRepository implements MemberRepository {
         if (!command.addIds().isEmpty()) {
             mapper.addTags(command.memberId(), command.addIds(), command.operatorId());
         }
+        return findById(command.memberId()).orElseThrow();
+    }
+
+    @Override
+    @Transactional
+    public MemberDetail assignAdvisor(MemberAdvisorCommand command) {
+        if (mapper.assignAdvisor(command, decodeVersion(command.version())) != 1) throw stale();
+        mapper.insertAdvisorLog(command);
         return findById(command.memberId()).orElseThrow();
     }
 

@@ -135,6 +135,21 @@ public class MemberService {
                 id, addIds, removeIds, request.version(), currentUserId(username)));
     }
 
+    @Transactional
+    public MemberDetail assignAdvisor(long id, long employeeId, String version, String username) {
+        MemberDetail current = detail(id);
+        if (!current.version().equals(version)) {
+            throw new DuplicateResourceException("会员档案已被他人修改，请刷新后重试");
+        }
+        if (java.util.Objects.equals(current.advisorEmployeeId(), employeeId)) {
+            throw new IllegalArgumentException("会员已经由该顾问负责");
+        }
+        validateAdvisor(employeeId, current.ownerStoreId());
+        return repository.assignAdvisor(new MemberAdvisorCommand(
+                id, current.ownerStoreId(), current.advisorEmployeeId(), employeeId,
+                version, currentUserId(username), "BATCH_ASSIGN"));
+    }
+
     private void validateStore(long storeId) {
         boolean exists = accessCatalog.stores().stream()
                 .anyMatch(store -> store.id() == storeId && "ACTIVE".equals(store.status()));
