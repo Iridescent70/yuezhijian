@@ -116,9 +116,9 @@
 
 | API 编号 | 方法与路径 | 用途及主要入参 | 主要返回/权限 | 需求来源 |
 | --- | --- | --- | --- | --- |
-| API-CAT-001 | `GET/POST /item-categories` | 当前支持按`PRODUCT/SERVICE`查询启用分类；分类维护待后续 | 分类列表；查询已实现 | 系统管理-11、21 |
-| API-CAT-002 | `PUT /item-categories/{id}` | 名称、排序、状态、version | 更新结果 | 系统管理-11、21 |
-| API-CAT-003 | `GET/POST /units` | 当前支持查询启用单位；单位维护待后续 | 单位列表；查询已实现 | 系统管理-12 |
+| API-CAT-001 | `GET/POST /item-categories` | 按`PRODUCT/SERVICE`及`activeOnly`查询；新建类型、编号、名称和排序 | 选择场景只读启用项；全量查询/新建需`catalog:master:view/manage`；已实现 | 系统管理-11、21 |
+| API-CAT-002 | `GET/PUT /item-categories/{id}` | 详情；名称、排序、状态、version，类型及编号不可修改 | 详情/并发安全更新；`catalog:master:view/manage`；已实现 | 系统管理-11、21 |
+| API-CAT-003 | `GET/POST /units`、`GET/PUT /units/{id}` | `activeOnly`查询；编号、名称、小数位数、状态、version | 选择场景只读启用项；维护需`catalog:master:view/manage`；已实现 | 系统管理-12 |
 | API-CAT-004 | `GET/POST /products` | 门店、分类、销售状态、关键词/产品、单位、成本、售价、门店配置 | 基础列表/id；`catalog:product:view/manage`；已实现 | 系统管理-11 |
 | API-CAT-005 | `GET/PUT /products/{id}` | 详情/产品资料、门店价格和状态、version | 详情/并发安全更新；已实现 | 系统管理-11 |
 | API-CAT-006 | `POST /products/batch-status` | 当前页1~100个产品id、ON_SALE/OFF_SALE | 固定当前门店，逐条成功/跳过/失败；`catalog:product:manage`；已实现 | 优化系统管理-01 |

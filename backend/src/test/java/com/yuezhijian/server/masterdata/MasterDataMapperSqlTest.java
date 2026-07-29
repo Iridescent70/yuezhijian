@@ -77,6 +77,32 @@ class MasterDataMapperSqlTest {
                 .contains("updated_by = #{updatedBy}");
     }
 
+    @Test
+    void categoryAndUnitQueriesFilterActiveAndUpdatesUseRowVersion() throws Exception {
+        BoundSql categories = parse(
+                MasterDataMapper.class.getMethod("findCategories", String.class, boolean.class),
+                Map.of("type", "PRODUCT", "activeOnly", true));
+        assertThat(categories.getSql())
+                .contains("category_type = ?")
+                .contains("status = 'ACTIVE'")
+                .contains("row_version");
+        BoundSql units = parse(
+                MasterDataMapper.class.getMethod("findUnits", boolean.class),
+                Map.of("activeOnly", false));
+        assertThat(units.getSql()).doesNotContain("WHERE status = 'ACTIVE'").contains("row_version");
+
+        Update categoryUpdate = MasterDataMapper.class
+                .getMethod("updateCategory", CategoryUpdate.class).getAnnotation(Update.class);
+        assertThat(String.join(" ", categoryUpdate.value()))
+                .contains("row_version = CONVERT(binary(8), #{version}, 1)")
+                .contains("sort_no = #{sortNo}");
+        Update unitUpdate = MasterDataMapper.class
+                .getMethod("updateUnit", UnitUpdate.class).getAnnotation(Update.class);
+        assertThat(String.join(" ", unitUpdate.value()))
+                .contains("row_version = CONVERT(binary(8), #{version}, 1)")
+                .contains("decimal_places = #{decimalPlaces}");
+    }
+
     private BoundSql parse(Method method, Map<String, Object> parameters) {
         Select select = method.getAnnotation(Select.class);
         String script = String.join(" ", select.value());

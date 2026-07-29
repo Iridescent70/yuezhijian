@@ -1,11 +1,10 @@
 package com.yuezhijian.server.masterdata;
 
-public record CategoryOption(
+public record CategoryUpdate(
         long id,
-        String code,
         String name,
-        String type,
         int sortNo,
         String status,
-        String version) {
+        String version,
+        long updatedBy) {
 }

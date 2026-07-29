@@ -1,10 +1,10 @@
 package com.yuezhijian.server.masterdata;
 
-public record UnitOption(
+public record UnitUpdate(
         long id,
-        String code,
         String name,
         int decimalPlaces,
         String status,
-        String version) {
+        String version,
+        long updatedBy) {
 }

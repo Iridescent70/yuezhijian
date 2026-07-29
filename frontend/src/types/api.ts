@@ -634,7 +634,23 @@ export interface CategoryOption {
   code: string
   name: string
   type: string
+  sortNo: number
   status: string
+  version: string
+}
+
+export interface CreateCategoryPayload {
+  type: 'PRODUCT' | 'SERVICE'
+  code: string
+  name: string
+  sortNo: number
+}
+
+export interface UpdateCategoryPayload {
+  name: string
+  sortNo: number
+  status: string
+  version: string
 }
 
 export interface UnitOption {
@@ -643,6 +659,20 @@ export interface UnitOption {
   name: string
   decimalPlaces: number
   status: string
+  version: string
+}
+
+export interface CreateUnitPayload {
+  code: string
+  name: string
+  decimalPlaces: number
+}
+
+export interface UpdateUnitPayload {
+  name: string
+  decimalPlaces: number
+  status: string
+  version: string
 }
 
 export interface ProductStoreConfig {

@@ -34,20 +34,48 @@ public interface MasterDataMapper {
     PositionOption findPosition(long id);
 
     @Select("""
-            SELECT id, category_code AS code, name, category_type AS type, status
+            <script>
+            SELECT id, category_code AS code, name, category_type AS type, sort_no AS sortNo, status,
+                   CONVERT(varchar(18), row_version, 1) AS version
             FROM dbo.cat_category
-            WHERE category_type = #{type} AND status = 'ACTIVE'
+            WHERE category_type = #{type}
+            <if test="activeOnly">
+              AND status = 'ACTIVE'
+            </if>
             ORDER BY sort_no, id
+            </script>
             """)
-    List<CategoryOption> findCategories(String type);
+    List<CategoryOption> findCategories(
+            @Param("type") String type, @Param("activeOnly") boolean activeOnly);
 
     @Select("""
-            SELECT id, unit_code AS code, unit_name AS name, decimal_places AS decimalPlaces, status
-            FROM dbo.cat_unit
-            WHERE status = 'ACTIVE'
-            ORDER BY id
+            SELECT id, category_code AS code, name, category_type AS type, sort_no AS sortNo, status,
+                   CONVERT(varchar(18), row_version, 1) AS version
+            FROM dbo.cat_category
+            WHERE id = #{id}
             """)
-    List<UnitOption> findUnits();
+    CategoryOption findCategory(long id);
+
+    @Select("""
+            <script>
+            SELECT id, unit_code AS code, unit_name AS name, decimal_places AS decimalPlaces, status,
+                   CONVERT(varchar(18), row_version, 1) AS version
+            FROM dbo.cat_unit
+            <if test="activeOnly">
+              WHERE status = 'ACTIVE'
+            </if>
+            ORDER BY id
+            </script>
+            """)
+    List<UnitOption> findUnits(@Param("activeOnly") boolean activeOnly);
+
+    @Select("""
+            SELECT id, unit_code AS code, unit_name AS name, decimal_places AS decimalPlaces, status,
+                   CONVERT(varchar(18), row_version, 1) AS version
+            FROM dbo.cat_unit
+            WHERE id = #{id}
+            """)
+    UnitOption findUnit(long id);
 
     @Select("""
             <script>
@@ -205,6 +233,40 @@ public interface MasterDataMapper {
             WHERE id = #{id} AND row_version = CONVERT(binary(8), #{version}, 1)
             """)
     int updatePosition(PositionUpdate update);
+
+    @Select(value = """
+            INSERT INTO dbo.cat_category (
+                parent_id, category_type, category_code, name, path, sort_no, created_by, updated_by
+            )
+            OUTPUT INSERTED.id
+            VALUES (NULL, #{type}, #{code}, #{name}, #{path}, #{sortNo}, #{createdBy}, #{createdBy})
+            """, affectData = true)
+    long insertCategory(NewCategory category);
+
+    @Update("""
+            UPDATE dbo.cat_category
+            SET name = #{name}, sort_no = #{sortNo}, status = #{status},
+                updated_at = sysdatetime(), updated_by = #{updatedBy}
+            WHERE id = #{id} AND row_version = CONVERT(binary(8), #{version}, 1)
+            """)
+    int updateCategory(CategoryUpdate update);
+
+    @Select(value = """
+            INSERT INTO dbo.cat_unit (
+                unit_code, unit_name, decimal_places, created_by, updated_by
+            )
+            OUTPUT INSERTED.id
+            VALUES (#{code}, #{name}, #{decimalPlaces}, #{createdBy}, #{createdBy})
+            """, affectData = true)
+    long insertUnit(NewUnit unit);
+
+    @Update("""
+            UPDATE dbo.cat_unit
+            SET unit_name = #{name}, decimal_places = #{decimalPlaces}, status = #{status},
+                updated_at = sysdatetime(), updated_by = #{updatedBy}
+            WHERE id = #{id} AND row_version = CONVERT(binary(8), #{version}, 1)
+            """)
+    int updateUnit(UnitUpdate update);
 
     @Select(value = """
             INSERT INTO dbo.org_employee (

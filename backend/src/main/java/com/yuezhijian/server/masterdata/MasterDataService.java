@@ -39,16 +39,34 @@ public class MasterDataService {
     }
 
     public List<CategoryOption> serviceCategories() {
-        return repository.categories("SERVICE");
+        return repository.categories("SERVICE", true);
     }
 
     public List<CategoryOption> itemCategories(String type) {
+        return itemCategories(type, true);
+    }
+
+    public List<CategoryOption> itemCategories(String type, boolean activeOnly) {
         String normalized = normalize(type, Set.of("SERVICE", "PRODUCT"), "分类类型无效");
-        return repository.categories(normalized);
+        return repository.categories(normalized, activeOnly);
+    }
+
+    public CategoryOption itemCategory(long id) {
+        return repository.findCategory(id)
+                .orElseThrow(() -> new ResourceNotFoundException("分类不存在"));
     }
 
     public List<UnitOption> units() {
-        return repository.units();
+        return units(true);
+    }
+
+    public List<UnitOption> units(boolean activeOnly) {
+        return repository.units(activeOnly);
+    }
+
+    public UnitOption unit(long id) {
+        return repository.findUnit(id)
+                .orElseThrow(() -> new ResourceNotFoundException("单位不存在"));
     }
 
     public List<EmployeeSummary> employees(Long storeId, String keyword) {
@@ -97,6 +115,36 @@ public class MasterDataService {
                 current.id(), request.name().trim(), request.level(),
                 normalizedRate(request.defaultServiceRate()), normalizedRate(request.defaultSalesRate()),
                 status, request.version(), currentUserId(username)));
+    }
+
+    public CreatedResource createCategory(CreateCategoryRequest request, String username) {
+        String type = normalize(request.type(), Set.of("SERVICE", "PRODUCT"), "分类类型无效");
+        String code = request.code().trim().toUpperCase(Locale.ROOT);
+        return repository.createCategory(new NewCategory(
+                type, code, request.name().trim(), "/" + type + "/" + code + "/",
+                request.sortNo(), currentUserId(username)));
+    }
+
+    public CategoryOption updateCategory(long id, UpdateCategoryRequest request, String username) {
+        CategoryOption current = itemCategory(id);
+        String status = normalize(request.status(), Set.of("ACTIVE", "DISABLED"), "分类状态无效");
+        return repository.updateCategory(new CategoryUpdate(
+                current.id(), request.name().trim(), request.sortNo(), status,
+                request.version(), currentUserId(username)));
+    }
+
+    public CreatedResource createUnit(CreateUnitRequest request, String username) {
+        return repository.createUnit(new NewUnit(
+                request.code().trim().toUpperCase(Locale.ROOT), request.name().trim(),
+                request.decimalPlaces(), currentUserId(username)));
+    }
+
+    public UnitOption updateUnit(long id, UpdateUnitRequest request, String username) {
+        UnitOption current = unit(id);
+        String status = normalize(request.status(), Set.of("ACTIVE", "DISABLED"), "单位状态无效");
+        return repository.updateUnit(new UnitUpdate(
+                current.id(), request.name().trim(), request.decimalPlaces(), status,
+                request.version(), currentUserId(username)));
     }
 
     public CreatedResource createEmployee(CreateEmployeeRequest request, String username) {

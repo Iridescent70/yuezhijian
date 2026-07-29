@@ -27,6 +27,7 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             "org:workstation:view", "org:workstation:manage",
             "catalog:service:view", "catalog:service:manage", "catalog:service:export",
             "catalog:product:view", "catalog:product:manage", "catalog:product:export",
+            "catalog:master:view", "catalog:master:manage",
             "appointment:appointment:view", "appointment:appointment:create", "appointment:appointment:manage",
             "trade:bill:view", "trade:bill:create", "trade:bill:manage", "trade:bill:settle",
             "trade:reversal:view", "trade:reversal:manage", "trade:reversal:approve");
@@ -101,6 +102,8 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
                                     "catalog:product:view", List.of()),
                             new MenuItem(61L, "services", "服务项目", "/app/catalog/services", "Service", 10,
                                     "catalog:service:view", List.of()),
+                            new MenuItem(64L, "catalog-master-data", "分类与单位", "/app/catalog/units", "CollectionTag", 15,
+                                    "catalog:master:view", List.of()),
                             new MenuItem(62L, "card-types", "次卡类型", "/app/catalog/card-types", "Postcard", 20,
                                     "catalog:card:view", List.of()))));
 

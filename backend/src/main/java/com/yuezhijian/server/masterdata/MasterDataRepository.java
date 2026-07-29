@@ -8,9 +8,21 @@ public interface MasterDataRepository {
 
     Optional<PositionOption> findPosition(long id);
 
-    List<CategoryOption> categories(String type);
+    List<CategoryOption> categories(String type, boolean activeOnly);
 
-    List<UnitOption> units();
+    default List<CategoryOption> categories(String type) {
+        return categories(type, true);
+    }
+
+    Optional<CategoryOption> findCategory(long id);
+
+    List<UnitOption> units(boolean activeOnly);
+
+    default List<UnitOption> units() {
+        return units(true);
+    }
+
+    Optional<UnitOption> findUnit(long id);
 
     List<EmployeeSummary> employees(Long storeId, String keyword);
 
@@ -29,6 +41,14 @@ public interface MasterDataRepository {
     CreatedResource createPosition(NewPosition position);
 
     PositionOption updatePosition(PositionUpdate update);
+
+    CreatedResource createCategory(NewCategory category);
+
+    CategoryOption updateCategory(CategoryUpdate update);
+
+    CreatedResource createUnit(NewUnit unit);
+
+    UnitOption updateUnit(UnitUpdate update);
 
     CreatedResource createEmployee(NewEmployee employee);
 

@@ -270,6 +270,81 @@ class MasterDataFlowTest {
                 .andExpect(status().isConflict());
     }
 
+    @Test
+    void categoryAndUnitCanBeCreatedEditedDisabledAndFiltered() throws Exception {
+        MockHttpSession session = login();
+
+        String categoryCreated = mockMvc.perform(post("/api/v1/item-categories")
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"type":"PRODUCT","code":"NAIL_TOOL","name":"美甲工具","sortNo":30}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long categoryId = objectMapper.readTree(categoryCreated).path("data").path("id").asLong();
+        String categoryDetail = mockMvc.perform(get("/api/v1/item-categories/{id}", categoryId)
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.type").value("PRODUCT"))
+                .andExpect(jsonPath("$.data.code").value("NAIL_TOOL"))
+                .andReturn().getResponse().getContentAsString();
+        String categoryVersion = objectMapper.readTree(categoryDetail).path("data").path("version").asText();
+        String categoryUpdate = """
+                {"name":"停用工具分类","sortNo":35,"status":"DISABLED","version":"%s"}
+                """.formatted(categoryVersion);
+        mockMvc.perform(put("/api/v1/item-categories/{id}", categoryId)
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content(categoryUpdate))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.sortNo").value(35))
+                .andExpect(jsonPath("$.data.status").value("DISABLED"));
+        mockMvc.perform(get("/api/v1/item-categories")
+                        .param("type", "PRODUCT").param("activeOnly", "true").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.id == %d)]".formatted(categoryId), hasSize(0)));
+        mockMvc.perform(get("/api/v1/item-categories")
+                        .param("type", "PRODUCT").param("activeOnly", "false").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.id == %d)]".formatted(categoryId), hasSize(1)));
+        mockMvc.perform(put("/api/v1/item-categories/{id}", categoryId)
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content(categoryUpdate))
+                .andExpect(status().isConflict());
+
+        String unitCreated = mockMvc.perform(post("/api/v1/units")
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"code":"GRAM","name":"克","decimalPlaces":2}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long unitId = objectMapper.readTree(unitCreated).path("data").path("id").asLong();
+        String unitDetail = mockMvc.perform(get("/api/v1/units/{id}", unitId).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.code").value("GRAM"))
+                .andReturn().getResponse().getContentAsString();
+        String unitVersion = objectMapper.readTree(unitDetail).path("data").path("version").asText();
+        String unitUpdate = """
+                {"name":"克（停用）","decimalPlaces":3,"status":"DISABLED","version":"%s"}
+                """.formatted(unitVersion);
+        mockMvc.perform(put("/api/v1/units/{id}", unitId)
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content(unitUpdate))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.decimalPlaces").value(3))
+                .andExpect(jsonPath("$.data.status").value("DISABLED"));
+        mockMvc.perform(get("/api/v1/units").param("activeOnly", "true").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.id == %d)]".formatted(unitId), hasSize(0)));
+        mockMvc.perform(get("/api/v1/units").param("activeOnly", "false").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.id == %d)]".formatted(unitId), hasSize(1)));
+        mockMvc.perform(put("/api/v1/units/{id}", unitId)
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content(unitUpdate))
+                .andExpect(status().isConflict());
+    }
+
     private MockHttpSession login() throws Exception {
         return (MockHttpSession) mockMvc.perform(post("/api/v1/auth/login")
                         .with(csrf())

@@ -19,13 +19,13 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
             new PositionOption(1L, "TECHNICIAN", "美甲技师", 10, BigDecimal.ZERO, BigDecimal.ZERO, "ACTIVE", "1"),
             new PositionOption(2L, "STORE_MANAGER", "店长", 20, BigDecimal.ZERO, BigDecimal.ZERO, "ACTIVE", "1"),
             new PositionOption(3L, "RECEPTION", "前台/收银", 5, BigDecimal.ZERO, BigDecimal.ZERO, "ACTIVE", "1")));
-    private final List<CategoryOption> categories = List.of(
-            new CategoryOption(1L, "NAIL_SERVICE", "美甲服务", "SERVICE", "ACTIVE"),
-            new CategoryOption(2L, "RETAIL_PRODUCT", "零售产品", "PRODUCT", "ACTIVE"));
-    private final List<UnitOption> units = List.of(
-            new UnitOption(1L, "TIME", "次", 0, "ACTIVE"),
-            new UnitOption(2L, "PIECE", "件", 0, "ACTIVE"),
-            new UnitOption(3L, "BOTTLE", "瓶", 2, "ACTIVE"));
+    private final List<CategoryOption> categories = new ArrayList<>(List.of(
+            new CategoryOption(1L, "NAIL_SERVICE", "美甲服务", "SERVICE", 10, "ACTIVE", "1"),
+            new CategoryOption(2L, "RETAIL_PRODUCT", "零售产品", "PRODUCT", 10, "ACTIVE", "1")));
+    private final List<UnitOption> units = new ArrayList<>(List.of(
+            new UnitOption(1L, "TIME", "次", 0, "ACTIVE", "1"),
+            new UnitOption(2L, "PIECE", "件", 0, "ACTIVE", "1"),
+            new UnitOption(3L, "BOTTLE", "瓶", 2, "ACTIVE", "1")));
     private final List<EmployeeSummary> employees = new ArrayList<>(List.of(
             new EmployeeSummary(101L, "E001", "安然", "*******2101", 1L, "美甲技师", 2L,
                     "悦指间示范店", java.time.LocalDate.of(2025, 1, 1), null,
@@ -39,6 +39,8 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
     private final Map<Long, ServiceItemDetail> services = new LinkedHashMap<>();
     private final AtomicLong employeeIds = new AtomicLong(102);
     private final AtomicLong positionIds = new AtomicLong(3);
+    private final AtomicLong categoryIds = new AtomicLong(2);
+    private final AtomicLong unitIds = new AtomicLong(3);
     private final AtomicLong workstationIds = new AtomicLong(202);
     private final AtomicLong serviceIds = new AtomicLong(302);
 
@@ -70,13 +72,30 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
     }
 
     @Override
-    public List<CategoryOption> categories(String type) {
-        return categories.stream().filter(category -> category.type().equals(type)).toList();
+    public synchronized List<CategoryOption> categories(String type, boolean activeOnly) {
+        return categories.stream()
+                .filter(category -> category.type().equals(type))
+                .filter(category -> !activeOnly || "ACTIVE".equals(category.status()))
+                .sorted(Comparator.comparingInt(CategoryOption::sortNo).thenComparingLong(CategoryOption::id))
+                .toList();
     }
 
     @Override
-    public List<UnitOption> units() {
-        return units;
+    public synchronized Optional<CategoryOption> findCategory(long id) {
+        return categories.stream().filter(category -> category.id() == id).findFirst();
+    }
+
+    @Override
+    public synchronized List<UnitOption> units(boolean activeOnly) {
+        return units.stream()
+                .filter(unit -> !activeOnly || "ACTIVE".equals(unit.status()))
+                .sorted(Comparator.comparingLong(UnitOption::id))
+                .toList();
+    }
+
+    @Override
+    public synchronized Optional<UnitOption> findUnit(long id) {
+        return units.stream().filter(unit -> unit.id() == id).findFirst();
     }
 
     @Override
@@ -153,6 +172,50 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
                 current.id(), current.code(), update.name(), update.level(), update.defaultServiceRate(),
                 update.defaultSalesRate(), update.status(), nextVersion(current.version()));
         positions.set(positions.indexOf(current), saved);
+        return saved;
+    }
+
+    @Override
+    public synchronized CreatedResource createCategory(NewCategory category) {
+        if (categories.stream().anyMatch(item -> item.type().equalsIgnoreCase(category.type())
+                && item.code().equalsIgnoreCase(category.code()))) {
+            throw new com.yuezhijian.server.common.DuplicateResourceException("分类编号已存在");
+        }
+        long id = categoryIds.incrementAndGet();
+        categories.add(new CategoryOption(
+                id, category.code(), category.name(), category.type(), category.sortNo(), "ACTIVE", "1"));
+        return new CreatedResource(id);
+    }
+
+    @Override
+    public synchronized CategoryOption updateCategory(CategoryUpdate update) {
+        CategoryOption current = findCategory(update.id()).orElse(null);
+        if (current == null || !current.version().equals(update.version())) throw stale("分类");
+        CategoryOption saved = new CategoryOption(
+                current.id(), current.code(), update.name(), current.type(), update.sortNo(),
+                update.status(), nextVersion(current.version()));
+        categories.set(categories.indexOf(current), saved);
+        return saved;
+    }
+
+    @Override
+    public synchronized CreatedResource createUnit(NewUnit unit) {
+        if (units.stream().anyMatch(item -> item.code().equalsIgnoreCase(unit.code()))) {
+            throw new com.yuezhijian.server.common.DuplicateResourceException("单位编号已存在");
+        }
+        long id = unitIds.incrementAndGet();
+        units.add(new UnitOption(id, unit.code(), unit.name(), unit.decimalPlaces(), "ACTIVE", "1"));
+        return new CreatedResource(id);
+    }
+
+    @Override
+    public synchronized UnitOption updateUnit(UnitUpdate update) {
+        UnitOption current = findUnit(update.id()).orElse(null);
+        if (current == null || !current.version().equals(update.version())) throw stale("单位");
+        UnitOption saved = new UnitOption(
+                current.id(), current.code(), update.name(), update.decimalPlaces(), update.status(),
+                nextVersion(current.version()));
+        units.set(units.indexOf(current), saved);
         return saved;
     }
 

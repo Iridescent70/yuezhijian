@@ -29,13 +29,23 @@ public class SqlServerMasterDataRepository implements MasterDataRepository {
     }
 
     @Override
-    public List<CategoryOption> categories(String type) {
-        return mapper.findCategories(type);
+    public List<CategoryOption> categories(String type, boolean activeOnly) {
+        return mapper.findCategories(type, activeOnly);
     }
 
     @Override
-    public List<UnitOption> units() {
-        return mapper.findUnits();
+    public Optional<CategoryOption> findCategory(long id) {
+        return Optional.ofNullable(mapper.findCategory(id));
+    }
+
+    @Override
+    public List<UnitOption> units(boolean activeOnly) {
+        return mapper.findUnits(activeOnly);
+    }
+
+    @Override
+    public Optional<UnitOption> findUnit(long id) {
+        return Optional.ofNullable(mapper.findUnit(id));
     }
 
     @Override
@@ -86,6 +96,34 @@ public class SqlServerMasterDataRepository implements MasterDataRepository {
         if (mapper.updatePosition(update) == 0) throw stale("职务");
         PositionOption saved = mapper.findPosition(update.id());
         if (saved == null) throw new IllegalStateException("职务更新后不存在");
+        return saved;
+    }
+
+    @Override
+    public CreatedResource createCategory(NewCategory category) {
+        return new CreatedResource(mapper.insertCategory(category));
+    }
+
+    @Override
+    @Transactional
+    public CategoryOption updateCategory(CategoryUpdate update) {
+        if (mapper.updateCategory(update) == 0) throw stale("分类");
+        CategoryOption saved = mapper.findCategory(update.id());
+        if (saved == null) throw new IllegalStateException("分类更新后不存在");
+        return saved;
+    }
+
+    @Override
+    public CreatedResource createUnit(NewUnit unit) {
+        return new CreatedResource(mapper.insertUnit(unit));
+    }
+
+    @Override
+    @Transactional
+    public UnitOption updateUnit(UnitUpdate update) {
+        if (mapper.updateUnit(update) == 0) throw stale("单位");
+        UnitOption saved = mapper.findUnit(update.id());
+        if (saved == null) throw new IllegalStateException("单位更新后不存在");
         return saved;
     }
 

@@ -39,19 +39,6 @@ public class ServiceCatalogController {
         this.currentStoreContext = currentStoreContext;
     }
 
-    @GetMapping("/item-categories")
-    @PreAuthorize("hasAnyAuthority('catalog:service:view', 'catalog:product:view')")
-    public ApiResponse<List<CategoryOption>> categories(
-            @RequestParam(defaultValue = "SERVICE") String type) {
-        return ApiResponse.ok(service.itemCategories(type));
-    }
-
-    @GetMapping("/units")
-    @PreAuthorize("hasAnyAuthority('catalog:service:view', 'catalog:product:view')")
-    public ApiResponse<List<UnitOption>> units() {
-        return ApiResponse.ok(service.units());
-    }
-
     @GetMapping("/services")
     @PreAuthorize("hasAuthority('catalog:service:view')")
     public ApiResponse<List<ServiceItemSummary>> services(

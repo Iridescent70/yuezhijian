@@ -2,11 +2,13 @@ import { apiRequest } from './http'
 import type {
   AsyncJobItem,
   CategoryOption,
+  CreateCategoryPayload,
   CreateEmployeePayload,
   CreatePositionPayload,
   CreatedResource,
   CreateServiceItemPayload,
   CreateWorkstationPayload,
+  CreateUnitPayload,
   EmployeeSummary,
   PositionOption,
   ServiceItemSummary,
@@ -15,6 +17,9 @@ import type {
   UpdateEmployeePayload,
   UpdatePositionPayload,
   UpdateWorkstationPayload,
+  UpdateCategoryPayload,
+  UpdateUnitPayload,
+  UnitOption,
   WorkstationSummary,
 } from '@/types/api'
 
@@ -68,6 +73,38 @@ export function updateWorkstation(id: number, payload: UpdateWorkstationPayload)
 
 export function getServiceCategories(): Promise<CategoryOption[]> {
   return apiRequest<CategoryOption[]>({ method: 'GET', url: '/item-categories', params: { type: 'SERVICE' } })
+}
+
+export function getItemCategories(type: 'PRODUCT' | 'SERVICE', activeOnly = true): Promise<CategoryOption[]> {
+  return apiRequest<CategoryOption[]>({ method: 'GET', url: '/item-categories', params: { type, activeOnly } })
+}
+
+export function getItemCategory(id: number): Promise<CategoryOption> {
+  return apiRequest<CategoryOption>({ method: 'GET', url: `/item-categories/${id}` })
+}
+
+export function createItemCategory(payload: CreateCategoryPayload): Promise<CreatedResource> {
+  return apiRequest<CreatedResource>({ method: 'POST', url: '/item-categories', data: payload })
+}
+
+export function updateItemCategory(id: number, payload: UpdateCategoryPayload): Promise<CategoryOption> {
+  return apiRequest<CategoryOption>({ method: 'PUT', url: `/item-categories/${id}`, data: payload })
+}
+
+export function getCatalogUnits(activeOnly = true): Promise<UnitOption[]> {
+  return apiRequest<UnitOption[]>({ method: 'GET', url: '/units', params: { activeOnly } })
+}
+
+export function getCatalogUnit(id: number): Promise<UnitOption> {
+  return apiRequest<UnitOption>({ method: 'GET', url: `/units/${id}` })
+}
+
+export function createCatalogUnit(payload: CreateUnitPayload): Promise<CreatedResource> {
+  return apiRequest<CreatedResource>({ method: 'POST', url: '/units', data: payload })
+}
+
+export function updateCatalogUnit(id: number, payload: UpdateUnitPayload): Promise<UnitOption> {
+  return apiRequest<UnitOption>({ method: 'PUT', url: `/units/${id}`, data: payload })
 }
 
 export function getServices(params?: { storeId?: number; keyword?: string }): Promise<ServiceItemSummary[]> {
