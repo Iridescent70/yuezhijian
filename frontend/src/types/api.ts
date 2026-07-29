@@ -59,3 +59,89 @@ export interface WorkbenchOverview {
     permission: string
   }>
 }
+
+export interface PageResult<T> {
+  items: T[]
+  page: number
+  size: number
+  total: number
+}
+
+export interface MemberSummary {
+  id: number
+  memberNo: string
+  fullName: string
+  maskedMobile: string
+  gender: string
+  levelName: string
+  ownerStoreId: number
+  ownerStoreName: string
+  availableBalance: number
+  availablePoints: number
+  cardCount: number
+  status: string
+  lastVisitAt?: string
+}
+
+export interface MemberTag {
+  id: number
+  code: string
+  name: string
+  color?: string
+  negative: boolean
+}
+
+export interface MemberAssets {
+  availableBalance: number
+  frozenBalance: number
+  totalRecharged: number
+  availablePoints: number
+  lifetimePoints: number
+  cardCount: number
+}
+
+export interface MemberDetail {
+  id: number
+  memberNo: string
+  membershipCardNo: string
+  fullName: string
+  nickname?: string
+  maskedMobile: string
+  gender: string
+  birthday?: string
+  email?: string
+  sourceType: string
+  joinStoreId: number
+  joinStoreName: string
+  ownerStoreId: number
+  ownerStoreName: string
+  advisorEmployeeId?: number
+  levelName: string
+  special: boolean
+  status: string
+  lastVisitAt?: string
+  createdAt: string
+  assets: MemberAssets
+  tags: MemberTag[]
+  version: string
+}
+
+export interface CreateMemberPayload {
+  fullName: string
+  nickname?: string
+  mobile: string
+  gender: string
+  birthday?: string
+  email?: string
+  sourceType: string
+  joinStoreId: number
+  ownerStoreId?: number
+  advisorEmployeeId?: number
+  membershipCardNo?: string
+}
+
+export interface CreatedMember {
+  memberId: number
+  memberNo: string
+  membershipCardNo: string
+}

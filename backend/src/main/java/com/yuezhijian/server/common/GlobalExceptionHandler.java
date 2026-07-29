@@ -4,6 +4,7 @@ import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -28,5 +29,20 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessRule(IllegalArgumentException exception) {
         return ResponseEntity.badRequest().body(ApiResponse.error("40002", exception.getMessage()));
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNotFound(ResourceNotFoundException exception) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error("40401", exception.getMessage()));
+    }
+
+    @ExceptionHandler({DuplicateResourceException.class, DataIntegrityViolationException.class})
+    public ResponseEntity<ApiResponse<Void>> handleConflict(RuntimeException exception) {
+        String message = exception instanceof DuplicateResourceException
+                ? exception.getMessage()
+                : "数据已存在或与当前数据冲突";
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("40901", message));
     }
 }

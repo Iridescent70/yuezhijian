@@ -41,11 +41,29 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '角色管理', permission: 'iam:role:view' },
       },
       {
+        path: 'members',
+        name: 'members',
+        component: () => import('@/views/member/MemberListView.vue'),
+        meta: { title: '会员管理', permission: 'member:member:view' },
+      },
+      {
+        path: 'members/new',
+        name: 'member-create',
+        component: () => import('@/views/member/MemberCreateView.vue'),
+        meta: { title: '新建会员', permission: 'member:member:create' },
+      },
+      {
+        path: 'members/:memberId(\\d+)',
+        name: 'member-detail',
+        component: () => import('@/views/member/MemberDetailView.vue'),
+        meta: { title: '会员详情', permission: 'member:member:view' },
+      },
+      {
         path: 'members/:pathMatch(.*)*',
         name: 'members-placeholder',
         component: () => import('@/views/ModulePlaceholderView.vue'),
-        props: { moduleName: '会员管理', nextMilestone: 'T2 会员建档与资产聚合' },
-        meta: { title: '会员管理', permission: 'member:member:view' },
+        props: { moduleName: '会员扩展功能', nextMilestone: '标签、客群、冻结与归属调整' },
+        meta: { title: '会员扩展功能', permission: 'member:member:view' },
       },
       {
         path: 'appointments/:pathMatch(.*)*',

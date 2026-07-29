@@ -40,6 +40,11 @@ logging:
     level: "%5p [traceId:%X{traceId:-}]"
 
 app:
+  data-protection:
+    encryption-key: ${APP_DATA_ENCRYPTION_KEY:}
+    hash-pepper: ${APP_DATA_HASH_PEPPER:}
   bootstrap:
+    enabled: ${APP_BOOTSTRAP_ENABLED:false}
     username: ${APP_BOOTSTRAP_USERNAME:admin}
     password: ${APP_BOOTSTRAP_PASSWORD:LocalDevOnly!2026}
+    full-name: ${APP_BOOTSTRAP_FULL_NAME:系统管理员}

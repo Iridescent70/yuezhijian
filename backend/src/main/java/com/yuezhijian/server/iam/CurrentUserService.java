@@ -20,16 +20,21 @@ public class CurrentUserService {
         List<String> roles = authorities.stream().filter(value -> value.startsWith("ROLE_"))
                 .map(value -> value.substring(5)).toList();
         List<String> permissions = authorities.stream().filter(value -> !value.startsWith("ROLE_")).toList();
-        StoreSummary currentStore = accessCatalogService.stores().getFirst();
+        UserIdentity identity = accessCatalogService.userIdentity(authentication.getName());
+        List<StoreSummary> stores = accessCatalogService.stores();
+        StoreSummary currentStore = stores.stream()
+                .filter(store -> java.util.Objects.equals(store.id(), identity.currentStoreId()))
+                .findFirst()
+                .orElseGet(stores::getFirst);
         return new CurrentUser(
-                1L,
-                authentication.getName(),
-                "本地管理员",
+                identity.id(),
+                identity.username(),
+                identity.fullName(),
                 currentStore.id(),
                 currentStore.name(),
                 roles,
                 permissions,
-                accessCatalogService.stores(),
+                stores,
                 accessCatalogService.menusForPermissions(permissions));
     }
 }

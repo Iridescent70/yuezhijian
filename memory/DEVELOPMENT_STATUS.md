@@ -2,50 +2,51 @@
 
 更新时间：2026-07-29。
 
-## 工程基线
+## 工程与环境
 
 | 内容 | 状态 | 当前结果 |
 | --- | --- | --- |
-| 后端目录 | DONE | Java代码统一位于 `backend/`，Spring Boot模块可独立启动 |
-| 前端目录 | DONE | Vue代码统一位于 `frontend/`，不再保留多余项目嵌套层级 |
-| 本地工具链 | DONE | Java 21.0.11、Maven 3.9.15、Node 24.18.0、pnpm 10.34.5 |
-| 本地基础设施 | DONE | SQL Server、MinIO及可选Redis已写入 `infra/compose.yaml` |
-| SQL Server镜像 | BLOCKED | 本机镜像尚未下载完成，因此空库Flyway执行待补验 |
-| 工程命令 | DONE | Maven Wrapper、pnpm workspace、Makefile和GitHub Actions已建立 |
+| 工程目录 | DONE | 后端 `backend/`，PC前端 `frontend/` |
+| 工具链 | DONE | Java 21.0.11、Maven 3.9.15、Node 24.18.0、pnpm 10.34.5 |
+| 本地基础设施配置 | DONE | SQL Server、MinIO及可选Redis Compose已建立 |
+| SQL Server镜像 | BLOCKED | 本机尚无2022镜像，真实空库Migration验证待执行 |
+| CI与工程命令 | DONE | Maven Wrapper、pnpm workspace、Makefile、GitHub Actions可用 |
 
-## 已完成代码
+## 已完成模块
 
-| 内容 | 状态 | 说明 |
+| 模块 | 状态 | 当前能力 |
 | --- | --- | --- |
-| 公共后端能力 | DONE | 统一响应、traceId、异常处理、OpenAPI和健康检查 |
-| 认证权限样板 | DONE | CSRF、登录、当前用户、续期、退出、菜单和权限 |
-| 首批业务接口 | DONE | 门店、角色和工作台接口；memory profile可直接联调 |
-| PC管理端样板 | DONE | 登录、路由守卫、主框架、菜单、工作台、门店和角色页面 |
-| 数据库基线 | DONE | 公共、组织权限、Spring Session及迁移审计共3个Flyway版本 |
-| 本地部署配置 | DONE | `.env.example`、Compose、数据库初始化脚本和启动命令 |
+| 公共后端 | DONE | 统一响应、traceId、异常、分页、OpenAPI、健康检查 |
+| 认证权限 | DONE | CSRF、登录、当前用户、续期、退出；memory与SQL Server双实现 |
+| 数据库认证 | DONE | MyBatis用户/角色/权限/菜单/门店查询，受控管理员初始化 |
+| 会员基础闭环 | DONE | 分页查询、详情、建档；会员卡、储值和积分账户同步创建 |
+| 会员PC页面 | DONE | `/app/members`、`/new`、`/:memberId` 三个页面 |
+| 敏感字段保护 | DONE | AES-256-GCM密文、带pepper检索哈希、手机号接口脱敏 |
+| 数据库版本 | DONE | 0900、0910、1030、1100共4个Migration脚本及人工记录 |
+| 前端按需加载 | DONE | Element Plus按需加载，最大公共JS约163 KB |
 
 ## 最近验证
 
 ```text
-后端：./mvnw test
-结果：5 tests，0 failure，0 error，BUILD SUCCESS
+./mvnw test
+  10 tests，0 failure，0 error
 
-前端：pnpm typecheck
-结果：通过
+pnpm typecheck
+  通过
 
-前端：pnpm test
-结果：1个测试文件、2个测试通过
+pnpm test
+  1个测试文件、2个测试通过
 
-前端：pnpm build
-结果：生产构建通过；主包约1.06 MB，后续改成Element Plus按需引入
+pnpm build
+  通过；最大公共JS约162.91 KB（原约1.06 MB）
 
-基础设施：docker compose --env-file .env.example -f infra/compose.yaml config --quiet
-结果：Compose配置校验通过
+docker compose --env-file .env.example -f infra/compose.yaml config --quiet
+  通过
 ```
 
 ## 当前限制
 
-- 目前业务数据接口仍使用内存实现，SQL Server profile已配置但持久化Mapper尚未接入。
-- SQL Server 2022镜像尚未在本机就绪，3个Migration还需在真实空库执行一次并记录结果。
-- 齐总版、钇休版、甲方数据库备份和完整数据字典尚未进入当前工作区。
-- 数据中心5项口径、AI最终输出范围及第三方支付/短信通道仍需甲方书面确认。
+- SQL Server镜像未就绪，4个Migration及数据库版Mapper尚未在真实空库执行。
+- 甲方数据库备份、完整数据字典、齐总版和钇休版代码尚未进入工作区。
+- 数据中心5项、AI最终输出范围、支付/短信通道及部分计算口径仍需甲方确认。
+- 当前会员范围是API-MEM-001~003；编辑、冻结、标签、归属调整和资产流水尚未开发。
