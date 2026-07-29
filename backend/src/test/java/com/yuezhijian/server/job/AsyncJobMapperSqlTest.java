@@ -32,5 +32,9 @@ class AsyncJobMapperSqlTest {
         assertThat(AsyncJobMapper.ITEM_SELECT).contains("job.created_by AS createdBy");
         assertThat(cancelSql).contains(
                 "created_by = #{createdBy}", "status = 'PENDING'", "status = 'CANCELLED'");
+        Method cleanup = AsyncJobMapper.class.getMethod("findExpiredResults", int.class);
+        String cleanupSql = String.join(" ", cleanup.getAnnotation(Select.class).value());
+        assertThat(cleanupSql).contains(
+                "READPAST", "expires_at <= sysdatetime()", "result_purged_at IS NULL", "TOP (#{limit})");
     }
 }

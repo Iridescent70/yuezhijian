@@ -134,6 +134,28 @@ public class MemoryAsyncJobRepository implements AsyncJobRepository {
     }
 
     @Override
+    public synchronized List<ExpiredJobResult> expiredResults(int limit) {
+        LocalDateTime now = LocalDateTime.now();
+        return entries.values().stream()
+                .filter(item -> ("SUCCEEDED".equals(item.status) || "PARTIAL".equals(item.status))
+                        && item.resultFile != null && item.resultPurgedAt == null
+                        && !item.draft.expiresAt().isAfter(now))
+                .sorted(Comparator.comparing((Entry item) -> item.draft.expiresAt()).thenComparingLong(item -> item.id))
+                .limit(limit)
+                .map(item -> new ExpiredJobResult(item.id, item.resultFile.id()))
+                .toList();
+    }
+
+    @Override
+    public synchronized void markResultPurged(long jobId, long fileId) {
+        Entry entry = entries.get(jobId);
+        if (entry != null && entry.resultFile != null && entry.resultFile.id() == fileId
+                && entry.resultPurgedAt == null && !entry.draft.expiresAt().isAfter(LocalDateTime.now())) {
+            entry.resultPurgedAt = LocalDateTime.now();
+        }
+    }
+
+    @Override
     public synchronized boolean cancel(long id, long createdBy) {
         Entry entry = entries.get(id);
         if (entry == null || entry.draft.operatorId() != createdBy || !"PENDING".equals(entry.status)) return false;
@@ -170,6 +192,7 @@ public class MemoryAsyncJobRepository implements AsyncJobRepository {
         private String leaseToken;
         private LocalDateTime leaseExpiresAt;
         private int attemptCount;
+        private LocalDateTime resultPurgedAt;
 
         private Entry(long id, AsyncJobDraft draft) {
             this.id = id;

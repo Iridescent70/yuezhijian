@@ -102,7 +102,7 @@
 | API-COM-001 | `POST /files` | multipart 文件、用途 | 通用独立入口尚未开放；服务反馈和任务结果已使用业务专用入口 | 通用-导入导出 |
 | API-COM-002 | `GET /files/{id}` | fileId | 通用独立入口尚未开放；文件只能从已授权业务或本人任务下载，不提供公开URL | 通用-导入导出 |
 | API-COM-003 | `POST /exports` | `exportType=SERVICE_FEEDBACK/MEMBER`及对应筛选条件 | 当前门店导出任务；除`system:job:create`外还校验业务查看/导出权限；202；已实现 | 系统管理-01 |
-| API-COM-004 | `GET /jobs/{id}`、`POST /jobs/{id}/cancel`、`GET /jobs/{id}/result` | 本人任务id | 详情、等待任务取消、7天内私有结果文件；后台执行使用30分钟可续租租约，失联最多重领3次；`system:job:view/cancel`；已实现 | 系统管理-01 |
+| API-COM-004 | `GET /jobs/{id}`、`POST /jobs/{id}/cancel`、`GET /jobs/{id}/result` | 本人任务id | 详情、等待任务取消、7天内私有结果文件；到期后定时物理清理但保留审计元数据；后台执行使用30分钟可续租租约，失联最多重领3次；`system:job:view/cancel`；已实现 | 系统管理-01 |
 | API-COM-005 | `GET /jobs` | `jobType/status/page/size` | 只返回当前创建人的任务分页；`system:job:view`；已实现 | 系统管理-01 |
 | API-COM-006 | `GET /audit-logs` | 用户、模块、动作、对象、日期 | 审计分页 | 系统管理-07 |
 | API-COM-007 | `GET /audit-logs/{id}` | 日志 id | 前后值摘要、结果、traceId | 系统管理-07 |

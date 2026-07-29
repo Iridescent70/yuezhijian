@@ -101,6 +101,7 @@ plan/migration/
 | `V202607291330` | 异步任务门店/过期信息、权限及下载中心菜单 | `sys_async_job`、`iam_permission`、`iam_menu` |
 | `V202607291340` | 会员名单独立导出权限 | `iam_permission`、`iam_role_permission` |
 | `V202607291350` | 异步任务租约、领取次数和调度索引 | `sys_async_job` |
+| `V202607291360` | 结果文件清理时间和到期扫描索引 | `sys_async_job` |
 | `R__reporting_views` | 可重复构建的统计视图 | `rpt_*` 视图/函数 |
 
 表中未落地版本仍属于设计基线；实际脚本只能在当前最高版本之后追加，逐个建立同号说明并记录各环境执行结果，禁止为了补齐旧编号而开启Flyway乱序执行。

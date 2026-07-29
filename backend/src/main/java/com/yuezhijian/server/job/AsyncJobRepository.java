@@ -3,6 +3,7 @@ package com.yuezhijian.server.job;
 import com.yuezhijian.server.common.PageResult;
 import com.yuezhijian.server.file.FileObjectItem;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface AsyncJobRepository {
@@ -23,6 +24,10 @@ public interface AsyncJobRepository {
     void fail(long id, String leaseToken, String errorMessage);
 
     int failExhausted(int maxAttempts);
+
+    List<ExpiredJobResult> expiredResults(int limit);
+
+    void markResultPurged(long jobId, long fileId);
 
     boolean cancel(long id, long createdBy);
 }

@@ -19,4 +19,11 @@ public class AsyncJobScheduler {
             // 每轮最多领取5项，避免任务高峰长期占用调度线程。
         }
     }
+
+    @Scheduled(
+            initialDelayString = "${app.jobs.cleanup-initial-delay-ms:60000}",
+            fixedDelayString = "${app.jobs.cleanup-delay-ms:3600000}")
+    public void cleanupExpiredResults() {
+        service.cleanupExpiredResults();
+    }
 }

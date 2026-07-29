@@ -72,6 +72,14 @@ public interface FileObjectMapper {
             """)
     FileObjectItem findFileItem(long fileId);
 
+    @Update("""
+            UPDATE dbo.sys_file_object
+            SET status = 'DELETED', expires_at = COALESCE(expires_at, sysdatetime()),
+                updated_at = sysdatetime(), updated_by = COALESCE(owner_user_id, created_by)
+            WHERE id = #{fileId} AND purpose = 'ASYNC_JOB_RESULT' AND status = 'ACTIVE'
+            """)
+    int markGeneratedDeleted(long fileId);
+
     @Select(value = """
             INSERT INTO dbo.sys_file_object (
                 object_key, original_name, content_type, size_bytes, sha256, purpose,

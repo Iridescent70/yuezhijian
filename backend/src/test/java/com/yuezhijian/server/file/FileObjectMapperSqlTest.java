@@ -36,5 +36,10 @@ class FileObjectMapperSqlTest {
                 "removed_at = sysdatetime()", "removed_at IS NULL");
         assertThat(fileSql).contains("status = 'DELETED'", "status = 'ACTIVE'")
                 .doesNotContain("DELETE FROM");
+        Method generatedMethod = FileObjectMapper.class.getMethod("markGeneratedDeleted", long.class);
+        String generatedSql = String.join(" ", generatedMethod.getAnnotation(Update.class).value());
+        assertThat(generatedSql).contains(
+                "purpose = 'ASYNC_JOB_RESULT'", "status = 'DELETED'", "status = 'ACTIVE'")
+                .doesNotContain("DELETE FROM");
     }
 }

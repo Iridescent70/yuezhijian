@@ -4,6 +4,7 @@ import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.PageResult;
 import com.yuezhijian.server.file.FileObjectItem;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
@@ -65,6 +66,16 @@ public class SqlServerAsyncJobRepository implements AsyncJobRepository {
     @Override
     public int failExhausted(int maxAttempts) {
         return mapper.failExhausted(maxAttempts);
+    }
+
+    @Override
+    public List<ExpiredJobResult> expiredResults(int limit) {
+        return mapper.findExpiredResults(limit);
+    }
+
+    @Override
+    public void markResultPurged(long jobId, long fileId) {
+        mapper.markResultPurged(jobId, fileId);
     }
 
     @Override

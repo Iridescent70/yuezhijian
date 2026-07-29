@@ -14,6 +14,8 @@ public interface FileObjectRepository {
 
     Optional<StoredFileObject> findActiveFile(long fileId);
 
+    boolean markGeneratedDeleted(long fileId);
+
     BusinessAttachmentItem createAndAttach(FileObjectDraft file, AttachmentDraft attachment);
 
     boolean softDelete(String businessType, long businessId, long attachmentId, long operatorId);

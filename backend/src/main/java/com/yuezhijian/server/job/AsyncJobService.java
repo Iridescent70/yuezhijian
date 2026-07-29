@@ -160,6 +160,21 @@ public class AsyncJobService {
         }).orElse(false);
     }
 
+    public int cleanupExpiredResults() {
+        int purged = 0;
+        for (ExpiredJobResult result : repository.expiredResults(100)) {
+            try {
+                files.purgeGenerated(result.fileId());
+                repository.markResultPurged(result.jobId(), result.fileId());
+                purged++;
+            } catch (RuntimeException exception) {
+                LOG.error("Could not purge expired async job {} result file {}: {}",
+                        result.jobId(), result.fileId(), safeError(exception), exception);
+            }
+        }
+        return purged;
+    }
+
     @PreDestroy
     void shutdownLeaseHeartbeat() {
         leaseHeartbeat.shutdownNow();

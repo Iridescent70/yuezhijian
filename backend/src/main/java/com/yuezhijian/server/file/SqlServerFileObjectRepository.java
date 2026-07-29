@@ -42,6 +42,11 @@ public class SqlServerFileObjectRepository implements FileObjectRepository {
     }
 
     @Override
+    public boolean markGeneratedDeleted(long fileId) {
+        return mapper.markGeneratedDeleted(fileId) == 1;
+    }
+
+    @Override
     @Transactional
     public BusinessAttachmentItem createAndAttach(FileObjectDraft file, AttachmentDraft attachment) {
         long fileId = mapper.insertFileObject(file);

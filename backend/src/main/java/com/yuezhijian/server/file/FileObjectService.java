@@ -111,6 +111,18 @@ public class FileObjectService {
         return verifiedDownload(file);
     }
 
+    public void purgeGenerated(long fileId) {
+        StoredFileObject file = repository.findActiveFile(fileId).orElse(null);
+        if (file == null) return;
+        if (!"ASYNC_JOB_RESULT".equals(file.purpose())) {
+            throw new IllegalArgumentException("只允许清理任务结果文件");
+        }
+        storage.delete(file.objectKey());
+        if (!repository.markGeneratedDeleted(fileId) && repository.findActiveFile(fileId).isPresent()) {
+            throw new FileStorageException("任务结果文件状态更新失败", null);
+        }
+    }
+
     public void remove(String businessType, long businessId, long attachmentId, long operatorId) {
         if (!repository.softDelete(businessType, businessId, attachmentId, operatorId)) {
             throw new ResourceNotFoundException("附件不存在或已删除");

@@ -147,6 +147,25 @@ public interface AsyncJobMapper {
             """)
     int failExhausted(@Param("maxAttempts") int maxAttempts);
 
+    @Select("""
+            SELECT TOP (#{limit}) id AS jobId, result_file_id AS fileId
+            FROM dbo.sys_async_job WITH (READPAST)
+            WHERE status IN ('SUCCEEDED', 'PARTIAL')
+              AND expires_at <= sysdatetime()
+              AND result_file_id IS NOT NULL AND result_purged_at IS NULL
+            ORDER BY expires_at, id
+            """)
+    List<ExpiredJobResult> findExpiredResults(@Param("limit") int limit);
+
+    @Update("""
+            UPDATE dbo.sys_async_job
+            SET result_purged_at = sysdatetime(), updated_at = sysdatetime(), updated_by = created_by
+            WHERE id = #{jobId} AND result_file_id = #{fileId}
+              AND status IN ('SUCCEEDED', 'PARTIAL') AND expires_at <= sysdatetime()
+              AND result_purged_at IS NULL
+            """)
+    int markResultPurged(@Param("jobId") long jobId, @Param("fileId") long fileId);
+
     @Update("""
             UPDATE dbo.sys_async_job
             SET status = 'CANCELLED', finished_at = sysdatetime(),

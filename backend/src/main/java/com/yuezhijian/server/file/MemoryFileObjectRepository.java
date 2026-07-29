@@ -53,6 +53,14 @@ public class MemoryFileObjectRepository implements FileObjectRepository {
     }
 
     @Override
+    public synchronized boolean markGeneratedDeleted(long fileId) {
+        FileEntry entry = files.get(fileId);
+        if (entry == null || !entry.active() || !"ASYNC_JOB_RESULT".equals(entry.item().purpose())) return false;
+        files.put(fileId, new FileEntry(entry.item(), entry.objectKey(), false));
+        return true;
+    }
+
+    @Override
     public synchronized BusinessAttachmentItem createAndAttach(FileObjectDraft file, AttachmentDraft attachment) {
         FileEntry fileEntry = createFile(file);
         long attachmentId = attachmentIds.incrementAndGet();
