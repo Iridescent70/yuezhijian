@@ -9,7 +9,8 @@ export interface JobQuery {
 }
 
 export function createExport(payload: {
-  exportType: 'SERVICE_FEEDBACK'
+  exportType: 'SERVICE_FEEDBACK' | 'MEMBER'
+  keyword?: string
   status?: string
   overdue?: boolean
 }): Promise<AsyncJobItem> {

@@ -28,6 +28,7 @@ public class AsyncJobService {
     private static final Set<String> STATUSES = Set.of(
             "PENDING", "RUNNING", "SUCCEEDED", "PARTIAL", "FAILED", "CANCELLED");
     private static final Set<String> FEEDBACK_STATUSES = Set.of("OPEN", "PROCESSING", "RESOLVED", "CLOSED");
+    private static final Set<String> MEMBER_STATUSES = Set.of("ACTIVE", "FROZEN", "INACTIVE");
 
     private final AsyncJobRepository repository;
     private final AccessCatalogService accessCatalog;
@@ -54,16 +55,27 @@ public class AsyncJobService {
 
     public AsyncJobItem createExport(CreateExportRequest request, String username) {
         String exportType = normalize(request.exportType());
-        if (!"SERVICE_FEEDBACK".equals(exportType)) throw new IllegalArgumentException("暂不支持该导出类型");
-        String status = optionalStatus(request.status(), FEEDBACK_STATUSES, "服务反馈状态无效");
         UserIdentity operator = accessCatalog.userIdentity(username);
         if (repository.countActive(operator.id()) >= 3) {
             throw new DuplicateResourceException("最多同时保留3个等待中或执行中的任务");
         }
-        String requestJson = json(new ServiceFeedbackExportRequest(status, request.overdue()));
-        return repository.create(new AsyncJobDraft(
-                numbers.next(), "服务反馈导出", ServiceFeedbackCsvJobHandler.JOB_TYPE,
-                requestJson, operator.currentStoreId(), LocalDateTime.now().plusDays(7), operator.id()));
+        return switch (exportType) {
+            case "SERVICE_FEEDBACK" -> create(
+                    operator,
+                    "服务反馈导出",
+                    ServiceFeedbackCsvJobHandler.JOB_TYPE,
+                    new ServiceFeedbackExportRequest(
+                            optionalStatus(request.status(), FEEDBACK_STATUSES, "服务反馈状态无效"),
+                            request.overdue()));
+            case "MEMBER" -> create(
+                    operator,
+                    "会员名单导出",
+                    MemberCsvJobHandler.JOB_TYPE,
+                    new MemberExportRequest(
+                            limitedKeyword(request.keyword()),
+                            optionalStatus(request.status(), MEMBER_STATUSES, "会员状态无效")));
+            default -> throw new IllegalArgumentException("暂不支持该导出类型");
+        };
     }
 
     public PageResult<AsyncJobItem> jobs(
@@ -128,6 +140,12 @@ public class AsyncJobService {
                 .orElseThrow(() -> new ResourceNotFoundException("任务不存在"));
     }
 
+    private AsyncJobItem create(UserIdentity operator, String name, String jobType, Object request) {
+        return repository.create(new AsyncJobDraft(
+                numbers.next(), name, jobType, json(request), operator.currentStoreId(),
+                LocalDateTime.now().plusDays(7), operator.id()));
+    }
+
     private String json(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
@@ -142,6 +160,13 @@ public class AsyncJobService {
 
     private static String optional(String value) {
         return value == null || value.isBlank() ? null : normalize(value);
+    }
+
+    private static String limitedKeyword(String value) {
+        if (value == null || value.isBlank()) return null;
+        String keyword = value.trim();
+        if (keyword.length() > 100) throw new IllegalArgumentException("查询关键词不能超过100个字符");
+        return keyword;
     }
 
     private static String optionalStatus(String value, Set<String> allowed, String message) {

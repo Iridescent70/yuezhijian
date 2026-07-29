@@ -73,6 +73,23 @@ class AsyncJobFlowTest {
                 .andExpect(status().isConflict());
     }
 
+    @Test
+    void memberExportUsesTheCurrentStoreAndNeverWritesPlainMobileNumbers() throws Exception {
+        MockHttpSession session = login();
+        long id = json(mockMvc.perform(post("/api/v1/exports").with(csrf()).session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"exportType\":\"MEMBER\",\"status\":\"FROZEN\"}"))
+                .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString())
+                .path("data").path("id").asLong();
+
+        assertThat(jobs.processNext()).isTrue();
+        byte[] content = mockMvc.perform(get("/api/v1/jobs/" + id + "/result").session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+        String csv = new String(content, StandardCharsets.UTF_8);
+        assertThat(csv).contains("会员编号", "陈安然", "*******1003", "已冻结")
+                .doesNotContain("13700001003");
+    }
+
     private MockHttpSession login() throws Exception {
         return (MockHttpSession) mockMvc.perform(post("/api/v1/auth/login").with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)

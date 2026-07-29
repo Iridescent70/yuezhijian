@@ -101,7 +101,7 @@
 | API-ORG-014 | `GET/POST /terminals` | 门店/设备指纹、名称、状态 | 终端列表/id | 系统管理-15 |
 | API-COM-001 | `POST /files` | multipart 文件、用途 | 通用独立入口尚未开放；服务反馈和任务结果已使用业务专用入口 | 通用-导入导出 |
 | API-COM-002 | `GET /files/{id}` | fileId | 通用独立入口尚未开放；文件只能从已授权业务或本人任务下载，不提供公开URL | 通用-导入导出 |
-| API-COM-003 | `POST /exports` | `exportType=SERVICE_FEEDBACK`、`status/overdue` | 当前门店导出任务；`system:job:create`；202；已实现 | 系统管理-01 |
+| API-COM-003 | `POST /exports` | `exportType=SERVICE_FEEDBACK/MEMBER`及对应筛选条件 | 当前门店导出任务；除`system:job:create`外还校验业务查看/导出权限；202；已实现 | 系统管理-01 |
 | API-COM-004 | `GET /jobs/{id}`、`POST /jobs/{id}/cancel`、`GET /jobs/{id}/result` | 本人任务id | 详情、等待任务取消、7天内私有结果文件；`system:job:view/cancel`；已实现 | 系统管理-01 |
 | API-COM-005 | `GET /jobs` | `jobType/status/page/size` | 只返回当前创建人的任务分页；`system:job:view`；已实现 | 系统管理-01 |
 | API-COM-006 | `GET /audit-logs` | 用户、模块、动作、对象、日期 | 审计分页 | 系统管理-07 |
@@ -179,8 +179,9 @@
 | API-MEM-018 | `GET/POST /member-segments` | 查询/名称、筛选条件 JSON | 客群视图/id | 优化会员-01 |
 | API-MEM-019 | `POST /member-segments/{id}/preview` | 无 | 命中数和样例 | 优化会员-01 |
 | API-MEM-020 | `POST /members/batch-assign-advisor` | 1~100个memberIds、employeeId | 逐条结果；校验顾问在职且属于会员归属门店；`member:member:manage`；已实现 | 优化会员-01 |
+| API-MEM-021 | `POST /exports` | `exportType=MEMBER`、`keyword/status` | 当前门店会员CSV异步任务；手机号脱敏；`system:job:create`+`member:member:export`；已实现 | 优化会员-01 |
 
-`API-MEM-003~005、011~012、015(GET)、016~017、020`已落地。资料、状态、归属申请和标签修改都要求提交版本，过期版本返回冲突，避免多窗口覆盖。手机号留空表示不修改；填写新号码时重新加密并生成检索哈希，响应始终只返回尾号。冻结、解冻和停用都必须填写原因，当前状态写在会员主表，完整变更写入`mem_member_status_log`。标签分配采用追加与软移除，不覆盖原来源；批量顾问保存变更前后历史。
+`API-MEM-003~005、011~012、015(GET)、016~017、020~021`已落地。资料、状态、归属申请和标签修改都要求提交版本，过期版本返回冲突，避免多窗口覆盖。手机号留空表示不修改；填写新号码时重新加密并生成检索哈希，响应和会员导出始终只返回脱敏号码。冻结、解冻和停用都必须填写原因，当前状态写在会员主表，完整变更写入`mem_member_status_log`。标签分配采用追加与软移除，不覆盖原来源；批量顾问保存变更前后历史。
 
 三项批量接口当前处理页面明确勾选的会员，单次上限100人。服务端按会员读取最新版本并逐条提交事务，一条失败不会回滚其他成功项；重复会员先去重，已经冻结、标签无变化或顾问相同的记录返回`SKIPPED`且不重复写历史。按筛选条件处理大客群、后台任务进度和失败重试属于后续任务中心，不把本轮同步结果伪装成异步任务。
 

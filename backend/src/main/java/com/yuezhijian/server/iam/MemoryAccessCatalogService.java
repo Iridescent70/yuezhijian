@@ -10,6 +10,7 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
     private static final List<String> ADMIN_PERMISSIONS = List.of(
             "workbench:view", "org:store:view", "iam:role:view", "iam:user:view",
             "member:member:view", "member:member:create", "member:member:manage",
+            "member:member:export",
             "member:tag:view", "member:tag:manage",
             "member:ownership:view", "member:ownership:manage", "member:ownership:approve",
             "member:asset:view", "member:asset:manage",
@@ -36,6 +37,7 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             new RoleSummary(1L, ROLE_ADMIN, "总部管理员", "ALL", "ACTIVE", ADMIN_PERMISSIONS),
             new RoleSummary(2L, "STORE_MANAGER", "店长", "STORE", "ACTIVE",
                     List.of("workbench:view", "org:store:view", "member:member:view", "member:member:manage",
+                            "member:member:export",
                             "member:tag:view", "member:tag:manage", "member:ownership:view",
                             "member:ownership:manage", "trade:bill:view",
                             "system:job:view", "system:job:create", "system:job:cancel")));

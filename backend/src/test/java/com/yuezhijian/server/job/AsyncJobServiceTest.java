@@ -31,7 +31,7 @@ class AsyncJobServiceTest {
         AsyncJobService service = new AsyncJobService(
                 new MemoryAsyncJobRepository(), new MemoryAccessCatalogService(), files,
                 new ObjectMapper(), new AsyncJobNumberGenerator(), List.of(handler));
-        CreateExportRequest request = new CreateExportRequest("SERVICE_FEEDBACK", null, null);
+        CreateExportRequest request = new CreateExportRequest("SERVICE_FEEDBACK", null, null, null);
         for (int index = 0; index < 3; index++) service.createExport(request, "admin");
 
         assertThatThrownBy(() -> service.createExport(request, "admin"))

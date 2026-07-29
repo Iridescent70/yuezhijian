@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { createExport } from '@/api/jobs'
 import {
   batchAssignMemberAdvisor,
   batchFreezeMembers,
@@ -17,6 +18,7 @@ import { formatMoney } from '@/utils/formatMoney'
 const router = useRouter()
 const auth = useAuthStore()
 const loading = ref(false)
+const exporting = ref(false)
 const members = ref<MemberSummary[]>([])
 const total = ref(0)
 const page = ref(1)
@@ -98,6 +100,27 @@ function changeSize(nextSize: number) {
   size.value = nextSize
   page.value = 1
   void loadMembers()
+}
+
+async function exportCurrentStore() {
+  if (filters.storeId && filters.storeId !== auth.user?.currentStoreId) {
+    ElMessage.warning('会员导出固定使用当前登录门店，请切换门店后再导出')
+    return
+  }
+  exporting.value = true
+  try {
+    await createExport({
+      exportType: 'MEMBER',
+      keyword: filters.keyword.trim() || undefined,
+      status: filters.status || undefined,
+    })
+    ElMessage.success('会员导出任务已创建')
+    await router.push('/app/system/downloads')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '会员导出任务创建失败')
+  } finally {
+    exporting.value = false
+  }
 }
 
 function selectionChanged(rows: MemberSummary[]) {
@@ -203,13 +226,18 @@ onMounted(loadMembers)
         <h1>会员管理</h1>
         <p>统一查询会员档案、归属门店和当前资产，手机号默认脱敏展示。</p>
       </div>
-      <el-button
-        v-if="auth.hasPermission('member:member:create')"
-        type="primary"
-        @click="router.push('/app/members/new')"
-      >
-        新建会员
-      </el-button>
+      <div>
+        <el-button
+          v-if="auth.hasPermission('system:job:create') && auth.hasPermission('system:job:view') && auth.hasPermission('member:member:export')"
+          :loading="exporting"
+          @click="exportCurrentStore"
+        >导出当前门店</el-button>
+        <el-button
+          v-if="auth.hasPermission('member:member:create')"
+          type="primary"
+          @click="router.push('/app/members/new')"
+        >新建会员</el-button>
+      </div>
     </div>
 
     <el-card class="filter-card" shadow="never">

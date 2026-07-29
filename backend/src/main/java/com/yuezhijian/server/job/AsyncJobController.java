@@ -33,7 +33,12 @@ public class AsyncJobController {
 
     @PostMapping("/exports")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    @PreAuthorize("hasAuthority('system:job:create')")
+    @PreAuthorize("""
+            hasAuthority('system:job:create') and (
+              (#request.exportType == 'SERVICE_FEEDBACK' and hasAuthority('visit:feedback:view')) or
+              (#request.exportType == 'MEMBER' and hasAuthority('member:member:export'))
+            )
+            """)
     public ApiResponse<AsyncJobItem> createExport(
             @Valid @RequestBody CreateExportRequest request, Principal principal) {
         return ApiResponse.ok(service.createExport(request, principal.getName()));

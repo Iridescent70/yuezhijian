@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { cancelJob, createExport, downloadJobResult, getJob, getJobs } from '@/api/jobs'
 import { useAuthStore } from '@/stores/auth'
@@ -13,7 +13,12 @@ const total = ref(0)
 const detail = ref<AsyncJobItem>()
 const detailVisible = ref(false)
 const query = reactive({ status: '' as '' | AsyncJobStatus, page: 1, size: 20 })
-const exportForm = reactive({ status: '', overdue: 'ALL' as 'ALL' | 'YES' | 'NO' })
+const exportForm = reactive({
+  exportType: (auth.hasPermission('member:member:export') ? 'MEMBER' : 'SERVICE_FEEDBACK') as 'MEMBER' | 'SERVICE_FEEDBACK',
+  keyword: '',
+  status: '',
+  overdue: 'ALL' as 'ALL' | 'YES' | 'NO',
+})
 let poller: number | undefined
 
 const processing = computed(() => rows.value.some(item => ['PENDING', 'RUNNING'].includes(item.status)))
@@ -25,6 +30,9 @@ const statusTypes: Record<AsyncJobStatus, 'info' | 'primary' | 'success' | 'warn
   PENDING: 'info', RUNNING: 'primary', SUCCEEDED: 'success', PARTIAL: 'warning',
   FAILED: 'danger', CANCELLED: 'info',
 }
+const canCreateExport = computed(() => auth.hasPermission('system:job:create') && (
+  auth.hasPermission('member:member:export') || auth.hasPermission('visit:feedback:view')
+))
 
 async function load(silent = false) {
   if (loading.value) return
@@ -48,9 +56,12 @@ async function submitExport() {
   creating.value = true
   try {
     await createExport({
-      exportType: 'SERVICE_FEEDBACK',
+      exportType: exportForm.exportType,
+      keyword: exportForm.exportType === 'MEMBER' ? exportForm.keyword.trim() || undefined : undefined,
       status: exportForm.status || undefined,
-      overdue: exportForm.overdue === 'ALL' ? undefined : exportForm.overdue === 'YES',
+      overdue: exportForm.exportType === 'SERVICE_FEEDBACK'
+        ? exportForm.overdue === 'ALL' ? undefined : exportForm.overdue === 'YES'
+        : undefined,
     })
     ElMessage.success('导出任务已创建，可在本页查看进度')
     query.page = 1
@@ -133,6 +144,11 @@ onMounted(() => {
   poller = window.setInterval(() => { if (processing.value) void load(true) }, 3000)
 })
 onBeforeUnmount(() => { if (poller) window.clearInterval(poller) })
+watch(() => exportForm.exportType, () => {
+  exportForm.keyword = ''
+  exportForm.status = ''
+  exportForm.overdue = 'ALL'
+})
 </script>
 
 <template>
@@ -140,21 +156,36 @@ onBeforeUnmount(() => { if (poller) window.clearInterval(poller) })
     <div class="section-title-row">
       <div>
         <h1>下载中心</h1>
-        <p>任务按创建人隔离，结果文件默认保留7天；当前先支持导出所在门店的服务反馈。</p>
+        <p>任务按创建人隔离，结果文件默认保留7天；会员和服务反馈均固定导出当前门店。</p>
       </div>
     </div>
 
-    <el-card v-if="auth.hasPermission('system:job:create')" class="filter-card export-card" shadow="never">
-      <template #header><strong>新建服务反馈导出</strong></template>
+    <el-card v-if="canCreateExport" class="filter-card export-card" shadow="never">
+      <template #header><strong>新建导出任务</strong></template>
       <el-form inline @submit.prevent="submitExport">
-        <el-form-item label="当前门店"><el-input :model-value="auth.user?.currentStoreName" disabled style="width: 180px" /></el-form-item>
-        <el-form-item label="反馈状态">
-          <el-select v-model="exportForm.status" clearable placeholder="全部" style="width: 150px">
-            <el-option label="待处理" value="OPEN" /><el-option label="处理中" value="PROCESSING" />
-            <el-option label="已解决" value="RESOLVED" /><el-option label="已关闭" value="CLOSED" />
+        <el-form-item label="导出内容">
+          <el-select v-model="exportForm.exportType" style="width: 170px">
+            <el-option v-if="auth.hasPermission('member:member:export')" label="会员名单" value="MEMBER" />
+            <el-option v-if="auth.hasPermission('visit:feedback:view')" label="服务反馈" value="SERVICE_FEEDBACK" />
           </el-select>
         </el-form-item>
-        <el-form-item label="是否超时">
+        <el-form-item label="当前门店"><el-input :model-value="auth.user?.currentStoreName" disabled style="width: 180px" /></el-form-item>
+        <el-form-item v-if="exportForm.exportType === 'MEMBER'" label="会员查询">
+          <el-input v-model="exportForm.keyword" clearable maxlength="100" placeholder="姓名、手机号、会员号或卡号" style="width: 220px" />
+        </el-form-item>
+        <el-form-item :label="exportForm.exportType === 'MEMBER' ? '会员状态' : '反馈状态'">
+          <el-select v-model="exportForm.status" clearable placeholder="全部" style="width: 150px">
+            <template v-if="exportForm.exportType === 'SERVICE_FEEDBACK'">
+              <el-option label="待处理" value="OPEN" /><el-option label="处理中" value="PROCESSING" />
+              <el-option label="已解决" value="RESOLVED" /><el-option label="已关闭" value="CLOSED" />
+            </template>
+            <template v-else>
+              <el-option label="正常" value="ACTIVE" /><el-option label="已冻结" value="FROZEN" />
+              <el-option label="已停用" value="INACTIVE" />
+            </template>
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="exportForm.exportType === 'SERVICE_FEEDBACK'" label="是否超时">
           <el-select v-model="exportForm.overdue" style="width: 130px">
             <el-option label="全部" value="ALL" /><el-option label="仅超时" value="YES" /><el-option label="未超时" value="NO" />
           </el-select>
