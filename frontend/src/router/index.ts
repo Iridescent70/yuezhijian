@@ -174,6 +174,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '回访管理', permission: 'visit:task:view' },
       },
       {
+        path: 'service/feedback',
+        name: 'service-feedback',
+        component: () => import('@/views/feedback/ServiceFeedbackView.vue'),
+        meta: { title: '服务反馈', permission: 'visit:feedback:view' },
+      },
+      {
         path: 'forbidden',
         name: 'forbidden',
         component: () => import('@/views/ForbiddenView.vue'),

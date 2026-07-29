@@ -1099,3 +1099,59 @@ export interface VisitRecordPayload {
   content?: string
   nextFollowAt?: string
 }
+
+export type FeedbackStatus = 'OPEN' | 'PROCESSING' | 'RESOLVED' | 'CLOSED'
+export type FeedbackActionType = 'CREATED' | 'ASSIGNED' | 'NOTE' | 'RESOLVED' | 'CLOSED' | 'REOPENED'
+
+export interface FeedbackSummary {
+  id: number
+  feedbackNo: string
+  visitTaskId: number
+  visitRecordId: number
+  memberId: number
+  memberName: string
+  maskedMobile: string
+  billId: number
+  billNo: string
+  storeId: number
+  storeName: string
+  channel: 'VISIT'
+  score?: number
+  content: string
+  complaintType: 'SERVICE'
+  status: FeedbackStatus
+  handlerId?: number
+  handlerName?: string
+  handleResult?: string
+  handledAt?: string
+  resolvedAt?: string
+  closedAt?: string
+  actionCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface FeedbackActionItem {
+  id: number
+  actionType: FeedbackActionType
+  fromStatus?: FeedbackStatus
+  toStatus: FeedbackStatus
+  handlerId?: number
+  handlerName?: string
+  content?: string
+  createdAt: string
+  createdBy: number
+  createdByName: string
+}
+
+export interface FeedbackDetail {
+  feedback: FeedbackSummary
+  actions: FeedbackActionItem[]
+}
+
+export interface HandleFeedbackPayload {
+  action: 'ASSIGN' | 'NOTE' | 'RESOLVE' | 'CLOSE' | 'REOPEN'
+  handlerId?: number
+  content?: string
+  result?: string
+}

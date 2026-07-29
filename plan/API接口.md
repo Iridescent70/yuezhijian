@@ -259,8 +259,8 @@
 | API-VIS-003 | `POST /visit-tasks/{id}/records` | `employeeId/resultCode/satisfactionScore/complaintFlag/content/nextFollowAt` | 更新后的完整任务；`visit:task:manage`；已实现 | 结算管理-05 |
 | API-VIS-004 | `POST /visit-tasks/{id}/complete` | `conclusion`；仅所有参与技师完成后允许 | 完成状态和总结；`visit:task:manage`；已实现 | 结算管理-05 |
 | API-VIS-005 | `GET/PUT /satisfaction-rules` | 无/识别关键字、评分映射 | 规则 | 系统管理-19 |
-| API-VIS-006 | `GET /service-feedback` | 会员、账单、评分、状态 | 反馈分页 | 系统管理-20 |
-| API-VIS-007 | `POST /service-feedback/{id}/handle` | 处理人、结果、附件 | 处理记录 | 系统管理-20 |
+| API-VIS-006 | `GET /service-feedback`、`GET /service-feedback/{id}` | `storeId/handlerId/score/status/keyword`；详情 id | 反馈列表/反馈、会员、账单、负责人和处理历史；`visit:feedback:view`；已实现 | 系统管理-20 |
+| API-VIS-007 | `POST /service-feedback/{id}/handle` | `action/handlerId/content/result`；动作`ASSIGN/NOTE/RESOLVE/CLOSE/REOPEN` | 更新后的反馈和处理历史；`visit:feedback:manage`；已实现 | 系统管理-20 |
 | API-MKT-001 | `POST /sms-tasks` | 名称、号码/客群、内容、sendAt | taskId、预估条数 | 短信-01、05 |
 | API-MKT-002 | `POST /sms-tasks/import` | Excel fileId、模板 id、sendAt | 导入/发送任务 id | 短信-02 |
 | API-MKT-003 | `GET /sms-tasks` | 批次、状态、日期、创建人 | 任务分页 | 短信-03 |
@@ -278,7 +278,9 @@
 | API-NTF-006 | `GET/POST /announcements` | 查询/标题、内容、门店、有效期 | 公告列表/id | 系统管理-18 |
 | API-NTF-007 | `PUT /announcements/{id}` | 公告内容、状态、version | 更新结果 | 系统管理-18 |
 
-`API-VIS-001~004`基础闭环已落地。会员账单确认结算后在同一事务中生成一张回访任务，默认到期时间为结算后24小时；同一账单重复结算不会重复生成。每位服务技师生成一个参与项，无技师账单生成“待分配”项。`CONTACTED`必须填写1至5分满意度，`NO_ANSWER/FOLLOW_UP`必须填写未来的下次跟进时间，`DECLINED`直接结束该技师参与项；所有参与项完成后任务自动完成。整单冲销只取消尚未完成的任务。24小时规则后续应改为系统参数，咨询卡/色号、独立客诉处理单和满意度识别规则仍按`API-VIS-005~007`继续开发。
+`API-VIS-001~004`基础闭环已落地。会员账单确认结算后在同一事务中生成一张回访任务，默认到期时间为结算后24小时；同一账单重复结算不会重复生成。每位服务技师生成一个参与项，无技师账单生成“待分配”项。`CONTACTED`必须填写1至5分满意度，`NO_ANSWER/FOLLOW_UP`必须填写未来的下次跟进时间，`DECLINED`直接结束该技师参与项；所有参与项完成后任务自动完成。整单冲销只取消尚未完成的任务。24小时规则后续应改为系统参数，咨询卡/色号和满意度识别规则继续按`API-VIS-005`开发。
+
+`API-VIS-006~007`客诉闭环已落地。只有回访人员明确勾选客诉时才自动建反馈单，低评分不会擅自转客诉；一条回访记录最多一张反馈单。客诉未评分时不伪造分值。状态按`OPEN → PROCESSING → RESOLVED → CLOSED`流转，已解决或已关闭可以`REOPEN`回到处理中。分配、备注、解决、关闭和重开均追加`vis_feedback_action`，不覆盖原客诉内容。附件和非回访渠道反馈仍待文件模块及甲方渠道口径确认。
 
 ## 7. 薪酬、提成、目标和分润
 

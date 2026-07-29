@@ -60,6 +60,7 @@ class VisitFlowTest {
         org.assertj.core.api.Assertions.assertThat(followUp.path("task").path("completedCount").asInt())
                 .isEqualTo(1);
         org.assertj.core.api.Assertions.assertThat(followUp.path("records").size()).isEqualTo(2);
+        org.assertj.core.api.Assertions.assertThat(feedbackForBill(session, billId)).isNull();
 
         JsonNode completed = json(postJson(session, "/api/v1/visit-tasks/" + taskId + "/records", """
                 {"employeeId":102,"resultCode":"CONTACTED","satisfactionScore":2,
@@ -77,6 +78,32 @@ class VisitFlowTest {
                 """, 200)).path("data");
         org.assertj.core.api.Assertions.assertThat(concluded.path("task").path("conclusion").asText())
                 .contains("客诉转店长");
+
+        JsonNode feedback = feedbackForBill(session, billId);
+        org.assertj.core.api.Assertions.assertThat(feedback).isNotNull();
+        org.assertj.core.api.Assertions.assertThat(feedback.path("score").asInt()).isEqualTo(2);
+        org.assertj.core.api.Assertions.assertThat(feedback.path("status").asText()).isEqualTo("OPEN");
+        long feedbackId = feedback.path("id").asLong();
+
+        JsonNode assigned = json(postJson(session, "/api/v1/service-feedback/" + feedbackId + "/handle", """
+                {"action":"ASSIGN","handlerId":101,"content":"由店长安排安然负责跟进"}
+                """, 200)).path("data");
+        org.assertj.core.api.Assertions.assertThat(assigned.path("feedback").path("status").asText())
+                .isEqualTo("PROCESSING");
+        postJson(session, "/api/v1/service-feedback/" + feedbackId + "/handle", """
+                {"action":"NOTE","content":"已与会员沟通并安排免费修复"}
+                """, 200);
+        JsonNode resolved = json(postJson(session, "/api/v1/service-feedback/" + feedbackId + "/handle", """
+                {"action":"RESOLVE","result":"会员已完成免费修复并确认满意"}
+                """, 200)).path("data");
+        org.assertj.core.api.Assertions.assertThat(resolved.path("feedback").path("status").asText())
+                .isEqualTo("RESOLVED");
+        JsonNode closed = json(postJson(session, "/api/v1/service-feedback/" + feedbackId + "/handle", """
+                {"action":"CLOSE","content":"店长复核后关闭"}
+                """, 200)).path("data");
+        org.assertj.core.api.Assertions.assertThat(closed.path("feedback").path("status").asText())
+                .isEqualTo("CLOSED");
+        org.assertj.core.api.Assertions.assertThat(closed.path("actions").size()).isEqualTo(5);
     }
 
     @Test
@@ -106,10 +133,37 @@ class VisitFlowTest {
         org.assertj.core.api.Assertions.assertThat(cancelled.path("cancelReason").asText()).contains("整单冲销");
     }
 
+    @Test
+    void complaintWithoutSatisfactionDoesNotInventAScore() throws Exception {
+        MockHttpSession session = login();
+        String key = String.valueOf(System.nanoTime());
+        JsonNode created = createBill(session, "unscored-feedback-bill-" + key);
+        long billId = created.path("id").asLong();
+        addLine(session, billId, 301, 101, created.path("version").asText());
+        settle(session, billId, "unscored-feedback-settle-" + key, 168);
+        JsonNode task = visitForBill(session, billId);
+
+        postJson(session, "/api/v1/visit-tasks/" + task.path("id").asLong() + "/records", """
+                {"employeeId":101,"resultCode":"DECLINED","complaintFlag":true,
+                 "content":"会员拒绝评分，但明确要求店长处理服务问题"}
+                """, 200);
+
+        JsonNode feedback = feedbackForBill(session, billId);
+        org.assertj.core.api.Assertions.assertThat(feedback).isNotNull();
+        org.assertj.core.api.Assertions.assertThat(feedback.has("score")).isFalse();
+        org.assertj.core.api.Assertions.assertThat(feedback.path("status").asText()).isEqualTo("OPEN");
+    }
+
     private JsonNode visitForBill(MockHttpSession session, long billId) throws Exception {
         JsonNode tasks = json(getJson(session, "/api/v1/visit-tasks", 200)).path("data");
         for (JsonNode item : tasks) if (item.path("billId").asLong() == billId) return item;
         throw new AssertionError("结算后未生成回访任务");
+    }
+
+    private JsonNode feedbackForBill(MockHttpSession session, long billId) throws Exception {
+        JsonNode items = json(getJson(session, "/api/v1/service-feedback", 200)).path("data");
+        for (JsonNode item : items) if (item.path("billId").asLong() == billId) return item;
+        return null;
     }
 
     private JsonNode createBill(MockHttpSession session, String key) throws Exception {

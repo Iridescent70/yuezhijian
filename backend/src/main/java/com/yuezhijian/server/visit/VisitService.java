@@ -1,6 +1,7 @@
 package com.yuezhijian.server.visit;
 
 import com.yuezhijian.server.common.ResourceNotFoundException;
+import com.yuezhijian.server.feedback.ServiceFeedbackService;
 import com.yuezhijian.server.iam.AccessCatalogService;
 import com.yuezhijian.server.masterdata.EmployeeSummary;
 import com.yuezhijian.server.masterdata.MasterDataRepository;
@@ -26,16 +27,19 @@ public class VisitService {
     private final MasterDataRepository masterData;
     private final AccessCatalogService accessCatalog;
     private final VisitNumberGenerator numbers;
+    private final ServiceFeedbackService feedback;
 
     public VisitService(
             VisitRepository repository,
             MasterDataRepository masterData,
             AccessCatalogService accessCatalog,
-            VisitNumberGenerator numbers) {
+            VisitNumberGenerator numbers,
+            ServiceFeedbackService feedback) {
         this.repository = repository;
         this.masterData = masterData;
         this.accessCatalog = accessCatalog;
         this.numbers = numbers;
+        this.feedback = feedback;
     }
 
     public List<VisitTaskSummary> tasks(
@@ -119,9 +123,11 @@ public class VisitService {
         }
         if ("COMPLETED".equals(participant.status())) throw new IllegalArgumentException("该技师的回访已经完成");
         long operatorId = accessCatalog.userIdentity(username).id();
-        return repository.appendRecord(new VisitRecordDraft(
+        VisitTaskDetail updated = repository.appendRecord(new VisitRecordDraft(
                 taskId, participant.id(), employee.id(), employee.name(), resultCode, request.satisfactionScore(),
                 request.complaintFlag(), content, request.nextFollowAt(), terminal, operatorId));
+        if (request.complaintFlag()) feedback.ensureFromVisit(updated, updated.records().getLast(), operatorId);
+        return updated;
     }
 
     @Transactional
