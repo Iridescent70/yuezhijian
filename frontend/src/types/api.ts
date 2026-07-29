@@ -67,6 +67,25 @@ export interface PageResult<T> {
   total: number
 }
 
+export interface OperationChange {
+  field: string
+  label: string
+  beforeValue?: string
+  afterValue?: string
+}
+
+export interface OperationHistoryItem {
+  id: number
+  action: string
+  actionLabel: string
+  operatorId: number
+  operatorName: string
+  storeId?: number
+  occurredAt: string
+  traceId: string
+  changes: OperationChange[]
+}
+
 export type AsyncJobStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'PARTIAL' | 'FAILED' | 'CANCELLED'
 
 export interface AsyncJobItem {

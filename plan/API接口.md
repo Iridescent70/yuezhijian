@@ -110,7 +110,7 @@
 | API-COM-007 | `GET /audit-logs/{id}` | 日志 id | 前后值摘要、结果、traceId | 系统管理-07 |
 | API-COM-008 | `GET /system-parameters`、`PUT /system-parameters/{id}` | `group`/`value/status/version` | 非密钥参数列表/更新结果；`system:parameter:view/manage`；已实现 | 系统管理-17 |
 | API-COM-009 | `GET/POST /cancel-reasons` | 业务类型/代码、名称、状态 | 列表/id | 系统管理-31 |
-| API-COM-010 | `GET /operation-history/{objectType}/{objectId}` | 对象类型/id | 业务变更时间线 | 通用-历史追踪 |
+| API-COM-010 | `GET /operation-history/{objectType}/{objectId}` | `PRODUCT/SERVICE`及对象id | 按当前产品/服务查看权限和门店范围返回新建、导入、编辑、上下架的字段变化、操作人、时间和traceId；已实现 | 通用-历史追踪 |
 
 ## 3. 商品、服务、次卡、库存和门店配置
 

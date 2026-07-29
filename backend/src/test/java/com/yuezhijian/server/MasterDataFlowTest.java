@@ -157,6 +157,13 @@ class MasterDataFlowTest {
         mockMvc.perform(put("/api/v1/services/{id}", id)
                         .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON).content(update))
                 .andExpect(status().isConflict());
+        mockMvc.perform(get("/api/v1/operation-history/SERVICE/{id}", id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].action").value("UPDATE"))
+                .andExpect(jsonPath("$.data[0].changes[0].field").value("name"))
+                .andExpect(jsonPath("$.data[0].changes[0].afterValue").value("已编辑服务"))
+                .andExpect(jsonPath("$.data[0].changes[?(@.field == 'saleStatus')]").isNotEmpty())
+                .andExpect(jsonPath("$.data[1].action").value("CREATE"));
     }
 
     @Test

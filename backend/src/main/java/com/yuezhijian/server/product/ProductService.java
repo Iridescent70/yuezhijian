@@ -1,5 +1,6 @@
 package com.yuezhijian.server.product;
 
+import com.yuezhijian.server.audit.AuditService;
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
 import com.yuezhijian.server.iam.AccessCatalogService;
@@ -10,11 +11,14 @@ import com.yuezhijian.server.masterdata.UnitOption;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ProductService {
@@ -22,16 +26,19 @@ public class ProductService {
     private final MasterDataRepository masterData;
     private final AccessCatalogService accessCatalog;
     private final StoreDataScope storeDataScope;
+    private final AuditService auditService;
 
     public ProductService(
             ProductRepository repository,
             MasterDataRepository masterData,
             AccessCatalogService accessCatalog,
-            StoreDataScope storeDataScope) {
+            StoreDataScope storeDataScope,
+            AuditService auditService) {
         this.repository = repository;
         this.masterData = masterData;
         this.accessCatalog = accessCatalog;
         this.storeDataScope = storeDataScope;
+        this.auditService = auditService;
     }
 
     public List<ProductSummary> products(Long storeId, Long categoryId, String saleStatus, String keyword) {
@@ -46,6 +53,7 @@ public class ProductService {
                 .filter(store -> storeDataScope.canAccess(store.storeId())).toList());
     }
 
+    @Transactional
     public long create(CreateProductRequest request, String username) {
         requireReferences(request.categoryId(), request.unitId());
         String code = request.code().trim().toUpperCase(Locale.ROOT);
@@ -57,12 +65,18 @@ public class ProductService {
         validateAmount(request.storePrice(), "门店售价");
         List<Long> storeIds = new LinkedHashSet<>(request.storeIds()).stream().toList();
         storeIds.forEach(storeDataScope::require);
-        return repository.create(new NewProduct(
+        long operatorId = operatorId(username);
+        long id = repository.create(new NewProduct(
                 code, request.name().trim(), request.categoryId(), request.unitId(), barcode,
                 request.costPrice(), request.salePrice(), request.storePrice(), request.trackStock(), storeIds,
-                blankToNull(request.description()), operatorId(username)));
+                blankToNull(request.description()), operatorId));
+        ProductDetail created = repository.find(id).orElseThrow();
+        auditService.record("CATALOG", "CREATE", "PRODUCT", id, null, null,
+                productSnapshot(created, null), operatorId);
+        return id;
     }
 
+    @Transactional
     public ProductDetail update(long id, UpdateProductRequest request, String username) {
         ProductDetail current = requireProduct(id);
         storeDataScope.require(request.storeId());
@@ -81,14 +95,18 @@ public class ProductService {
         if (coreChanged(current, request, barcode, description, status)) {
             current.stores().forEach(store -> storeDataScope.require(store.storeId()));
         }
+        long operatorId = operatorId(username);
         ProductDetail saved = repository.update(new ProductUpdate(
                 id, request.name().trim(), request.categoryId(), request.unitId(), barcode,
                 request.costPrice(), request.salePrice(), request.trackStock(), description, status,
-                request.storeId(), request.storePrice(), saleStatus, request.version(), operatorId(username)));
+                request.storeId(), request.storePrice(), saleStatus, request.version(), operatorId));
+        auditService.record("CATALOG", "UPDATE", "PRODUCT", id, request.storeId(),
+                productSnapshot(current, request.storeId()), productSnapshot(saved, request.storeId()), operatorId);
         return copyWithStores(saved, saved.stores().stream()
                 .filter(store -> storeDataScope.canAccess(store.storeId())).toList());
     }
 
+    @Transactional
     public ProductImportOutcome importProduct(ProductImportRow row, long storeId, long operatorId) {
         String code = required(row.code(), 64, "产品编号").toUpperCase(Locale.ROOT);
         String name = required(row.name(), 200, "产品名称");
@@ -120,9 +138,13 @@ public class ProductService {
         long id = repository.create(new NewProduct(
                 code, name, category.id(), unit.id(), barcode, row.costPrice(), row.salePrice(),
                 row.storePrice(), row.trackStock(), List.of(storeId), description, operatorId));
+        ProductDetail created = repository.find(id).orElseThrow();
+        auditService.record("CATALOG", "IMPORT_CREATE", "PRODUCT", id, storeId, null,
+                productSnapshot(created, storeId), operatorId);
         return new ProductImportOutcome(id, true, "已新建");
     }
 
+    @Transactional
     public ProductBatchResult batchSaleStatus(
             BatchProductSaleStatusRequest request, long storeId, String username) {
         storeDataScope.require(storeId);
@@ -149,6 +171,9 @@ public class ProductService {
                 continue;
             }
             if (repository.updateSaleStatus(id, storeId, saleStatus, operatorId)) {
+                ProductDetail saved = repository.find(id).orElseThrow();
+                auditService.record("CATALOG", "BATCH_SALE_STATUS", "PRODUCT", id, storeId,
+                        productSnapshot(product, storeId), productSnapshot(saved, storeId), operatorId);
                 results.add(batchItem(product, "SUCCESS", "ON_SALE".equals(saleStatus) ? "已上架" : "已下架"));
             } else {
                 results.add(batchItem(product, "FAILED", "产品门店配置已变化，请刷新后重试"));
@@ -221,6 +246,28 @@ public class ProductService {
                 item.id(), item.code(), item.name(), item.categoryId(), item.categoryName(), item.unitId(),
                 item.unitName(), item.barcode(), item.costPrice(), item.salePrice(), item.trackStock(),
                 item.description(), item.status(), stores, item.version());
+    }
+
+    private Map<String, Object> productSnapshot(ProductDetail item, Long storeId) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("code", item.code());
+        snapshot.put("name", item.name());
+        snapshot.put("categoryName", item.categoryName());
+        snapshot.put("unitName", item.unitName());
+        snapshot.put("barcode", item.barcode());
+        snapshot.put("costPrice", item.costPrice());
+        snapshot.put("salePrice", item.salePrice());
+        snapshot.put("trackStock", item.trackStock());
+        snapshot.put("description", item.description());
+        snapshot.put("status", item.status());
+        if (storeId != null) {
+            item.stores().stream().filter(store -> store.storeId() == storeId).findFirst().ifPresent(store -> {
+                snapshot.put("storeName", store.storeName());
+                snapshot.put("storePrice", store.storePrice());
+                snapshot.put("saleStatus", store.saleStatus());
+            });
+        }
+        return snapshot;
     }
 
     private void validateAmount(BigDecimal value, String field) {

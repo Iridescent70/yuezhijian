@@ -1,28 +1,35 @@
 package com.yuezhijian.server.masterdata;
 
+import com.yuezhijian.server.audit.AuditService;
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
 import com.yuezhijian.server.iam.AccessCatalogService;
 import com.yuezhijian.server.iam.StoreDataScope;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class MasterDataService {
     private final MasterDataRepository repository;
     private final AccessCatalogService accessCatalog;
     private final StoreDataScope storeDataScope;
+    private final AuditService auditService;
 
     public MasterDataService(
             MasterDataRepository repository,
             AccessCatalogService accessCatalog,
-            StoreDataScope storeDataScope) {
+            StoreDataScope storeDataScope,
+            AuditService auditService) {
         this.repository = repository;
         this.accessCatalog = accessCatalog;
         this.storeDataScope = storeDataScope;
+        this.auditService = auditService;
     }
 
     public List<PositionOption> positions() {
@@ -198,6 +205,7 @@ public class MasterDataService {
                 request.version(), currentUserId(username)));
     }
 
+    @Transactional
     public CreatedResource createService(CreateServiceItemRequest request, String username) {
         boolean categoryExists = repository.categories("SERVICE").stream()
                 .anyMatch(category -> category.id() == request.categoryId() && "ACTIVE".equals(category.status()));
@@ -209,7 +217,8 @@ public class MasterDataService {
         if (request.costAmount().compareTo(request.listPrice()) > 0) {
             throw new IllegalArgumentException("服务成本不能高于标准售价");
         }
-        return repository.createService(new NewServiceItem(
+        long operatorId = currentUserId(username);
+        CreatedResource created = repository.createService(new NewServiceItem(
                 request.code().trim().toUpperCase(Locale.ROOT),
                 request.name().trim(),
                 request.categoryId(),
@@ -219,9 +228,14 @@ public class MasterDataService {
                 request.storePrice(),
                 storeIds,
                 blankToNull(request.description()),
-                currentUserId(username)));
+                operatorId));
+        ServiceItemDetail detail = repository.findService(created.id()).orElseThrow();
+        auditService.record("CATALOG", "CREATE", "SERVICE", created.id(), null, null,
+                serviceSnapshot(detail, null), operatorId);
+        return created;
     }
 
+    @Transactional
     public ServiceImportOutcome importService(ServiceImportRow row, long storeId, long operatorId) {
         String code = required(row.code(), 64, "项目编号").toUpperCase(Locale.ROOT);
         String name = required(row.name(), 200, "项目名称");
@@ -252,9 +266,13 @@ public class MasterDataService {
         CreatedResource created = repository.createService(new NewServiceItem(
                 code, name, category.id(), row.durationMinutes(), row.costAmount(), row.listPrice(),
                 row.storePrice(), List.of(storeId), description, operatorId));
+        ServiceItemDetail detail = repository.findService(created.id()).orElseThrow();
+        auditService.record("CATALOG", "IMPORT_CREATE", "SERVICE", created.id(), storeId, null,
+                serviceSnapshot(detail, storeId), operatorId);
         return new ServiceImportOutcome(created.id(), true, "已新建");
     }
 
+    @Transactional
     public ServiceItemDetail updateService(
             long id, UpdateServiceItemRequest request, String username) {
         ServiceItemDetail current = requireService(id);
@@ -274,10 +292,13 @@ public class MasterDataService {
         if (coreChanged(current, request, description, status)) {
             current.stores().forEach(store -> storeDataScope.require(store.storeId()));
         }
+        long operatorId = currentUserId(username);
         ServiceItemDetail saved = repository.updateService(new ServiceItemUpdate(
                 id, request.name().trim(), request.categoryId(), request.durationMinutes(),
                 request.costAmount(), request.listPrice(), description, status, request.storeId(),
-                request.storePrice(), saleStatus, request.version(), currentUserId(username)));
+                request.storePrice(), saleStatus, request.version(), operatorId));
+        auditService.record("CATALOG", "UPDATE", "SERVICE", id, request.storeId(),
+                serviceSnapshot(current, request.storeId()), serviceSnapshot(saved, request.storeId()), operatorId);
         return copyWithStores(saved, saved.stores().stream()
                 .filter(store -> storeDataScope.canAccess(store.storeId())).toList());
     }
@@ -295,6 +316,26 @@ public class MasterDataService {
                 service.id(), service.code(), service.name(), service.categoryId(), service.categoryName(),
                 service.durationMinutes(), service.costAmount(), service.listPrice(), service.description(),
                 service.status(), stores, service.version());
+    }
+
+    private Map<String, Object> serviceSnapshot(ServiceItemDetail item, Long storeId) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("code", item.code());
+        snapshot.put("name", item.name());
+        snapshot.put("categoryName", item.categoryName());
+        snapshot.put("durationMinutes", item.durationMinutes());
+        snapshot.put("costAmount", item.costAmount());
+        snapshot.put("listPrice", item.listPrice());
+        snapshot.put("description", item.description());
+        snapshot.put("status", item.status());
+        if (storeId != null) {
+            item.stores().stream().filter(store -> store.storeId() == storeId).findFirst().ifPresent(store -> {
+                snapshot.put("storeName", store.storeName());
+                snapshot.put("storePrice", store.storePrice());
+                snapshot.put("saleStatus", store.saleStatus());
+            });
+        }
+        return snapshot;
     }
 
     private boolean coreChanged(

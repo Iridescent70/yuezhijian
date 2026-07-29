@@ -7,6 +7,7 @@ import { batchProductSaleStatus, createProduct, getProduct, getProductCategories
 import { useAuthStore } from '@/stores/auth'
 import type { CategoryOption, ProductBatchResult, ProductStoreConfig, ProductSummary, UnitOption } from '@/types/api'
 import { formatMoney } from '@/utils/formatMoney'
+import OperationHistoryDrawer from '@/components/OperationHistoryDrawer.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -21,6 +22,9 @@ const resultVisible = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref<number>()
+const historyVisible = ref(false)
+const historyObjectId = ref<number>()
+const historyTitle = ref('')
 const rows = ref<ProductSummary[]>([])
 const categories = ref<CategoryOption[]>([])
 const units = ref<UnitOption[]>([])
@@ -178,6 +182,13 @@ async function openEdit(value: unknown) {
   }
 }
 
+function openHistory(value: unknown) {
+  const row = value as ProductSummary
+  historyObjectId.value = row.id
+  historyTitle.value = `${row.code} ${row.name}`
+  historyVisible.value = true
+}
+
 function selectStore(storeId: number) {
   const store = editStores.value.find(item => item.storeId === storeId)
   if (!store) return
@@ -268,7 +279,7 @@ onMounted(() => {
         <el-table-column label="标准价" width="110" align="right"><template #default="scope">{{ formatMoney(scope.row.salePrice) }}</template></el-table-column><el-table-column label="门店价" width="110" align="right"><template #default="scope">{{ formatMoney(scope.row.storePrice) }}</template></el-table-column>
         <el-table-column label="库存" width="90"><template #default="scope">{{ scope.row.trackStock ? '跟踪' : '不跟踪' }}</template></el-table-column>
         <el-table-column label="销售状态" width="100"><template #default="scope"><el-tag :type="scope.row.saleStatus === 'ON_SALE' ? 'success' : 'info'">{{ scope.row.saleStatus === 'ON_SALE' ? '在售' : '未上架' }}</el-tag></template></el-table-column>
-        <el-table-column v-if="auth.hasPermission('catalog:product:manage')" label="操作" width="90" fixed="right"><template #default="scope"><el-button link type="primary" @click="openEdit(scope.row)">编辑</el-button></template></el-table-column>
+        <el-table-column label="操作" width="140" fixed="right"><template #default="scope"><el-button v-if="auth.hasPermission('catalog:product:manage')" link type="primary" @click="openEdit(scope.row)">编辑</el-button><el-button link @click="openHistory(scope.row)">历史</el-button></template></el-table-column>
       </el-table>
     </el-card>
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑产品' : '新建产品'" width="720px" destroy-on-close>
@@ -310,6 +321,7 @@ onMounted(() => {
       </template>
       <template #footer><el-button type="primary" @click="resultVisible = false">关闭</el-button></template>
     </el-dialog>
+    <OperationHistoryDrawer v-model="historyVisible" object-type="PRODUCT" :object-id="historyObjectId" :title="historyTitle" />
   </section>
 </template>
 

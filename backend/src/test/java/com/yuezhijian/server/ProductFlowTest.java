@@ -66,6 +66,14 @@ class ProductFlowTest {
         mockMvc.perform(put("/api/v1/products/{id}", id).with(csrf()).session(session)
                         .contentType(MediaType.APPLICATION_JSON).content(update))
                 .andExpect(status().isConflict());
+        mockMvc.perform(get("/api/v1/operation-history/PRODUCT/{id}", id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].action").value("UPDATE"))
+                .andExpect(jsonPath("$.data[0].operatorName").value("本地管理员"))
+                .andExpect(jsonPath("$.data[0].changes[0].field").value("name"))
+                .andExpect(jsonPath("$.data[0].changes[0].beforeValue").value("自动化产品"))
+                .andExpect(jsonPath("$.data[0].changes[0].afterValue").value("已编辑产品"))
+                .andExpect(jsonPath("$.data[1].action").value("CREATE"));
     }
 
     @Test
@@ -115,6 +123,11 @@ class ProductFlowTest {
         mockMvc.perform(get("/api/v1/products?storeId=2&saleStatus=OFF_SALE").session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].id").value(401));
+        mockMvc.perform(get("/api/v1/operation-history/PRODUCT/401").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.action == 'BATCH_SALE_STATUS')]").isNotEmpty())
+                .andExpect(jsonPath("$.data[0].changes[0].field").value("saleStatus"))
+                .andExpect(jsonPath("$.data[0].changes[0].afterValue").value("未上架"));
     }
 
     private MockHttpSession login() throws Exception {

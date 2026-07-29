@@ -7,6 +7,7 @@ import { createService, getService, getServiceCategories, getServices, importSer
 import { useAuthStore } from '@/stores/auth'
 import type { CategoryOption, ServiceItemSummary, ServiceStoreConfig } from '@/types/api'
 import { formatMoney } from '@/utils/formatMoney'
+import OperationHistoryDrawer from '@/components/OperationHistoryDrawer.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -17,6 +18,9 @@ const importInput = ref<HTMLInputElement>()
 const saving = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref<number>()
+const historyVisible = ref(false)
+const historyObjectId = ref<number>()
+const historyTitle = ref('')
 const editStores = ref<ServiceStoreConfig[]>([])
 const services = ref<ServiceItemSummary[]>([])
 const categories = ref<CategoryOption[]>([])
@@ -123,6 +127,13 @@ async function openEdit(value: unknown) {
   }
 }
 
+function openHistory(value: unknown) {
+  const row = value as ServiceItemSummary
+  historyObjectId.value = row.id
+  historyTitle.value = `${row.code} ${row.name}`
+  historyVisible.value = true
+}
+
 function selectEditStore(storeId: number) {
   const store = editStores.value.find((item) => item.storeId === storeId)
   if (!store) return
@@ -190,7 +201,7 @@ onMounted(() => {
     </el-card>
     <el-card class="data-card" shadow="never">
       <el-table v-loading="loading" :data="services" stripe row-key="id">
-        <el-table-column prop="code" label="项目编号" width="140" /><el-table-column prop="name" label="项目名称" min-width="210" /><el-table-column prop="categoryName" label="分类" width="140" /><el-table-column prop="durationMinutes" label="时长(分钟)" width="110" /><el-table-column label="成本" width="120" align="right"><template #default="scope">{{ formatMoney(scope.row.costAmount) }}</template></el-table-column><el-table-column label="标准价" width="120" align="right"><template #default="scope">{{ formatMoney(scope.row.listPrice) }}</template></el-table-column><el-table-column label="门店价" width="120" align="right"><template #default="scope">{{ formatMoney(scope.row.storePrice) }}</template></el-table-column><el-table-column label="销售状态" width="110"><template #default="scope"><el-tag :type="scope.row.saleStatus === 'ON_SALE' ? 'success' : 'info'">{{ scope.row.saleStatus === 'ON_SALE' ? '在售' : '未上架' }}</el-tag></template></el-table-column><el-table-column v-if="auth.hasPermission('catalog:service:manage')" label="操作" width="90" fixed="right"><template #default="scope"><el-button link type="primary" @click="openEdit(scope.row)">编辑</el-button></template></el-table-column>
+        <el-table-column prop="code" label="项目编号" width="140" /><el-table-column prop="name" label="项目名称" min-width="210" /><el-table-column prop="categoryName" label="分类" width="140" /><el-table-column prop="durationMinutes" label="时长(分钟)" width="110" /><el-table-column label="成本" width="120" align="right"><template #default="scope">{{ formatMoney(scope.row.costAmount) }}</template></el-table-column><el-table-column label="标准价" width="120" align="right"><template #default="scope">{{ formatMoney(scope.row.listPrice) }}</template></el-table-column><el-table-column label="门店价" width="120" align="right"><template #default="scope">{{ formatMoney(scope.row.storePrice) }}</template></el-table-column><el-table-column label="销售状态" width="110"><template #default="scope"><el-tag :type="scope.row.saleStatus === 'ON_SALE' ? 'success' : 'info'">{{ scope.row.saleStatus === 'ON_SALE' ? '在售' : '未上架' }}</el-tag></template></el-table-column><el-table-column label="操作" width="140" fixed="right"><template #default="scope"><el-button v-if="auth.hasPermission('catalog:service:manage')" link type="primary" @click="openEdit(scope.row)">编辑</el-button><el-button link @click="openHistory(scope.row)">历史</el-button></template></el-table-column>
       </el-table>
     </el-card>
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑服务项目' : '新建服务项目'" width="700px" destroy-on-close>
@@ -208,6 +219,7 @@ onMounted(() => {
       </el-form>
       <template #footer><el-button @click="dialogVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="submit">保存</el-button></template>
     </el-dialog>
+    <OperationHistoryDrawer v-model="historyVisible" object-type="SERVICE" :object-id="historyObjectId" :title="historyTitle" />
   </section>
 </template>
 
