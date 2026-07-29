@@ -84,11 +84,22 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '会员扩展功能', permission: 'member:member:view' },
       },
       {
-        path: 'appointments/:pathMatch(.*)*',
-        name: 'appointments-placeholder',
-        component: () => import('@/views/ModulePlaceholderView.vue'),
-        props: { moduleName: '预约管理', nextMilestone: 'T2 预约排期与到店状态' },
+        path: 'appointments',
+        name: 'appointments',
+        component: () => import('@/views/appointment/AppointmentListView.vue'),
         meta: { title: '预约管理', permission: 'appointment:appointment:view' },
+      },
+      {
+        path: 'appointments/calendar',
+        name: 'appointment-calendar',
+        component: () => import('@/views/appointment/AppointmentListView.vue'),
+        meta: { title: '预约排期', permission: 'appointment:appointment:view' },
+      },
+      {
+        path: 'appointments/new',
+        name: 'appointment-create',
+        component: () => import('@/views/appointment/AppointmentCreateView.vue'),
+        meta: { title: '新建预约', permission: 'appointment:appointment:create' },
       },
       {
         path: 'bills/:pathMatch(.*)*',

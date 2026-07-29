@@ -23,15 +23,17 @@
 | 会员PC页面 | DONE | `/app/members`、`/new`、`/:memberId` 三个页面 |
 | 预约前置主数据 | DONE | 职务、员工、工位、服务分类、服务项目及门店售价API |
 | 主数据PC页面 | DONE | `/app/system/employees`、`/workstations`、`/app/catalog/services` |
+| 预约核心闭环 | DONE | 查询、可约时段、创建、改期、详情和7态状态机，支持冲突与幂等 |
+| 预约PC页面 | DONE | `/app/appointments`、`/calendar`、`/new`，含详情处理和可约时段 |
 | 敏感字段保护 | DONE | AES-256-GCM密文、带pepper检索哈希、手机号接口脱敏 |
-| 数据库版本 | DONE | 0900、0910、1030、1100、1110共5个Migration脚本及人工记录 |
+| 数据库版本 | DONE | 0900、0910、1030、1100、1110、1120共6个Migration脚本及人工记录 |
 | 前端按需加载 | DONE | Element Plus按需加载，最大公共JS约163 KB |
 
 ## 最近验证
 
 ```text
 ./mvnw test
-  13 tests，0 failure，0 error
+  17 tests，0 failure，0 error
 
 pnpm test
   1个测试文件、2个测试通过
@@ -45,8 +47,9 @@ docker compose --env-file .env.example -f infra/compose.yaml config --quiet
 
 ## 当前限制
 
-- SQL Server镜像未就绪，5个Migration及数据库版Mapper尚未在真实空库执行。
+- SQL Server镜像未就绪，6个Migration及数据库版Mapper尚未在真实空库执行。
 - 甲方数据库备份、完整数据字典、齐总版和钇休版代码尚未进入工作区。
 - 数据中心5项、AI最终输出范围、支付/短信通道及部分计算口径仍需甲方确认。
 - 当前会员范围是API-MEM-001~003；编辑、冻结、标签、归属调整和资产流水尚未开发。
 - 当前主数据范围只覆盖预约所需查询和新建；编辑、停用、职务/分类维护及产品资料尚未开发。
+- 预约排班、候补队列、日/周拖拽视图和到店转账单尚未开发。

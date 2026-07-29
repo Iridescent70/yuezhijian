@@ -13,7 +13,7 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             "org:employee:view", "org:employee:manage",
             "org:workstation:view", "org:workstation:manage",
             "catalog:service:view", "catalog:service:manage",
-            "appointment:appointment:view", "appointment:appointment:create",
+            "appointment:appointment:view", "appointment:appointment:create", "appointment:appointment:manage",
             "trade:bill:view", "trade:bill:create");
 
     private static final List<StoreSummary> STORES = List.of(

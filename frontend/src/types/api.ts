@@ -233,3 +233,114 @@ export interface CreateServiceItemPayload {
   storeIds: number[]
   description?: string
 }
+
+export type AppointmentStatus =
+  | 'PENDING_CONFIRM'
+  | 'CONFIRMED'
+  | 'ARRIVED'
+  | 'SERVING'
+  | 'COMPLETED'
+  | 'CANCELLED'
+  | 'NO_SHOW'
+
+export interface AppointmentSummary {
+  id: number
+  appointmentNo: string
+  memberId?: number
+  customerName: string
+  maskedMobile?: string
+  storeId: number
+  storeName: string
+  sourceType: string
+  appointmentType: string
+  startAt: string
+  endAt: string
+  personCount: number
+  employeeId?: number
+  employeeName?: string
+  workstationId?: number
+  workstationName?: string
+  serviceNames: string
+  note?: string
+  status: AppointmentStatus
+  version: string
+}
+
+export interface AppointmentServiceLine {
+  serviceId: number
+  serviceName: string
+  durationMinutes: number
+  price: number
+  sortNo: number
+}
+
+export interface AppointmentHistoryItem {
+  id: number
+  fromStatus?: AppointmentStatus
+  toStatus: AppointmentStatus
+  reasonCode?: string
+  note?: string
+  occurredAt: string
+  operatorId: number
+}
+
+export interface AppointmentDetail {
+  appointment: AppointmentSummary
+  services: AppointmentServiceLine[]
+  history: AppointmentHistoryItem[]
+}
+
+export interface CreatedAppointment {
+  id: number
+  appointmentNo: string
+  status: AppointmentStatus
+  version: string
+}
+
+export interface CreateAppointmentPayload {
+  memberId?: number
+  guestName?: string
+  guestMobile?: string
+  storeId: number
+  sourceType: string
+  appointmentType: string
+  startAt: string
+  personCount: number
+  employeeId: number
+  workstationId: number
+  serviceIds: number[]
+  designated: boolean
+  note?: string
+  idempotencyKey: string
+}
+
+export interface UpdateAppointmentPayload {
+  startAt: string
+  personCount: number
+  employeeId: number
+  workstationId: number
+  serviceIds: number[]
+  designated: boolean
+  note?: string
+  version: string
+}
+
+export interface AppointmentTransitionPayload {
+  version: string
+  reasonCode?: string
+  note?: string
+  personCount?: number
+}
+
+export interface CancelReasonOption {
+  code: string
+  name: string
+  requiresNote: boolean
+}
+
+export interface AvailabilitySlot {
+  startAt: string
+  endAt: string
+  available: boolean
+  unavailableReason?: string
+}

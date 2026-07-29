@@ -459,6 +459,103 @@ button {
   grid-column: 1 / -1;
 }
 
+.muted-text {
+  color: var(--muted);
+}
+
+.appointment-detail-drawer h3 {
+  margin: 28px 0 14px;
+}
+
+.appointment-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.appointment-detail-head div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.appointment-detail-head strong {
+  font-size: 22px;
+}
+
+.appointment-detail-head span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.drawer-actions {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 24px -20px -20px;
+  padding: 16px 20px;
+  background: rgb(255 255 255 / 96%);
+  border-top: 1px solid var(--border);
+}
+
+.appointment-form-card {
+  max-width: 1120px;
+}
+
+.appointment-total {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 32px;
+}
+
+.appointment-total strong {
+  color: var(--brand-dark);
+}
+
+.appointment-time-control {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+}
+
+.appointment-time-control .el-date-editor {
+  flex: 1;
+}
+
+.availability-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  min-height: 120px;
+}
+
+.availability-grid button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  color: var(--brand-dark);
+  background: var(--brand-soft);
+  border: 1px solid #dcb9c6;
+  border-radius: 9px;
+}
+
+.availability-grid button small {
+  color: var(--muted);
+}
+
+.availability-grid button.unavailable {
+  color: #aaa;
+  background: #f4f4f4;
+  border-color: #ddd;
+  cursor: not-allowed;
+}
+
 .member-link {
   display: inline-flex;
   flex-direction: column;
