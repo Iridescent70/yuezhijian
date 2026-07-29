@@ -603,10 +603,35 @@ export interface BillHistoryItem {
   operatorId: number
 }
 
+export interface BillDiscountItem {
+  id: number
+  batchNo: string
+  billLineId: number
+  discountType: 'AMOUNT' | 'RATE'
+  originalAmount: number
+  discountAmount: number
+  reason: string
+  authorizationUserId: number
+  createdAt: string
+}
+
+export interface BillAssetUsageItem {
+  id: number
+  assetType: 'BALANCE' | 'POINT' | 'CARD'
+  memberCardId?: number
+  billLineId?: number
+  quantity: number
+  amount: number
+  displayName: string
+  createdAt: string
+}
+
 export interface BillDetail {
   bill: BillSummary
   lines: BillLine[]
   payments: BillPayment[]
+  discounts: BillDiscountItem[]
+  assetUsages: BillAssetUsageItem[]
   history: BillHistoryItem[]
 }
 

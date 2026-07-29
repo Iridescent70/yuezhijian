@@ -16,6 +16,8 @@ public class TradeNumberGenerator {
 
     public String paymentNo() { return next("P"); }
 
+    public String discountBatchNo() { return next("D"); }
+
     private String next(String prefix) {
         return prefix + LocalDateTime.now().format(FORMAT)
                 + String.format("%05d", Math.floorMod(sequence.incrementAndGet(), 100_000));

@@ -90,10 +90,30 @@ public interface TradeMapper {
                 WHERE relation.bill_line_id = line.id AND relation.employee_role = 'SERVICE'
                 ORDER BY relation.id
             ) allocation
-            WHERE line.bill_id = #{billId}
+            WHERE line.bill_id = #{billId} AND line.line_status = 'ACTIVE'
             ORDER BY line.line_no, line.id
             """)
     List<BillLine> findLines(long billId);
+
+    @Select("""
+            SELECT id, batch_no AS batchNo, bill_line_id AS billLineId, discount_type AS discountType,
+                   original_amount AS originalAmount, discount_amount AS discountAmount, reason,
+                   authorization_user_id AS authorizationUserId, created_at AS createdAt
+            FROM dbo.trd_bill_discount
+            WHERE bill_id = #{billId} AND active = 1
+            ORDER BY id
+            """)
+    List<BillDiscountItem> findDiscounts(long billId);
+
+    @Select("""
+            SELECT id, asset_type AS assetType, member_card_id AS memberCardId,
+                   bill_line_id AS billLineId, quantity, amount, display_name AS displayName,
+                   created_at AS createdAt
+            FROM dbo.trd_bill_asset_usage
+            WHERE bill_id = #{billId}
+            ORDER BY created_at, id
+            """)
+    List<BillAssetUsageItem> findAssetUsages(long billId);
 
     @Select("""
             SELECT payment.id, payment.payment_no AS paymentNo,
@@ -147,6 +167,9 @@ public interface TradeMapper {
             @Param("lineNo") int lineNo,
             @Param("line") BillLineDraft line);
 
+    @Select("SELECT COALESCE(MAX(line_no), 0) + 1 FROM dbo.trd_bill_line WHERE bill_id = #{billId}")
+    int nextLineNo(long billId);
+
     @Insert("""
             INSERT INTO dbo.trd_bill_line_employee (
                 bill_line_id, employee_id, employee_role, performance_store_id,
@@ -161,7 +184,8 @@ public interface TradeMapper {
 
     @Update("""
             UPDATE dbo.trd_bill
-            SET original_amount = #{total}, receivable_amount = #{total}, status = 'PENDING_PAYMENT',
+            SET original_amount = #{total}, discount_amount = 0, receivable_amount = #{total},
+                status = CASE WHEN #{total} = 0 THEN 'DRAFT' ELSE 'PENDING_PAYMENT' END,
                 updated_at = sysdatetime(), updated_by = #{operatorId}
             WHERE id = #{billId} AND row_version = CONVERT(binary(8), #{version}, 1)
               AND status IN ('DRAFT', 'PENDING_PAYMENT')
@@ -171,6 +195,102 @@ public interface TradeMapper {
             @Param("total") BigDecimal total,
             @Param("version") String version,
             @Param("operatorId") long operatorId);
+
+    @Update("""
+            UPDATE dbo.trd_bill_line
+            SET discount_amount = 0, receivable_amount = original_amount, commission_base = original_amount
+            WHERE bill_id = #{billId} AND line_status = 'ACTIVE'
+            """)
+    void resetLineDiscounts(long billId);
+
+    @Update("""
+            UPDATE allocation
+            SET performance_amount = line.original_amount
+            FROM dbo.trd_bill_line_employee allocation
+            JOIN dbo.trd_bill_line line ON line.id = allocation.bill_line_id
+            WHERE line.bill_id = #{billId} AND line.line_status = 'ACTIVE'
+            """)
+    void resetEmployeePerformance(long billId);
+
+    @Update("""
+            UPDATE dbo.trd_bill_line
+            SET unit_price = #{line.unitPrice}, quantity = #{line.quantity},
+                original_amount = #{line.amount}, discount_amount = 0,
+                receivable_amount = #{line.amount}, commission_base = #{line.amount}, note = #{line.note}
+            WHERE id = #{lineId} AND bill_id = #{billId} AND line_status = 'ACTIVE'
+            """)
+    int updateLine(
+            @Param("billId") long billId,
+            @Param("lineId") long lineId,
+            @Param("line") BillLineDraft line);
+
+    @Update("DELETE FROM dbo.trd_bill_line_employee WHERE bill_line_id = #{lineId}")
+    void deleteLineEmployees(long lineId);
+
+    @Update("""
+            UPDATE dbo.trd_bill_line
+            SET line_status = 'REMOVED', removed_at = sysdatetime(), removed_by = #{operatorId},
+                discount_amount = 0, receivable_amount = original_amount, commission_base = 0
+            WHERE id = #{lineId} AND bill_id = #{billId} AND line_status = 'ACTIVE'
+            """)
+    int removeLine(
+            @Param("billId") long billId,
+            @Param("lineId") long lineId,
+            @Param("operatorId") long operatorId);
+
+    @Update("""
+            UPDATE dbo.trd_bill_discount
+            SET active = 0, superseded_at = sysdatetime()
+            WHERE bill_id = #{billId} AND active = 1
+            """)
+    void deactivateDiscounts(long billId);
+
+    @Update("""
+            UPDATE dbo.trd_bill
+            SET original_amount = #{draft.originalAmount}, discount_amount = #{draft.discountAmount},
+                receivable_amount = #{receivableAmount},
+                status = CASE WHEN #{receivableAmount} = 0 THEN 'DRAFT' ELSE 'PENDING_PAYMENT' END,
+                updated_at = sysdatetime(), updated_by = #{draft.operatorId}
+            WHERE id = #{draft.billId} AND row_version = CONVERT(binary(8), #{draft.version}, 1)
+              AND status IN ('DRAFT', 'PENDING_PAYMENT')
+            """)
+    int updateDiscountTotals(
+            @Param("draft") BillDiscountDraft draft,
+            @Param("receivableAmount") BigDecimal receivableAmount);
+
+    @Insert("""
+            INSERT INTO dbo.trd_bill_discount (
+                batch_no, bill_id, bill_line_id, discount_type, discount_value,
+                original_amount, discount_amount, reason, authorization_user_id, created_by
+            ) VALUES (
+                #{draft.batchNo}, #{draft.billId}, #{allocation.billLineId}, #{draft.discountType},
+                #{draft.discountValue}, #{allocation.originalAmount}, #{allocation.discountAmount},
+                #{draft.reason}, #{draft.operatorId}, #{draft.operatorId}
+            )
+            """)
+    void insertDiscount(
+            @Param("draft") BillDiscountDraft draft,
+            @Param("allocation") BillDiscountAllocation allocation);
+
+    @Update("""
+            UPDATE dbo.trd_bill_line
+            SET discount_amount = #{allocation.discountAmount},
+                receivable_amount = #{allocation.receivableAmount},
+                commission_base = #{allocation.receivableAmount}
+            WHERE id = #{allocation.billLineId} AND bill_id = #{billId} AND line_status = 'ACTIVE'
+            """)
+    int applyLineDiscount(
+            @Param("billId") long billId,
+            @Param("allocation") BillDiscountAllocation allocation);
+
+    @Update("""
+            UPDATE dbo.trd_bill_line_employee
+            SET performance_amount = #{amount}
+            WHERE bill_line_id = #{lineId}
+            """)
+    void updateLinePerformance(
+            @Param("lineId") long lineId,
+            @Param("amount") BigDecimal amount);
 
     @Select(value = """
             INSERT INTO dbo.trd_settlement_quote (
@@ -275,7 +395,7 @@ public interface TradeMapper {
     @Update("""
             UPDATE dbo.trd_bill_line
             SET actual_amount = receivable_amount, commission_base = receivable_amount
-            WHERE bill_id = #{billId}
+            WHERE bill_id = #{billId} AND line_status = 'ACTIVE'
             """)
     void markLinesSettled(long billId);
 

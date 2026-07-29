@@ -227,8 +227,8 @@
 | API-TRD-003 | `POST /bills` | 会员/散客、门店、来源、人数、备注 | 草稿 billId | 结算管理-06、快捷入口-03 |
 | API-TRD-004 | `GET/PUT /bills/{id}` | 聚合详情/基础字段、version | 账单、明细、支付、状态 | 结算管理-06 |
 | API-TRD-005 | `POST /bills/{id}/lines` | 项目/产品/次卡、数量、原价、技师及分配 | 行 id、金额重算 | 结算管理-06 |
-| API-TRD-006 | `PUT/DELETE /bills/{id}/lines/{lineId}` | 行资料、version | 最新账单金额 | 结算管理-06 |
-| API-TRD-007 | `POST /bills/{id}/discounts` | 优惠类型、券、授权人 | 分摊后的账单 | 混合支付 |
+| API-TRD-006 | `PUT/DELETE /bills/{id}/lines/{lineId}` | PUT：数量、技师、备注、`version`；DELETE：`version` | 最新账单；删除为软删除 | 结算管理-06 |
+| API-TRD-007 | `POST /bills/{id}/discounts` | `discountType=AMOUNT/RATE`、`value`、原因、`version` | 按行分摊后的账单和优惠明细 | 混合支付 |
 | API-TRD-008 | `GET /bills/{id}/asset-options`、`/card-options` | 账单会员和明细 | 储值/积分余额、积分比例、项目-次卡匹配和推荐 | 结算管理-01 |
 | API-TRD-009 | `POST /bills/{id}/settlement/quote` | `payments`、`balanceAmount`、`points`、`cards[]` | 金额、资产版本及10分钟有效试算 | 结算管理-01、02 |
 | API-TRD-010 | `POST /bills/{id}/settle` | `quoteNo`、`idempotencyKey` | SETTLED、外部支付及储值/积分/次卡流水 | 业务管理-02、结算-01、02 |

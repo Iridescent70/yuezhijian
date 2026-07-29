@@ -108,6 +108,7 @@ class AssetSettlementFlowTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.bill.status").value("SETTLED"))
                 .andExpect(jsonPath("$.data.payments", hasSize(1)))
+                .andExpect(jsonPath("$.data.assetUsages", hasSize(2)))
                 .andExpect(jsonPath("$.data.payments[0].amount").value(188));
     }
 

@@ -38,6 +38,24 @@ export function addBillLine(id: number, payload: {
   return apiRequest<BillDetail>({ method: 'POST', url: `/bills/${id}/lines`, data: payload })
 }
 
+export function updateBillLine(id: number, lineId: number, payload: {
+  quantity: number; employeeId?: number; note?: string; version: string
+}): Promise<BillDetail> {
+  return apiRequest<BillDetail>({ method: 'PUT', url: `/bills/${id}/lines/${lineId}`, data: payload })
+}
+
+export function removeBillLine(id: number, lineId: number, version: string): Promise<BillDetail> {
+  return apiRequest<BillDetail>({
+    method: 'DELETE', url: `/bills/${id}/lines/${lineId}`, params: { version },
+  })
+}
+
+export function applyBillDiscount(id: number, payload: {
+  discountType: 'AMOUNT' | 'RATE'; value: number; reason: string; version: string
+}): Promise<BillDetail> {
+  return apiRequest<BillDetail>({ method: 'POST', url: `/bills/${id}/discounts`, data: payload })
+}
+
 export function getPaymentMethods(storeId: number): Promise<PaymentMethodOption[]> {
   return apiRequest<PaymentMethodOption[]>({ method: 'GET', url: '/payment-methods', params: { storeId } })
 }

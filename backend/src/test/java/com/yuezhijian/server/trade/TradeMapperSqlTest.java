@@ -49,4 +49,22 @@ class TradeMapperSqlTest {
         assertThat(quoteSql).contains("asset_amount", "external_payment_amount", "#{assetAmount}");
         assertThat(settleSql).contains("settlement_idempotency_key = #{idempotencyKey}");
     }
+
+    @Test
+    void billMaintenanceSqlUsesSoftDeleteAndVersionedDiscountTotals() throws Exception {
+        Method findLines = TradeMapper.class.getMethod("findLines", long.class);
+        Method removeLine = TradeMapper.class.getMethod("removeLine", long.class, long.class, long.class);
+        Method updateTotals = TradeMapper.class.getMethod(
+                "updateDiscountTotals", BillDiscountDraft.class, java.math.BigDecimal.class);
+
+        String findSql = String.join(" ", findLines.getAnnotation(Select.class).value());
+        String removeSql = String.join(" ", removeLine.getAnnotation(Update.class).value());
+        String totalsSql = String.join(" ", updateTotals.getAnnotation(Update.class).value());
+
+        assertThat(findSql).contains("line.line_status = 'ACTIVE'");
+        assertThat(removeSql).contains("line_status = 'REMOVED'", "removed_by = #{operatorId}");
+        assertThat(totalsSql).contains(
+                "discount_amount = #{draft.discountAmount}",
+                "row_version = CONVERT(binary(8), #{draft.version}, 1)");
+    }
 }

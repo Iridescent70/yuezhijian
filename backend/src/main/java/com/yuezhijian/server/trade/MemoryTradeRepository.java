@@ -33,6 +33,8 @@ public class MemoryTradeRepository implements TradeRepository {
     private final AtomicLong lineIds = new AtomicLong(3000);
     private final AtomicLong paymentIds = new AtomicLong(4000);
     private final AtomicLong historyIds = new AtomicLong(5000);
+    private final AtomicLong discountIds = new AtomicLong(6000);
+    private final AtomicLong assetUsageIds = new AtomicLong(7000);
     private final MemberRepository members;
     private final AccessCatalogService accessCatalog;
     private final TradeNumberGenerator numbers;
@@ -110,7 +112,7 @@ public class MemoryTradeRepository implements TradeRepository {
                 LocalDateTime.now(), "1");
         BillHistoryItem history = new BillHistoryItem(
                 historyIds.incrementAndGet(), null, status, null, "创建账单", LocalDateTime.now(), draft.operatorId());
-        bills.put(id, new BillDetail(summary, lines, List.of(), List.of(history)));
+        bills.put(id, new BillDetail(summary, lines, List.of(), List.of(), List.of(), List.of(history)));
         if (draft.idempotencyKey() != null) billIdempotency.put(draft.idempotencyKey(), id);
         return new CreatedBill(id, summary.billNo(), status, summary.version());
     }
@@ -119,13 +121,99 @@ public class MemoryTradeRepository implements TradeRepository {
     public synchronized BillDetail addLine(AddBillLineCommand command) {
         BillDetail current = requireVersion(command.billId(), command.version());
         requireMutable(current.bill());
-        List<BillLine> lines = new ArrayList<>(current.lines());
+        List<BillLine> lines = new ArrayList<>(clearLineDiscounts(current.lines()));
         lines.add(toLine(command.line(), lines.size() + 1));
         BigDecimal total = total(lines);
         BillSummary bill = copyBill(
                 current.bill(), total, total, current.bill().receivedAmount(), current.bill().changeAmount(),
                 BillStatus.PENDING_PAYMENT.name(), nextVersion(current.bill().version()), current.bill().settledAt());
-        BillDetail result = new BillDetail(bill, lines, current.payments(), current.history());
+        BillDetail result = new BillDetail(
+                bill, lines, current.payments(), List.of(), current.assetUsages(), current.history());
+        bills.put(bill.id(), result);
+        return result;
+    }
+
+    @Override
+    public synchronized BillDetail updateLine(UpdateBillLineCommand command) {
+        BillDetail current = requireVersion(command.billId(), command.version());
+        requireMutable(current.bill());
+        boolean found = false;
+        List<BillLine> lines = new ArrayList<>();
+        for (BillLine item : clearLineDiscounts(current.lines())) {
+            if (item.id() == command.lineId()) {
+                found = true;
+                BillLine replacement = toLine(command.line(), item.lineNo());
+                lines.add(new BillLine(
+                        item.id(), replacement.lineNo(), replacement.itemType(), replacement.itemId(),
+                        replacement.itemCode(), replacement.itemName(), replacement.unitPrice(),
+                        replacement.quantity(), replacement.originalAmount(), replacement.discountAmount(),
+                        replacement.receivableAmount(), replacement.actualAmount(), replacement.employeeId(),
+                        replacement.employeeName(), replacement.note()));
+            } else {
+                lines.add(item);
+            }
+        }
+        if (!found) throw new IllegalArgumentException("账单项目不存在");
+        BigDecimal total = total(lines);
+        BillSummary bill = copyBill(
+                current.bill(), total, total, current.bill().receivedAmount(), current.bill().changeAmount(),
+                total.signum() == 0 ? BillStatus.DRAFT.name() : BillStatus.PENDING_PAYMENT.name(),
+                nextVersion(current.bill().version()), current.bill().settledAt());
+        BillDetail result = new BillDetail(
+                bill, lines, current.payments(), List.of(), current.assetUsages(), current.history());
+        bills.put(bill.id(), result);
+        return result;
+    }
+
+    @Override
+    public synchronized BillDetail removeLine(RemoveBillLineCommand command) {
+        BillDetail current = requireVersion(command.billId(), command.version());
+        requireMutable(current.bill());
+        boolean exists = current.lines().stream().anyMatch(line -> line.id() == command.lineId());
+        if (!exists) throw new IllegalArgumentException("账单项目不存在");
+        List<BillLine> lines = clearLineDiscounts(current.lines()).stream()
+                .filter(line -> line.id() != command.lineId()).toList();
+        BigDecimal total = total(lines);
+        BillSummary bill = copyBill(
+                current.bill(), total, total, current.bill().receivedAmount(), current.bill().changeAmount(),
+                total.signum() == 0 ? BillStatus.DRAFT.name() : BillStatus.PENDING_PAYMENT.name(),
+                nextVersion(current.bill().version()), current.bill().settledAt());
+        BillDetail result = new BillDetail(
+                bill, lines, current.payments(), List.of(), current.assetUsages(), current.history());
+        bills.put(bill.id(), result);
+        return result;
+    }
+
+    @Override
+    public synchronized BillDetail applyDiscount(BillDiscountDraft draft) {
+        BillDetail current = requireVersion(draft.billId(), draft.version());
+        requireMutable(current.bill());
+        Map<Long, BillDiscountAllocation> allocations = draft.allocations().stream()
+                .collect(java.util.stream.Collectors.toMap(BillDiscountAllocation::billLineId, item -> item));
+        List<BillLine> lines = current.lines().stream().map(line -> {
+            BillDiscountAllocation allocation = allocations.get(line.id());
+            if (allocation == null) throw new IllegalArgumentException("账单项目不存在");
+            return new BillLine(
+                    line.id(), line.lineNo(), line.itemType(), line.itemId(), line.itemCode(), line.itemName(),
+                    line.unitPrice(), line.quantity(), line.originalAmount(), allocation.discountAmount(),
+                    allocation.receivableAmount(), line.actualAmount(), line.employeeId(), line.employeeName(),
+                    line.note());
+        }).toList();
+        BigDecimal receivable = draft.originalAmount().subtract(draft.discountAmount());
+        BillSummary bill = copyBill(
+                current.bill(), draft.originalAmount(), receivable, current.bill().receivedAmount(),
+                current.bill().changeAmount(), receivable.signum() == 0 ? BillStatus.DRAFT.name()
+                        : BillStatus.PENDING_PAYMENT.name(),
+                nextVersion(current.bill().version()), current.bill().settledAt());
+        List<BillDiscountItem> discounts = draft.allocations().stream()
+                .filter(allocation -> allocation.discountAmount().signum() > 0)
+                .map(allocation -> new BillDiscountItem(
+                        discountIds.incrementAndGet(), draft.batchNo(), allocation.billLineId(), draft.discountType(),
+                        allocation.originalAmount(), allocation.discountAmount(), draft.reason(), draft.operatorId(),
+                        LocalDateTime.now()))
+                .toList();
+        BillDetail result = new BillDetail(
+                bill, lines, current.payments(), discounts, current.assetUsages(), current.history());
         bills.put(bill.id(), result);
         return result;
     }
@@ -177,7 +265,13 @@ public class MemoryTradeRepository implements TradeRepository {
                 line.unitPrice(), line.quantity(), line.originalAmount(), line.discountAmount(),
                 line.receivableAmount(), line.receivableAmount(), line.employeeId(), line.employeeName(), line.note()
         )).toList();
-        BillDetail result = new BillDetail(bill, settledLines, payments, history);
+        List<BillAssetUsageItem> assetUsages = command.quote().assets().stream()
+                .map(asset -> new BillAssetUsageItem(
+                        assetUsageIds.incrementAndGet(), asset.assetType(), asset.memberCardId(), asset.billLineId(),
+                        asset.quantity(), asset.amount(), asset.displayName(), LocalDateTime.now()))
+                .toList();
+        BillDetail result = new BillDetail(
+                bill, settledLines, payments, current.discounts(), assetUsages, history);
         bills.put(bill.id(), result);
         quotes.put(command.quote().quoteNo(), new SettlementQuote(
                 command.quote().quoteNo(), command.quote().billId(), command.quote().billVersion(),
@@ -202,7 +296,8 @@ public class MemoryTradeRepository implements TradeRepository {
         history.add(new BillHistoryItem(
                 historyIds.incrementAndGet(), current.bill().status(), BillStatus.VOIDED.name(), reasonCode,
                 note, LocalDateTime.now(), operatorId));
-        BillDetail result = new BillDetail(bill, current.lines(), current.payments(), history);
+        BillDetail result = new BillDetail(
+                bill, current.lines(), current.payments(), current.discounts(), current.assetUsages(), history);
         bills.put(billId, result);
         return result;
     }
@@ -232,6 +327,14 @@ public class MemoryTradeRepository implements TradeRepository {
 
     private BigDecimal total(List<BillLine> lines) {
         return lines.stream().map(BillLine::receivableAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private List<BillLine> clearLineDiscounts(List<BillLine> lines) {
+        return lines.stream().map(line -> new BillLine(
+                line.id(), line.lineNo(), line.itemType(), line.itemId(), line.itemCode(), line.itemName(),
+                line.unitPrice(), line.quantity(), line.originalAmount(), BigDecimal.ZERO,
+                line.originalAmount(), line.actualAmount(), line.employeeId(), line.employeeName(), line.note()
+        )).toList();
     }
 
     private String customerName(BillDraft draft) {

@@ -153,6 +153,73 @@ public class TradeService {
                 request.version(), currentUserId(username)));
     }
 
+    public BillDetail updateLine(
+            long billId, long lineId, UpdateBillLineRequest request, String username) {
+        BillDetail bill = detail(billId);
+        requireMutable(bill.bill());
+        BillLine current = bill.lines().stream().filter(line -> line.id() == lineId).findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("账单项目不存在"));
+        if (!"SERVICE".equals(current.itemType())) throw new IllegalArgumentException("当前项目类型暂不支持编辑");
+        ServiceItemSummary service = masterData.services(bill.bill().storeId(), null).stream()
+                .filter(item -> item.id() == current.itemId() && "ACTIVE".equals(item.status())
+                        && "ON_SALE".equals(item.saleStatus()))
+                .findFirst().orElseThrow(() -> new IllegalArgumentException("服务项目未在本店上架"));
+        EmployeeSummary employee = null;
+        if (request.employeeId() != null) {
+            employee = masterData.employees(bill.bill().storeId(), null).stream()
+                    .filter(item -> item.id() == request.employeeId() && item.canService()
+                            && "ACTIVE".equals(item.status()))
+                    .findFirst().orElseThrow(() -> new IllegalArgumentException("所选技师当前不可开单"));
+        }
+        return repository.updateLine(new UpdateBillLineCommand(
+                billId, lineId,
+                new BillLineDraft(
+                        current.itemType(), service.id(), service.code(), service.name(), money(service.storePrice()),
+                        quantity(request.quantity()), employee == null ? null : employee.id(),
+                        employee == null ? null : employee.name(), trimToNull(request.note())),
+                request.version(), currentUserId(username)));
+    }
+
+    public BillDetail removeLine(long billId, long lineId, String version, String username) {
+        BillDetail bill = detail(billId);
+        requireMutable(bill.bill());
+        if (trimToNull(version) == null) throw new IllegalArgumentException("账单版本不能为空");
+        if (bill.lines().stream().noneMatch(line -> line.id() == lineId)) {
+            throw new ResourceNotFoundException("账单项目不存在");
+        }
+        return repository.removeLine(new RemoveBillLineCommand(
+                billId, lineId, version, currentUserId(username)));
+    }
+
+    public BillDetail applyDiscount(long billId, ApplyBillDiscountRequest request, String username) {
+        BillDetail bill = detail(billId);
+        requireMutable(bill.bill());
+        if (bill.lines().isEmpty()) throw new IllegalArgumentException("账单没有可优惠的消费明细");
+        String type = request.discountType().trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("AMOUNT", "RATE").contains(type)) throw new IllegalArgumentException("优惠类型无效");
+        BigDecimal original = bill.lines().stream().map(BillLine::originalAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(4, RoundingMode.HALF_UP);
+        BigDecimal discountValue;
+        BigDecimal discountAmount;
+        if ("AMOUNT".equals(type)) {
+            discountValue = money(request.value());
+            discountAmount = discountValue;
+        } else {
+            discountValue = request.value().setScale(6, RoundingMode.HALF_UP);
+            if (discountValue.signum() <= 0 || discountValue.compareTo(BigDecimal.ONE) > 0) {
+                throw new IllegalArgumentException("折扣率必须大于0且不超过1");
+            }
+            discountAmount = money(original.multiply(BigDecimal.ONE.subtract(discountValue)));
+        }
+        if (discountAmount.compareTo(original) >= 0) {
+            throw new IllegalArgumentException("优惠金额必须小于账单原价");
+        }
+        List<BillDiscountAllocation> allocations = allocateDiscount(bill.lines(), original, discountAmount);
+        return repository.applyDiscount(new BillDiscountDraft(
+                numbers.discountBatchNo(), billId, type, discountValue, original, discountAmount,
+                request.reason().trim(), request.version(), allocations, currentUserId(username)));
+    }
+
     public List<CardSettlementOption> cardOptions(long billId) {
         BillDetail bill = detail(billId);
         if (bill.bill().memberId() == null) return List.of();
@@ -374,6 +441,29 @@ public class TradeService {
         if (trimToNull(guestName) == null || normalizeMobile(guestMobile) == null) {
             throw new IllegalArgumentException("散客开单必须填写姓名和手机号");
         }
+    }
+
+    private List<BillDiscountAllocation> allocateDiscount(
+            List<BillLine> lines, BigDecimal original, BigDecimal totalDiscount) {
+        List<BillDiscountAllocation> allocations = new ArrayList<>();
+        BigDecimal allocated = BigDecimal.ZERO.setScale(4);
+        for (int index = 0; index < lines.size(); index++) {
+            BillLine line = lines.get(index);
+            BigDecimal discount = index == lines.size() - 1
+                    ? totalDiscount.subtract(allocated)
+                    : totalDiscount.multiply(line.originalAmount())
+                            .divide(original, 4, RoundingMode.HALF_UP);
+            discount = discount.min(totalDiscount.subtract(allocated)).max(BigDecimal.ZERO);
+            if (discount.compareTo(line.originalAmount()) > 0) discount = line.originalAmount();
+            discount = money(discount);
+            allocated = allocated.add(discount);
+            allocations.add(new BillDiscountAllocation(
+                    line.id(), line.originalAmount(), discount, line.originalAmount().subtract(discount)));
+        }
+        if (allocated.compareTo(totalDiscount) != 0) {
+            throw new IllegalArgumentException("优惠分摊失败，请调整优惠金额");
+        }
+        return List.copyOf(allocations);
     }
 
     private void validateAssetVersions(SettlementQuote quote, BillDetail bill) {

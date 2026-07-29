@@ -8,8 +8,10 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -78,6 +80,35 @@ public class TradeController {
     public ApiResponse<BillDetail> addLine(
             @PathVariable long id, @Valid @RequestBody AddBillLineRequest request, Principal principal) {
         return ApiResponse.ok(service.addLine(id, request, principal.getName()));
+    }
+
+    @PutMapping("/bills/{id}/lines/{lineId}")
+    @PreAuthorize("hasAuthority('trade:bill:manage')")
+    public ApiResponse<BillDetail> updateLine(
+            @PathVariable long id,
+            @PathVariable long lineId,
+            @Valid @RequestBody UpdateBillLineRequest request,
+            Principal principal) {
+        return ApiResponse.ok(service.updateLine(id, lineId, request, principal.getName()));
+    }
+
+    @DeleteMapping("/bills/{id}/lines/{lineId}")
+    @PreAuthorize("hasAuthority('trade:bill:manage')")
+    public ApiResponse<BillDetail> removeLine(
+            @PathVariable long id,
+            @PathVariable long lineId,
+            @RequestParam String version,
+            Principal principal) {
+        return ApiResponse.ok(service.removeLine(id, lineId, version, principal.getName()));
+    }
+
+    @PostMapping("/bills/{id}/discounts")
+    @PreAuthorize("hasAuthority('trade:bill:manage')")
+    public ApiResponse<BillDetail> applyDiscount(
+            @PathVariable long id,
+            @Valid @RequestBody ApplyBillDiscountRequest request,
+            Principal principal) {
+        return ApiResponse.ok(service.applyDiscount(id, request, principal.getName()));
     }
 
     @PostMapping("/bills/{id}/settlement/quote")

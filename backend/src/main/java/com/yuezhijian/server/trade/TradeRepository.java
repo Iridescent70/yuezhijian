@@ -20,6 +20,12 @@ public interface TradeRepository {
 
     BillDetail addLine(AddBillLineCommand command);
 
+    BillDetail updateLine(UpdateBillLineCommand command);
+
+    BillDetail removeLine(RemoveBillLineCommand command);
+
+    BillDetail applyDiscount(BillDiscountDraft draft);
+
     SettlementQuote createQuote(SettlementQuoteDraft draft);
 
     Optional<SettlementQuote> findQuote(String quoteNo);
