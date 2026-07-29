@@ -11,6 +11,7 @@ import com.yuezhijian.server.commission.CommissionService;
 import com.yuezhijian.server.benefit.BenefitRepository;
 import com.yuezhijian.server.benefit.VoucherRefundCommand;
 import com.yuezhijian.server.iam.AccessCatalogService;
+import com.yuezhijian.server.iam.StoreDataScope;
 import com.yuezhijian.server.visit.VisitService;
 import java.math.BigDecimal;
 import java.util.List;
@@ -31,6 +32,7 @@ public class ReversalService {
     private final CommissionService commissions;
     private final VisitService visits;
     private final AccessCatalogService accessCatalog;
+    private final StoreDataScope storeDataScope;
     private final TradeNumberGenerator numbers;
 
     public ReversalService(
@@ -41,6 +43,7 @@ public class ReversalService {
             CommissionService commissions,
             VisitService visits,
             AccessCatalogService accessCatalog,
+            StoreDataScope storeDataScope,
             TradeNumberGenerator numbers) {
         this.trades = trades;
         this.assets = assets;
@@ -49,25 +52,39 @@ public class ReversalService {
         this.commissions = commissions;
         this.visits = visits;
         this.accessCatalog = accessCatalog;
+        this.storeDataScope = storeDataScope;
         this.numbers = numbers;
     }
 
     public List<ReversalSummary> search(String status) {
-        return trades.reversals(normalizeStatus(status));
+        return trades.reversals(normalizeStatus(status)).stream()
+                .filter(item -> trades.findById(item.billId())
+                        .map(bill -> storeDataScope.canAccess(bill.bill().storeId())).orElse(false))
+                .toList();
     }
 
     public ReversalDetail detail(long id) {
-        return trades.findReversal(id)
+        ReversalDetail reversal = trades.findReversal(id)
                 .orElseThrow(() -> new ResourceNotFoundException("冲销申请不存在"));
+        requireReversalStore(reversal);
+        return reversal;
     }
 
     @Transactional
     public ReversalDetail create(long billId, CreateReversalRequest request, String username) {
-        String key = request.idempotencyKey().trim();
-        Optional<ReversalDetail> existing = trades.findReversalByRequestKey(key);
-        if (existing.isPresent()) return existing.get();
         BillDetail bill = trades.findById(billId)
                 .orElseThrow(() -> new ResourceNotFoundException("账单不存在"));
+        storeDataScope.require(bill.bill().storeId());
+        String key = request.idempotencyKey().trim();
+        Optional<ReversalDetail> existing = trades.findReversalByRequestKey(key);
+        if (existing.isPresent()) {
+            ReversalDetail reversal = existing.get();
+            requireReversalStore(reversal);
+            if (reversal.reversal().billId() != billId) {
+                throw new IllegalArgumentException("幂等键已用于其他冲销申请");
+            }
+            return reversal;
+        }
         if (!BillStatus.SETTLED.name().equals(bill.bill().status())) {
             throw new IllegalArgumentException("只有已结算账单可以申请冲销");
         }
@@ -97,7 +114,12 @@ public class ReversalService {
     public ReversalDetail execute(long id, ExecuteReversalRequest request, String username) {
         String key = request.idempotencyKey().trim();
         Optional<ReversalDetail> existing = trades.findReversalByExecutionKey(key);
-        if (existing.isPresent()) return existing.get();
+        if (existing.isPresent()) {
+            ReversalDetail reversal = existing.get();
+            requireReversalStore(reversal);
+            if (reversal.reversal().id() != id) throw new IllegalArgumentException("幂等键已用于其他冲销执行");
+            return reversal;
+        }
         ReversalDetail reversal = detail(id);
         if (!"APPROVED".equals(reversal.reversal().status())) {
             throw new IllegalArgumentException("冲销申请审批通过后才能执行");
@@ -177,6 +199,12 @@ public class ReversalService {
         String normalized = value.toUpperCase(Locale.ROOT);
         if (!STATUSES.contains(normalized)) throw new IllegalArgumentException("冲销状态无效");
         return normalized;
+    }
+
+    private void requireReversalStore(ReversalDetail reversal) {
+        BillDetail bill = trades.findById(reversal.reversal().billId())
+                .orElseThrow(() -> new ResourceNotFoundException("冲销关联账单不存在"));
+        storeDataScope.require(bill.bill().storeId());
     }
 
     private long currentUserId(String username) { return accessCatalog.userIdentity(username).id(); }

@@ -3,6 +3,7 @@ package com.yuezhijian.server.benefit;
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
 import com.yuezhijian.server.iam.AccessCatalogService;
+import com.yuezhijian.server.iam.StoreDataScope;
 import com.yuezhijian.server.member.MemberDetail;
 import com.yuezhijian.server.member.MemberRepository;
 import java.math.BigDecimal;
@@ -23,16 +24,19 @@ public class BenefitService {
     private final BenefitRepository repository;
     private final MemberRepository members;
     private final AccessCatalogService accessCatalog;
+    private final StoreDataScope storeDataScope;
     private final BenefitNumberGenerator numbers;
 
     public BenefitService(
             BenefitRepository repository,
             MemberRepository members,
             AccessCatalogService accessCatalog,
+            StoreDataScope storeDataScope,
             BenefitNumberGenerator numbers) {
         this.repository = repository;
         this.members = members;
         this.accessCatalog = accessCatalog;
+        this.storeDataScope = storeDataScope;
         this.numbers = numbers;
     }
 
@@ -66,17 +70,22 @@ public class BenefitService {
     }
 
     public List<VoucherCodeSummary> voucherCodes(Long memberId, String status, String keyword) {
-        return repository.voucherCodes(memberId, normalize(status, CODE_STATUSES, "券码状态无效"), trimToNull(keyword));
+        if (memberId != null) requireMember(memberId, false);
+        return repository.voucherCodes(memberId, normalize(status, CODE_STATUSES, "券码状态无效"), trimToNull(keyword))
+                .stream().filter(this::canAccessVoucher).toList();
     }
 
     public VoucherCodeSummary voucherCode(String code) {
-        return repository.findVoucherCode(normalizeCode(code))
+        VoucherCodeSummary voucher = repository.findVoucherCode(normalizeCode(code))
                 .orElseThrow(() -> new ResourceNotFoundException("券码不存在"));
+        if (voucher.memberId() != null) requireMember(voucher.memberId(), false);
+        return voucher;
     }
 
     @Transactional
     public List<VoucherCodeSummary> issue(IssueVoucherCodesRequest request, String username) {
         String key = request.idempotencyKey().trim();
+        MemberDetail member = request.memberId() == null ? null : requireMember(request.memberId(), true);
         List<VoucherCodeSummary> existing = repository.findIssueByKey(key);
         if (!existing.isEmpty()) {
             if (existing.size() != request.count() || existing.getFirst().voucherId() != request.voucherId()
@@ -87,7 +96,6 @@ public class BenefitService {
         }
         VoucherDefinition definition = definition(request.voucherId());
         if (!"ACTIVE".equals(definition.status())) throw new IllegalArgumentException("代金券定义已停用");
-        MemberDetail member = request.memberId() == null ? null : requireMember(request.memberId());
         LocalDateTime validFrom = LocalDateTime.now();
         List<String> codes = new ArrayList<>();
         for (int index = 0; index < request.count(); index++) codes.add(numbers.voucherCode());
@@ -100,7 +108,7 @@ public class BenefitService {
     @Transactional
     public VoucherCodeSummary bind(String code, BindVoucherCodeRequest request, String username) {
         VoucherCodeSummary voucher = voucherCode(code);
-        MemberDetail member = requireMember(request.memberId());
+        MemberDetail member = requireMember(request.memberId(), true);
         if ("BOUND".equals(voucher.status()) && java.util.Objects.equals(voucher.memberId(), member.id())) return voucher;
         if (!"UNBOUND".equals(voucher.status())) throw new IllegalArgumentException("当前券码不能绑定");
         LocalDateTime now = LocalDateTime.now();
@@ -134,10 +142,20 @@ public class BenefitService {
                 trimToNull(commissionRule), status, version);
     }
 
-    private MemberDetail requireMember(long id) {
+    private MemberDetail requireMember(long id, boolean active) {
         MemberDetail member = members.findById(id).orElseThrow(() -> new ResourceNotFoundException("会员不存在"));
-        if (!"ACTIVE".equals(member.status())) throw new IllegalArgumentException("会员当前状态不能绑定代金券");
+        storeDataScope.require(member.ownerStoreId());
+        if (active && !"ACTIVE".equals(member.status())) {
+            throw new IllegalArgumentException("会员当前状态不能绑定代金券");
+        }
         return member;
+    }
+
+    private boolean canAccessVoucher(VoucherCodeSummary voucher) {
+        if (voucher.memberId() == null) return true;
+        return members.findById(voucher.memberId())
+                .map(member -> storeDataScope.canAccess(member.ownerStoreId()))
+                .orElse(false);
     }
 
     private String normalizeCode(String code) {

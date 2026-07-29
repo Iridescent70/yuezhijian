@@ -1,6 +1,7 @@
 package com.yuezhijian.server;
 
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -75,6 +76,24 @@ class StoreDataScopeFlowTest {
                 .andExpect(jsonPath("$.code").value("40301"));
     }
 
+    @Test
+    void storeRoleCannotReadAssetsCardsVouchersOrReversalsFromAnotherStore() throws Exception {
+        mockMvc.perform(get("/api/v1/members/1003/balance-account").with(storeManager()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.memberId").value(1003));
+
+        assertForbidden(get("/api/v1/members/1001/balance-account"));
+        assertForbidden(get("/api/v1/members/1001/point-ledgers"));
+        assertForbidden(get("/api/v1/members/1001/cards"));
+        assertForbidden(get("/api/v1/card-types").param("storeId", "2"));
+        assertForbidden(get("/api/v1/card-types/501"));
+        assertForbidden(get("/api/v1/voucher-codes").param("memberId", "1001"));
+
+        mockMvc.perform(get("/api/v1/reversals").with(storeManager()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(0)));
+    }
+
     private void assertForbidden(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request)
             throws Exception {
         mockMvc.perform(request.with(storeManager()))
@@ -90,6 +109,14 @@ class StoreDataScopeFlowTest {
                 new SimpleGrantedAuthority("appointment:appointment:view"),
                 new SimpleGrantedAuthority("appointment:appointment:create"),
                 new SimpleGrantedAuthority("trade:bill:view"),
-                new SimpleGrantedAuthority("trade:bill:create"));
+                new SimpleGrantedAuthority("trade:bill:create"),
+                new SimpleGrantedAuthority("member:asset:view"),
+                new SimpleGrantedAuthority("member:asset:manage"),
+                new SimpleGrantedAuthority("member:card:view"),
+                new SimpleGrantedAuthority("member:card:manage"),
+                new SimpleGrantedAuthority("catalog:card:view"),
+                new SimpleGrantedAuthority("benefit:voucher:view"),
+                new SimpleGrantedAuthority("trade:reversal:view"),
+                new SimpleGrantedAuthority("trade:reversal:manage"));
     }
 }

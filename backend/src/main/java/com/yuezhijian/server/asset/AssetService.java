@@ -2,6 +2,7 @@ package com.yuezhijian.server.asset;
 
 import com.yuezhijian.server.common.ResourceNotFoundException;
 import com.yuezhijian.server.iam.AccessCatalogService;
+import com.yuezhijian.server.iam.StoreDataScope;
 import com.yuezhijian.server.masterdata.EmployeeSummary;
 import com.yuezhijian.server.masterdata.MasterDataRepository;
 import com.yuezhijian.server.member.MemberDetail;
@@ -21,6 +22,7 @@ public class AssetService {
     private final TradeRepository trades;
     private final MasterDataRepository masterData;
     private final AccessCatalogService accessCatalog;
+    private final StoreDataScope storeDataScope;
     private final AssetNumberGenerator numbers;
 
     public AssetService(
@@ -29,12 +31,14 @@ public class AssetService {
             TradeRepository trades,
             MasterDataRepository masterData,
             AccessCatalogService accessCatalog,
+            StoreDataScope storeDataScope,
             AssetNumberGenerator numbers) {
         this.repository = repository;
         this.members = members;
         this.trades = trades;
         this.masterData = masterData;
         this.accessCatalog = accessCatalog;
+        this.storeDataScope = storeDataScope;
         this.numbers = numbers;
     }
 
@@ -76,13 +80,13 @@ public class AssetService {
     }
 
     public RechargeOrder createRecharge(long memberId, CreateRechargeRequest request, String username) {
+        requireMember(memberId, true);
+        storeDataScope.require(request.storeId());
         RechargeOrder existing = repository.findRechargeOrderByIdempotencyKey(request.idempotencyKey()).orElse(null);
         if (existing != null) {
             if (existing.memberId() != memberId) throw new IllegalArgumentException("幂等键已用于其他会员");
             return existing;
         }
-        requireMember(memberId, true);
-        validateStore(request.storeId());
         RechargeQuote quote = repository.findRechargeQuote(request.quoteNo())
                 .orElseThrow(() -> new IllegalArgumentException("充值试算不存在"));
         if (quote.memberId() != memberId) throw new IllegalArgumentException("充值试算与会员不匹配");
@@ -101,15 +105,19 @@ public class AssetService {
     }
 
     public RechargeOrder rechargeDetail(long id) {
-        return repository.findRechargeOrder(id)
+        RechargeOrder order = repository.findRechargeOrder(id)
                 .orElseThrow(() -> new ResourceNotFoundException("充值单不存在"));
+        storeDataScope.require(order.storeId());
+        return order;
     }
 
     public RechargeOrder confirmRecharge(long id, RechargeActionRequest request, String username) {
+        rechargeDetail(id);
         return repository.confirmRecharge(id, request.version(), currentUserId(username));
     }
 
     public RechargeOrder cancelRecharge(long id, RechargeActionRequest request, String username) {
+        rechargeDetail(id);
         String reason = trimToNull(request.reason());
         if (reason == null) throw new IllegalArgumentException("取消充值必须填写原因");
         return repository.cancelRecharge(id, request.version(), reason, currentUserId(username));
@@ -126,6 +134,7 @@ public class AssetService {
     private MemberDetail requireMember(long memberId, boolean active) {
         MemberDetail member = members.findById(memberId)
                 .orElseThrow(() -> new ResourceNotFoundException("会员不存在"));
+        storeDataScope.require(member.ownerStoreId());
         if (active && !"ACTIVE".equals(member.status())) throw new IllegalArgumentException("会员当前状态不可变更资产");
         return member;
     }
@@ -140,12 +149,6 @@ public class AssetService {
                 .filter(item -> item.id() == employeeId && item.canSell() && "ACTIVE".equals(item.status()))
                 .findFirst().orElseThrow(() -> new IllegalArgumentException("销售员工不存在或当前不可售卡/充值"));
         if (employee.storeId() != storeId) throw new IllegalArgumentException("销售员工不属于当前门店");
-    }
-
-    private void validateStore(long storeId) {
-        boolean valid = accessCatalog.stores().stream()
-                .anyMatch(store -> store.id() == storeId && "ACTIVE".equals(store.status()));
-        if (!valid) throw new IllegalArgumentException("所选门店不存在或已停用");
     }
 
     private String storeName(long storeId) {

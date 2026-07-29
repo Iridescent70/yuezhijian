@@ -1,6 +1,7 @@
 package com.yuezhijian.server.iam;
 
 import jakarta.servlet.http.HttpSession;
+import java.util.Collection;
 import java.util.Objects;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -40,6 +41,19 @@ public class StoreDataScope {
 
     public void require(long storeId) {
         require(authentication(), storeId);
+    }
+
+    public void requireAny(Collection<Long> storeIds) {
+        if (storeIds == null || storeIds.stream().noneMatch(this::canAccess)) {
+            throw new StoreAccessDeniedException("没有该业务数据的门店权限");
+        }
+    }
+
+    public boolean canAccess(long storeId) {
+        if (!currentStoreContext.isActiveStore(storeId)) return false;
+        Authentication authentication = authentication();
+        return currentStoreContext.availableStores(authentication).stream()
+                .anyMatch(store -> Objects.equals(store.id(), storeId));
     }
 
     private void require(Authentication authentication, long storeId) {

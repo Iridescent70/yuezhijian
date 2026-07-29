@@ -5,6 +5,7 @@ import com.yuezhijian.server.common.ResourceNotFoundException;
 import com.yuezhijian.server.commission.CommissionLedgerItem;
 import com.yuezhijian.server.commission.CommissionService;
 import com.yuezhijian.server.iam.AccessCatalogService;
+import com.yuezhijian.server.iam.StoreDataScope;
 import com.yuezhijian.server.masterdata.EmployeeSummary;
 import com.yuezhijian.server.masterdata.MasterDataRepository;
 import com.yuezhijian.server.masterdata.ServiceItemSummary;
@@ -32,6 +33,7 @@ public class CardService {
     private final TradeRepository trades;
     private final CommissionService commissions;
     private final AccessCatalogService accessCatalog;
+    private final StoreDataScope storeDataScope;
     private final AssetNumberGenerator numbers;
 
     public CardService(
@@ -41,6 +43,7 @@ public class CardService {
             TradeRepository trades,
             CommissionService commissions,
             AccessCatalogService accessCatalog,
+            StoreDataScope storeDataScope,
             AssetNumberGenerator numbers) {
         this.repository = repository;
         this.members = members;
@@ -48,17 +51,21 @@ public class CardService {
         this.trades = trades;
         this.commissions = commissions;
         this.accessCatalog = accessCatalog;
+        this.storeDataScope = storeDataScope;
         this.numbers = numbers;
     }
 
     public List<CardTypeDetail> cardTypes(Long storeId, String keyword, String status) {
-        if (storeId != null) validateStore(storeId);
+        Long scopedStoreId = storeDataScope.constrainNullable(storeId);
         String normalizedStatus = normalizeStatus(status, Set.of("ACTIVE", "DISABLED"), "次卡类型状态不正确");
-        return repository.searchCardTypes(storeId, trimToNull(keyword), normalizedStatus);
+        return repository.searchCardTypes(scopedStoreId, trimToNull(keyword), normalizedStatus);
     }
 
     public CardTypeDetail cardType(long id) {
-        return repository.findCardType(id).orElseThrow(() -> new ResourceNotFoundException("次卡类型不存在"));
+        CardTypeDetail cardType = repository.findCardType(id)
+                .orElseThrow(() -> new ResourceNotFoundException("次卡类型不存在"));
+        storeDataScope.requireAny(cardType.storeIds());
+        return cardType;
     }
 
     public CardTypeDetail createCardType(CreateCardTypeRequest request, String username) {
@@ -70,7 +77,7 @@ public class CardService {
         BigDecimal totalTimes = times(request.totalTimes());
         if (listPrice.compareTo(salePrice) < 0) throw new IllegalArgumentException("次卡原价不能低于销售价");
         List<Long> storeIds = distinct(request.storeIds(), "适用门店不能重复");
-        storeIds.forEach(this::validateStore);
+        storeIds.forEach(storeDataScope::require);
         List<CardServiceRule> rules = validateRules(request.serviceRules(), storeIds);
         BigDecimal ruleTotal = rules.stream().map(CardServiceRule::includedTimes)
                 .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(4, RoundingMode.HALF_UP);
@@ -93,11 +100,16 @@ public class CardService {
     }
 
     public MemberCardDetail memberCard(long id) {
-        return repository.findMemberCard(id).orElseThrow(() -> new ResourceNotFoundException("会员次卡不存在"));
+        MemberCardDetail card = repository.findMemberCard(id)
+                .orElseThrow(() -> new ResourceNotFoundException("会员次卡不存在"));
+        requireMember(card.card().memberId(), false);
+        return card;
     }
 
     @Transactional
     public CardSaleResult purchase(long memberId, PurchaseMemberCardRequest request, String username) {
+        requireMember(memberId, true);
+        storeDataScope.require(request.storeId());
         CardSaleResult existing = repository.findSaleByIdempotencyKey(request.idempotencyKey()).orElse(null);
         if (existing != null) {
             if (existing.cards().stream().anyMatch(card -> card.memberId() != memberId)) {
@@ -105,8 +117,6 @@ public class CardService {
             }
             return existing;
         }
-        requireMember(memberId, true);
-        validateStore(request.storeId());
         CardTypeDetail cardType = cardType(request.cardTypeId());
         if (!"ACTIVE".equals(cardType.status()) || !cardType.storeIds().contains(request.storeId())) {
             throw new IllegalArgumentException("次卡类型未在当前门店上架");
@@ -162,6 +172,8 @@ public class CardService {
     @Transactional
     public CardExchangeResult exchange(
             long cardId, ExecuteCardExchangeRequest request, String username) {
+        memberCard(cardId);
+        storeDataScope.require(request.storeId());
         CardExchangeResult existing = repository.findExchangeByIdempotencyKey(request.idempotencyKey()).orElse(null);
         if (existing != null) {
             if (existing.oldCard().id() != cardId) throw new IllegalArgumentException("幂等键已用于其他换卡业务");
@@ -176,7 +188,6 @@ public class CardService {
         MemberCardDetail old = memberCard(cardId);
         if (old.card().memberId() <= 0) throw new IllegalArgumentException("原次卡会员无效");
         requireMember(old.card().memberId(), true);
-        validateStore(request.storeId());
         if (request.employeeId() != null) validateSalesEmployee(request.storeId(), request.employeeId());
         CardTypeDetail target = cardType(quote.targetCardTypeId());
         if (!"ACTIVE".equals(target.status()) || !target.storeIds().contains(request.storeId())) {
@@ -219,6 +230,9 @@ public class CardService {
     @Transactional
     public CardTransferResult transfer(
             long cardId, TransferMemberCardRequest request, String username) {
+        MemberCardDetail source = memberCard(cardId);
+        MemberDetail recipient = requireMember(request.recipientMemberId(), true);
+        storeDataScope.require(request.storeId());
         CardTransferResult existing = repository.findTransferByIdempotencyKey(request.idempotencyKey()).orElse(null);
         if (existing != null) {
             if (existing.sourceCard().id() != cardId
@@ -227,7 +241,6 @@ public class CardService {
             }
             return existing;
         }
-        MemberCardDetail source = memberCard(cardId);
         if (!"ACTIVE".equals(source.card().status()) || source.card().expiresAt().isBefore(LocalDateTime.now())) {
             throw new IllegalArgumentException("只有正常有效的次卡可以转赠");
         }
@@ -235,7 +248,6 @@ public class CardService {
         if (source.card().memberId() == request.recipientMemberId()) {
             throw new IllegalArgumentException("次卡不能转赠给原持卡会员");
         }
-        MemberDetail recipient = requireMember(request.recipientMemberId(), true);
         if (!source.card().version().equals(request.sourceCardVersion())) {
             throw new DuplicateResourceException("原次卡状态已发生变化，请刷新后重试");
         }
@@ -249,7 +261,6 @@ public class CardService {
         if (!request.expiresAt().isAfter(now) || request.expiresAt().isAfter(now.plusDays(3650))) {
             throw new IllegalArgumentException("转赠后有效期必须在当前时间之后且不超过10年");
         }
-        validateStore(request.storeId());
         if (request.employeeId() != null) validateSalesEmployee(request.storeId(), request.employeeId());
         BigDecimal remainingValue = money(source.card().purchasePrice().multiply(remainingTimes)
                 .divide(source.card().totalTimes(), 8, RoundingMode.HALF_UP));
@@ -286,6 +297,8 @@ public class CardService {
     @Transactional
     public CardRefundRequestDetail submitRefund(
             long cardId, SubmitCardRefundRequest request, String username) {
+        memberCard(cardId);
+        storeDataScope.require(request.storeId());
         CardRefundRequestDetail existing = repository.findRefundRequestByRequestKey(request.idempotencyKey())
                 .orElse(null);
         if (existing != null) {
@@ -304,7 +317,6 @@ public class CardService {
             throw new DuplicateResourceException("当前次卡已有待处理或已执行的退卡申请");
         }
         MemberDetail refundMember = requireMember(quote.memberId(), true);
-        validateStore(request.storeId());
         if (request.employeeId() != null) validateSalesEmployee(request.storeId(), request.employeeId());
         PaymentMethodOption refundMethod = null;
         if (quote.refundAmount().signum() > 0) {
@@ -329,12 +341,15 @@ public class CardService {
 
     public List<CardRefundRequestSummary> refundRequests(String status) {
         return repository.refundRequests(normalizeStatus(
-                status, Set.of("SUBMITTED", "APPROVED", "REJECTED", "EXECUTED"), "退卡状态不正确"));
+                        status, Set.of("SUBMITTED", "APPROVED", "REJECTED", "EXECUTED"), "退卡状态不正确"))
+                .stream().filter(item -> canAccessMember(item.memberId())).toList();
     }
 
     public CardRefundRequestDetail refundRequest(long id) {
-        return repository.findRefundRequest(id)
+        CardRefundRequestDetail request = repository.findRefundRequest(id)
                 .orElseThrow(() -> new ResourceNotFoundException("退卡申请不存在"));
+        requireMember(request.request().memberId(), false);
+        return request;
     }
 
     @Transactional
@@ -355,7 +370,11 @@ public class CardService {
             long id, ExecuteCardRefundRequest request, String username) {
         CardRefundRequestDetail existing = repository.findRefundRequestByExecutionKey(request.idempotencyKey())
                 .orElse(null);
-        if (existing != null) return existing;
+        if (existing != null) {
+            requireMember(existing.request().memberId(), false);
+            if (existing.request().id() != id) throw new IllegalArgumentException("幂等键已用于其他退卡业务");
+            return existing;
+        }
         CardRefundRequestDetail current = refundRequest(id);
         if (!"APPROVED".equals(current.request().status())) {
             throw new IllegalArgumentException("退卡申请审批通过后才能执行");
@@ -416,8 +435,15 @@ public class CardService {
 
     private MemberDetail requireMember(long id, boolean active) {
         MemberDetail member = members.findById(id).orElseThrow(() -> new ResourceNotFoundException("会员不存在"));
+        storeDataScope.require(member.ownerStoreId());
         if (active && !"ACTIVE".equals(member.status())) throw new IllegalArgumentException("会员当前状态不可办理次卡");
         return member;
+    }
+
+    private boolean canAccessMember(long memberId) {
+        return members.findById(memberId)
+                .map(member -> storeDataScope.canAccess(member.ownerStoreId()))
+                .orElse(false);
     }
 
     private void validateSalesEmployee(long storeId, long employeeId) {
@@ -425,12 +451,6 @@ public class CardService {
                 .filter(item -> item.id() == employeeId && item.canSell() && "ACTIVE".equals(item.status()))
                 .findFirst().orElseThrow(() -> new IllegalArgumentException("销售员工不存在或当前不可售卡"));
         if (employee.storeId() != storeId) throw new IllegalArgumentException("销售员工不属于当前门店");
-    }
-
-    private void validateStore(long storeId) {
-        if (accessCatalog.stores().stream().noneMatch(item -> item.id() == storeId && "ACTIVE".equals(item.status()))) {
-            throw new IllegalArgumentException("所选门店不存在或已停用");
-        }
     }
 
     private String storeName(long storeId) {
