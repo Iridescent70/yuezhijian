@@ -169,12 +169,17 @@ public interface AppointmentMapper {
                 completed_at = CASE WHEN #{toStatus} = 'COMPLETED' THEN COALESCE(completed_at, sysdatetime()) ELSE completed_at END,
                 cancelled_at = CASE WHEN #{toStatus} IN ('CANCELLED', 'NO_SHOW') THEN COALESCE(cancelled_at, sysdatetime()) ELSE cancelled_at END,
                 cancel_reason_id = CASE WHEN #{toStatus} IN ('CANCELLED', 'NO_SHOW') THEN
-                    (SELECT id FROM dbo.sys_cancel_reason WHERE business_type = 'APPOINTMENT' AND reason_code = #{reasonCode})
+                    (SELECT id FROM dbo.sys_cancel_reason
+                     WHERE business_type = 'APPOINTMENT' AND reason_code = #{reasonCode} AND status = 'ACTIVE')
                     ELSE cancel_reason_id END,
                 cancel_note = CASE WHEN #{toStatus} IN ('CANCELLED', 'NO_SHOW') THEN #{note} ELSE cancel_note END,
                 updated_at = sysdatetime(), updated_by = #{operatorId}
             WHERE id = #{id} AND status = #{fromStatus}
               AND row_version = CONVERT(binary(8), #{version}, 1)
+              AND (#{toStatus} NOT IN ('CANCELLED', 'NO_SHOW') OR EXISTS (
+                    SELECT 1 FROM dbo.sys_cancel_reason
+                    WHERE business_type = 'APPOINTMENT' AND reason_code = #{reasonCode} AND status = 'ACTIVE'
+              ))
             """)
     int transition(AppointmentStatusChange change);
 

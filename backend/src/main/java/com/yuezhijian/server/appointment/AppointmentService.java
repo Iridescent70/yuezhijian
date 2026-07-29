@@ -2,6 +2,7 @@ package com.yuezhijian.server.appointment;
 
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
+import com.yuezhijian.server.cancelreason.CancelReasonService;
 import com.yuezhijian.server.iam.AccessCatalogService;
 import com.yuezhijian.server.iam.StoreDataScope;
 import com.yuezhijian.server.masterdata.EmployeeSummary;
@@ -32,18 +33,13 @@ public class AppointmentService {
                     AppointmentStatus.ARRIVED, AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW),
             AppointmentStatus.ARRIVED, Set.of(AppointmentStatus.SERVING, AppointmentStatus.CANCELLED),
             AppointmentStatus.SERVING, Set.of(AppointmentStatus.COMPLETED));
-    private static final List<CancelReasonOption> CANCEL_REASONS = List.of(
-            new CancelReasonOption("CUSTOMER_CHANGE", "客户行程有变", false),
-            new CancelReasonOption("STORE_CAPACITY", "门店接待能力不足", true),
-            new CancelReasonOption("CUSTOMER_NO_SHOW", "客户未按时到店", false),
-            new CancelReasonOption("OTHER", "其他", true));
-
     private final AppointmentRepository repository;
     private final MasterDataRepository masterData;
     private final MemberRepository members;
     private final AccessCatalogService accessCatalog;
     private final AppointmentNumberGenerator numberGenerator;
     private final StoreDataScope storeDataScope;
+    private final CancelReasonService cancelReasonService;
 
     public AppointmentService(
             AppointmentRepository repository,
@@ -51,13 +47,15 @@ public class AppointmentService {
             MemberRepository members,
             AccessCatalogService accessCatalog,
             AppointmentNumberGenerator numberGenerator,
-            StoreDataScope storeDataScope) {
+            StoreDataScope storeDataScope,
+            CancelReasonService cancelReasonService) {
         this.repository = repository;
         this.masterData = masterData;
         this.members = members;
         this.accessCatalog = accessCatalog;
         this.numberGenerator = numberGenerator;
         this.storeDataScope = storeDataScope;
+        this.cancelReasonService = cancelReasonService;
     }
 
     public List<AppointmentSummary> search(Long storeId, LocalDate startDate, LocalDate endDate, String status) {
@@ -157,12 +155,7 @@ public class AppointmentService {
             if (reasonCode == null) {
                 throw new IllegalArgumentException("取消或爽约必须选择原因");
             }
-            CancelReasonOption reason = CANCEL_REASONS.stream()
-                    .filter(item -> item.code().equals(reasonCode)).findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("取消原因无效"));
-            if (reason.requiresNote() && note == null) {
-                throw new IllegalArgumentException("所选原因必须填写说明");
-            }
+            reasonCode = cancelReasonService.requireActive("APPOINTMENT", reasonCode, note).code();
         }
         return repository.transition(new AppointmentStatusChange(
                 id, from.name(), target.name(), request.version(), reasonCode, note,
@@ -171,7 +164,9 @@ public class AppointmentService {
     }
 
     public List<CancelReasonOption> cancelReasons() {
-        return CANCEL_REASONS;
+        return cancelReasonService.options("APPOINTMENT").stream()
+                .map(reason -> new CancelReasonOption(reason.code(), reason.name(), reason.requiresNote()))
+                .toList();
     }
 
     private void validateCustomer(Long memberId, String guestName, String guestMobile) {

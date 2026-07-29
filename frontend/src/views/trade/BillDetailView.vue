@@ -7,13 +7,14 @@ import {
   applyBillDiscount,
   createReversal,
   getBill,
+  getBillCancelReasons,
   removeBillLine,
   updateBillLine,
   voidBill,
 } from '@/api/trade'
 import { getEmployees, getServices } from '@/api/masterData'
 import { useAuthStore } from '@/stores/auth'
-import type { BillDetail, BillLine, EmployeeSummary, ServiceItemSummary } from '@/types/api'
+import type { BillDetail, BillLine, CancelReasonOption, EmployeeSummary, ServiceItemSummary } from '@/types/api'
 import { formatMoney } from '@/utils/formatMoney'
 
 const route = useRoute()
@@ -30,13 +31,14 @@ const editingLineId = ref<number | null>(null)
 const detail = ref<BillDetail | null>(null)
 const services = ref<ServiceItemSummary[]>([])
 const employees = ref<EmployeeSummary[]>([])
+const cancelReasons = ref<CancelReasonOption[]>([])
 const lineForm = reactive({
   serviceId: undefined as number | undefined,
   quantity: 1,
   employeeId: undefined as number | undefined,
   note: '',
 })
-const voidForm = reactive({ reasonCode: 'CUSTOMER_CHANGE', note: '' })
+const voidForm = reactive({ reasonCode: '', note: '' })
 const discountForm = reactive({
   discountType: 'RATE' as 'AMOUNT' | 'RATE',
   value: 90,
@@ -180,6 +182,9 @@ async function submitDiscount() {
 
 async function submitVoid() {
   if (!detail.value) return
+  const reason = cancelReasons.value.find(item => item.code === voidForm.reasonCode)
+  if (!reason) { ElMessage.warning('请选择作废原因'); return }
+  if (reason.requiresNote && !voidForm.note.trim()) { ElMessage.warning('该原因必须填写说明'); return }
   saving.value = true
   try {
     detail.value = await voidBill(billId, {
@@ -193,6 +198,20 @@ async function submitVoid() {
     ElMessage.error(error instanceof Error ? error.message : '作废失败')
   } finally {
     saving.value = false
+  }
+}
+
+async function openVoid() {
+  try {
+    cancelReasons.value = await getBillCancelReasons()
+    if (!cancelReasons.value.length) {
+      ElMessage.warning('没有已启用的账单作废原因，请先联系管理员配置')
+      return
+    }
+    Object.assign(voidForm, { reasonCode: cancelReasons.value[0]?.code ?? '', note: '' })
+    voidVisible.value = true
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '作废原因加载失败')
   }
 }
 
@@ -241,7 +260,7 @@ onMounted(load)
             plain
             @click="reversalForm.reason = ''; reversalVisible = true"
           >申请冲销</el-button>
-          <el-button v-if="mutable && auth.hasPermission('trade:bill:manage')" @click="voidVisible = true">作废</el-button>
+          <el-button v-if="mutable && auth.hasPermission('trade:bill:manage')" @click="openVoid">作废</el-button>
           <el-button v-if="mutable && detail.lines.length && auth.hasPermission('trade:bill:manage')" @click="openDiscount">整单优惠</el-button>
           <el-button v-if="mutable && auth.hasPermission('trade:bill:manage')" @click="openAdd">添加项目</el-button>
           <el-button
@@ -382,9 +401,7 @@ onMounted(load)
       <el-form label-width="90px">
         <el-form-item label="原因">
           <el-select v-model="voidForm.reasonCode">
-            <el-option label="客户取消消费" value="CUSTOMER_CHANGE" />
-            <el-option label="开单错误" value="BILL_ERROR" />
-            <el-option label="其他" value="OTHER" />
+            <el-option v-for="item in cancelReasons" :key="item.code" :label="item.name" :value="item.code" />
           </el-select>
         </el-form-item>
         <el-form-item label="说明"><el-input v-model="voidForm.note" type="textarea" /></el-form-item>

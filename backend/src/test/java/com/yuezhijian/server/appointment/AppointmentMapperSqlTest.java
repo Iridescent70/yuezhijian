@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 import org.apache.ibatis.mapping.BoundSql;
 import org.apache.ibatis.mapping.SqlSource;
 import org.apache.ibatis.scripting.xmltags.XMLLanguageDriver;
@@ -35,6 +36,18 @@ class AppointmentMapperSqlTest {
                         "endAt", LocalDateTime.of(2026, 8, 1, 11, 0), "excludeAppointmentId", 99L));
         assertThat(conflictSql.getSql()).contains("a.workstation_id = ?");
         assertThat(conflictSql.getSql()).contains("a.id != ?");
+    }
+
+    @Test
+    void cancellationTransitionRequiresAnActiveConfiguredReason() throws Exception {
+        Method transition = AppointmentMapper.class.getMethod(
+                "transition", AppointmentStatusChange.class);
+        String sql = String.join(" ", transition.getAnnotation(Update.class).value());
+
+        assertThat(sql).contains(
+                "business_type = 'APPOINTMENT'",
+                "reason_code = #{reasonCode}",
+                "status = 'ACTIVE'");
     }
 
     private BoundSql parse(Method method, Map<String, Object> parameters) {

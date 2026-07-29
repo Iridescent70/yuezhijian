@@ -412,6 +412,12 @@ public interface TradeMapper {
                 void_reason_code = #{reasonCode}, updated_at = sysdatetime(), updated_by = #{operatorId}
             WHERE id = #{billId} AND row_version = CONVERT(binary(8), #{version}, 1)
               AND status IN ('DRAFT', 'PENDING_PAYMENT')
+              AND EXISTS (
+                  SELECT 1 FROM dbo.sys_cancel_reason reason
+                  WHERE reason.business_type = 'BILL'
+                    AND reason.reason_code = #{reasonCode}
+                    AND reason.status = 'ACTIVE'
+              )
             """)
     int voidBill(
             @Param("billId") long billId,

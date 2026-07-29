@@ -156,6 +156,10 @@
 | API-CFG-005 | `POST /receipt-templates/{id}/preview` | 样例账单 id | 预览 HTML/PDF | 优化系统管理-04 |
 | API-CFG-006 | `GET/POST /banners` | 位置、状态/图片、链接、有效期 | 列表/id | 系统管理-32 |
 | API-CFG-007 | `GET/PUT /color-styles` | 分类/色号、素材、状态 | 在线试色数据 | 系统管理-22 |
+| API-CFG-008 | `GET/POST /cancel-reasons`、`GET /appointment-cancel-reasons`、`GET /bill-cancel-reasons` | 管理端按业务类型、编号/名称、状态查询并新建；预约和账单端只取本业务启用项 | 管理列表/新记录/营业选项；管理端`system:cancel-reason:view/manage`，营业端沿用预约或账单查看权限；已实现 | 系统管理-31 |
+| API-CFG-009 | `GET/PUT /cancel-reasons/{id}` | 查询详情；修改名称、必须说明、排序、状态和version | 并发安全更新结果；业务类型和编号创建后不可修改，停用保留历史引用，成功写审计；已实现 | 系统管理-31 |
+
+取消原因业务类型固定为`APPOINTMENT/BILL/HOME_SERVICE`。预约取消和账单作废提交时，服务层与最终SQL更新都校验原因仍为启用状态，避免配置在并发窗口停用后继续写入；要求说明的原因必须提交`note`。到家服务原因已可维护，但须在到家订单状态机落地时再接营业选择接口，当前不标记到家取消闭环完成。
 
 ## 4. 会员、资产、标签和权益
 

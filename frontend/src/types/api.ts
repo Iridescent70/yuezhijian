@@ -1074,6 +1074,38 @@ export interface CancelReasonOption {
   requiresNote: boolean
 }
 
+export type CancelReasonBusinessType = 'APPOINTMENT' | 'BILL' | 'HOME_SERVICE'
+
+export interface CancelReason {
+  id: number
+  businessType: CancelReasonBusinessType
+  code: string
+  name: string
+  requiresNote: boolean
+  sortNo: number
+  status: 'ACTIVE' | 'DISABLED'
+  updatedAt: string
+  updatedBy?: number
+  updatedByName: string
+  version: string
+}
+
+export interface CreateCancelReasonPayload {
+  businessType: CancelReasonBusinessType
+  code: string
+  name: string
+  requiresNote: boolean
+  sortNo: number
+}
+
+export interface UpdateCancelReasonPayload {
+  name: string
+  requiresNote: boolean
+  sortNo: number
+  status: 'ACTIVE' | 'DISABLED'
+  version: string
+}
+
 export interface AvailabilitySlot {
   startAt: string
   endAt: string

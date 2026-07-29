@@ -2,6 +2,7 @@ import { apiRequest } from './http'
 import type {
   BillDetail,
   BillSummary,
+  CancelReasonOption,
   CardSettlementOption,
   CreatedBill,
   PaymentMethodOption,
@@ -20,6 +21,10 @@ export function getBills(params: {
 
 export function getBill(id: number): Promise<BillDetail> {
   return apiRequest<BillDetail>({ method: 'GET', url: `/bills/${id}` })
+}
+
+export function getBillCancelReasons(): Promise<CancelReasonOption[]> {
+  return apiRequest<CancelReasonOption[]>({ method: 'GET', url: '/bill-cancel-reasons' })
 }
 
 export function createBill(payload: {

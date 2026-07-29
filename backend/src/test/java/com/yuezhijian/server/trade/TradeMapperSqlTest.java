@@ -67,4 +67,16 @@ class TradeMapperSqlTest {
                 "discount_amount = #{draft.discountAmount}",
                 "row_version = CONVERT(binary(8), #{draft.version}, 1)");
     }
+
+    @Test
+    void billVoidRequiresAnActiveConfiguredReason() throws Exception {
+        Method method = TradeMapper.class.getMethod(
+                "voidBill", long.class, String.class, String.class, long.class);
+        String sql = String.join(" ", method.getAnnotation(Update.class).value());
+
+        assertThat(sql).contains(
+                "business_type = 'BILL'",
+                "reason.reason_code = #{reasonCode}",
+                "reason.status = 'ACTIVE'");
+    }
 }

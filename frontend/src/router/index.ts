@@ -77,6 +77,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '服务小区', permission: 'home:service-area:view' },
       },
       {
+        path: 'system/cancel-reasons',
+        name: 'cancel-reasons',
+        component: () => import('@/views/system/CancelReasonView.vue'),
+        meta: { title: '取消原因', permission: 'system:cancel-reason:view' },
+      },
+      {
         path: 'catalog/products',
         name: 'products',
         component: () => import('@/views/catalog/ProductListView.vue'),

@@ -15,6 +15,8 @@ import com.yuezhijian.server.asset.PointAccount;
 import com.yuezhijian.server.asset.PointSettlementConsumption;
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
+import com.yuezhijian.server.cancelreason.CancelReasonOption;
+import com.yuezhijian.server.cancelreason.CancelReasonService;
 import com.yuezhijian.server.commission.CommissionService;
 import com.yuezhijian.server.benefit.BenefitRepository;
 import com.yuezhijian.server.benefit.VoucherCodeSummary;
@@ -61,6 +63,7 @@ public class TradeService {
     private final AccessCatalogService accessCatalog;
     private final TradeNumberGenerator numbers;
     private final StoreDataScope storeDataScope;
+    private final CancelReasonService cancelReasonService;
 
     public TradeService(
             TradeRepository repository,
@@ -74,7 +77,8 @@ public class TradeService {
             VisitService visits,
             AccessCatalogService accessCatalog,
             TradeNumberGenerator numbers,
-            StoreDataScope storeDataScope) {
+            StoreDataScope storeDataScope,
+            CancelReasonService cancelReasonService) {
         this.repository = repository;
         this.appointments = appointments;
         this.masterData = masterData;
@@ -87,6 +91,7 @@ public class TradeService {
         this.accessCatalog = accessCatalog;
         this.numbers = numbers;
         this.storeDataScope = storeDataScope;
+        this.cancelReasonService = cancelReasonService;
     }
 
     public List<BillSummary> search(
@@ -113,6 +118,10 @@ public class TradeService {
         storeDataScope.require(storeId);
         validateStore(storeId);
         return repository.paymentMethods(storeId);
+    }
+
+    public List<CancelReasonOption> billCancelReasons() {
+        return cancelReasonService.options("BILL");
     }
 
     public CreatedBill create(CreateBillRequest request, String username) {
@@ -493,8 +502,10 @@ public class TradeService {
 
     public BillDetail voidBill(long billId, VoidBillRequest request, String username) {
         requireMutable(detail(billId).bill());
+        String note = trimToNull(request.note());
+        String reasonCode = cancelReasonService.requireActive("BILL", request.reasonCode(), note).code();
         return repository.voidBill(
-                billId, request.reasonCode(), trimToNull(request.note()), request.version(), currentUserId(username));
+                billId, reasonCode, note, request.version(), currentUserId(username));
     }
 
     private List<BillLineDraft> appointmentLines(AppointmentDetail appointment) {

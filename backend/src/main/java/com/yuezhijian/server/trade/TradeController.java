@@ -1,6 +1,7 @@
 package com.yuezhijian.server.trade;
 
 import com.yuezhijian.server.common.ApiResponse;
+import com.yuezhijian.server.cancelreason.CancelReasonOption;
 import jakarta.validation.Valid;
 import java.security.Principal;
 import java.time.LocalDate;
@@ -29,6 +30,12 @@ public class TradeController {
     @PreAuthorize("hasAuthority('trade:bill:view')")
     public ApiResponse<List<PaymentMethodOption>> paymentMethods(@RequestParam long storeId) {
         return ApiResponse.ok(service.paymentMethods(storeId));
+    }
+
+    @GetMapping("/bill-cancel-reasons")
+    @PreAuthorize("hasAuthority('trade:bill:view')")
+    public ApiResponse<List<CancelReasonOption>> billCancelReasons() {
+        return ApiResponse.ok(service.billCancelReasons());
     }
 
     @GetMapping("/bills")
