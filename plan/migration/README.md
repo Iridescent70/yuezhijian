@@ -113,6 +113,7 @@ plan/migration/
 | `V202607291450` | 服务小区、门店范围、并发版本、权限和菜单 | `cfg_service_area`、`iam_permission`、`iam_role_permission`、`iam_menu` |
 | `V202607291460` | 取消原因操作人、业务约束、账单原因、权限和菜单 | `sys_cancel_reason`、`iam_permission`、`iam_role_permission`、`iam_menu` |
 | `V202607291470` | 首页图片、私有文件引用、有效期、权限和菜单 | `cfg_banner`、`sys_file_object`、`iam_permission`、`iam_role_permission`、`iam_menu` |
+| `V202607291480` | 线上试色分层分类、色号多分类、多素材、权限和菜单 | `cat_color_style*`、`sys_file_object`、`iam_permission`、`iam_role_permission`、`iam_menu` |
 | `R__reporting_views` | 可重复构建的统计视图 | `rpt_*` 视图/函数 |
 
 表中未落地版本仍属于设计基线；实际脚本只能在当前最高版本之后追加，逐个建立同号说明并记录各环境执行结果，禁止为了补齐旧编号而开启Flyway乱序执行。

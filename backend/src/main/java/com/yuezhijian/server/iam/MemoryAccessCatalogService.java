@@ -24,6 +24,7 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             "system:audit:view",
             "system:cancel-reason:view", "system:cancel-reason:manage",
             "system:banner:view", "system:banner:manage",
+            "system:color-style:view", "system:color-style:manage",
             "system:job:view", "system:job:create", "system:job:cancel",
             "org:employee:view", "org:employee:manage",
             "org:position:view", "org:position:manage",
@@ -110,7 +111,9 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
                                     "system:cancel-reason:view", List.of()),
                             new MenuItem(66L, "banners", "首页图片", "/app/system/banners", "Picture", 69,
                                     "system:banner:view", List.of()),
-                            new MenuItem(58L, "audit-logs", "操作日志", "/app/system/audit-logs", "Document", 70,
+                            new MenuItem(67L, "color-styles", "线上试色", "/app/system/color-styles", "Brush", 70,
+                                    "system:color-style:view", List.of()),
+                            new MenuItem(58L, "audit-logs", "操作日志", "/app/system/audit-logs", "Document", 75,
                                     "system:audit:view", List.of()))),
             new MenuItem(6L, "catalog", "基础资料", "/app/catalog", "Collection", 60, null,
                     List.of(

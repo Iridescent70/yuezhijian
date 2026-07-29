@@ -89,6 +89,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '首页图片', permission: 'system:banner:view' },
       },
       {
+        path: 'system/color-styles',
+        name: 'color-styles',
+        component: () => import('@/views/system/ColorStyleView.vue'),
+        meta: { title: '线上试色', permission: 'system:color-style:view' },
+      },
+      {
         path: 'catalog/products',
         name: 'products',
         component: () => import('@/views/catalog/ProductListView.vue'),

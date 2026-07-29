@@ -32,7 +32,8 @@ public class FileObjectService {
             "image/webp", ".webp",
             "application/pdf", ".pdf");
     private static final Map<String, String> GENERATED_EXTENSIONS = Map.of("text/csv", ".csv");
-    private static final Set<String> MANAGED_IMAGE_PURPOSES = Set.of("BANNER_IMAGE");
+    private static final Set<String> MANAGED_IMAGE_PURPOSES = Set.of(
+            "BANNER_IMAGE", "COLOR_STYLE_CATEGORY_IMAGE", "COLOR_STYLE_ASSET");
 
     private final FileObjectRepository repository;
     private final ObjectStorage storage;

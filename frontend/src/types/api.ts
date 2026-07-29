@@ -1152,6 +1152,81 @@ export interface UpdateBannerPayload extends CreateBannerPayload {
   version: string
 }
 
+export interface ColorStyleCategory {
+  id: number
+  parentId?: number
+  code: string
+  name: string
+  imageFileId?: number
+  imageName?: string
+  imageContentType?: string
+  sortNo: number
+  status: 'ACTIVE' | 'DISABLED'
+  updatedAt: string
+  updatedBy?: number
+  updatedByName: string
+  version: string
+}
+
+export interface ColorStyleAsset {
+  id: number
+  colorStyleId: number
+  fileId: number
+  fileName: string
+  contentType: string
+  sortNo: number
+  status: 'ACTIVE' | 'DISABLED'
+  updatedAt: string
+  version: string
+}
+
+export interface ColorStyle {
+  id: number
+  code: string
+  name: string
+  description?: string
+  sortNo: number
+  status: 'ACTIVE' | 'DISABLED'
+  updatedAt: string
+  updatedBy?: number
+  updatedByName: string
+  version: string
+  categoryIds: number[]
+  assets: ColorStyleAsset[]
+}
+
+export interface CreateColorStyleCategoryPayload {
+  parentId?: number
+  code: string
+  name: string
+  sortNo: number
+}
+
+export interface UpdateColorStyleCategoryPayload {
+  parentId?: number
+  name: string
+  sortNo: number
+  status: 'ACTIVE' | 'DISABLED'
+  version: string
+}
+
+export interface CreateColorStylePayload {
+  code: string
+  name: string
+  description?: string
+  sortNo: number
+  categoryIds: number[]
+}
+
+export interface UpdateColorStylePayload {
+  name: string
+  description?: string
+  sortNo: number
+  status: 'ACTIVE' | 'DISABLED'
+  categoryIds: number[]
+  version: string
+}
+
 export interface AvailabilitySlot {
   startAt: string
   endAt: string

@@ -27,6 +27,7 @@ const fieldLabels: Record<string, string> = {
   businessType: '适用业务', requiresNote: '必须填写说明',
   positionCode: '展示位置', imageName: '图片文件', linkType: '跳转类型', linkValue: '跳转地址',
   validFrom: '开始时间', validTo: '结束时间',
+  parentId: '父分类', categoryIds: '所属分类', colorStyleId: '色号编号', fileName: '素材文件',
 }
 
 const detailChanges = computed(() => {

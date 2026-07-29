@@ -155,15 +155,20 @@
 | API-CFG-004 | `GET/PUT /receipt-templates/{id}` | 详情/组件、变量、version | 模板/更新 | 优化系统管理-04 |
 | API-CFG-005 | `POST /receipt-templates/{id}/preview` | 样例账单 id | 预览 HTML/PDF | 优化系统管理-04 |
 | API-CFG-006 | `GET /banners`、`POST /banners`（multipart） | 按展示位置、名称、状态查询；以JSON配置部分和JPG/PNG/WEBP文件新建，含标题、跳转类型/地址、排序和有效期 | 管理列表/完整记录；`system:banner:view/manage`，图片最大10 MiB且校验文件头；已实现 | 系统管理-32 |
-| API-CFG-007 | `GET/PUT /color-styles` | 分类/色号、素材、状态 | 在线试色数据 | 系统管理-22 |
+| API-CFG-007 | `GET/POST /color-style-categories`、`GET/PUT /color-style-categories/{id}` | 编码/名称查询；父分类、分类编码、名称、排序、状态、version | 分层分类列表/并发安全更新；编码创建后不可修改，防止自身/后代循环；`system:color-style:view/manage`；已实现 | 系统管理-22 |
 | API-CFG-008 | `GET/POST /cancel-reasons`、`GET /appointment-cancel-reasons`、`GET /bill-cancel-reasons` | 管理端按业务类型、编号/名称、状态查询并新建；预约和账单端只取本业务启用项 | 管理列表/新记录/营业选项；管理端`system:cancel-reason:view/manage`，营业端沿用预约或账单查看权限；已实现 | 系统管理-31 |
 | API-CFG-009 | `GET/PUT /cancel-reasons/{id}` | 查询详情；修改名称、必须说明、排序、状态和version | 并发安全更新结果；业务类型和编号创建后不可修改，停用保留历史引用，成功写审计；已实现 | 系统管理-31 |
 | API-CFG-010 | `GET /banners/active`、`GET /banners/active/{id}/image`、`GET /banners/{id}`、`GET /banners/{id}/image` | 工作台按位置读取当前启用且在有效期内的最小展示信息及私有图片；管理端读取详情和预览 | 活动图片不返回文件ID/操作人等管理字段；图片经权限校验、摘要校验和ETag响应，不暴露对象键；已实现 | 系统管理-32 |
 | API-CFG-011 | `PUT /banners/{id}`、`PUT /banners/{id}/image`（multipart） | 修改位置、标题、跳转、排序、有效期、状态；使用version单独换图 | rowversion并发安全更新；站外只允许HTTPS，换图后旧文件软删除并写审计；已实现 | 系统管理-32 |
+| API-CFG-012 | `PUT /color-style-categories/{id}/image`（multipart）、`GET /color-style-categories/{id}/image` | version、JPG/PNG/WEBP分类图片 | 分类图片独立换图和鉴权预览；最大10 MiB、文件头及摘要校验，不暴露对象键；已实现 | 系统管理-22 |
+| API-CFG-013 | `GET/POST /color-styles`、`GET/PUT /color-styles/{id}` | 分类、色号/名称、状态、page/size查询；色号、名称、说明、排序、1~20个分类、状态、version | 最大100条分页、色号完整记录和多分类关系；编码创建后不可改、rowversion更新和审计；已实现 | 系统管理-22 |
+| API-CFG-014 | `POST /color-styles/{id}/assets`（multipart）、`PUT /color-styles/{id}/assets/{assetId}`、`GET /color-styles/{id}/assets/{assetId}/content` | 图片、排序；素材状态和version | 每色号最多20张启用素材，私有鉴权预览、并发安全更新和审计；已实现 | 系统管理-22 |
 
 取消原因业务类型固定为`APPOINTMENT/BILL/HOME_SERVICE`。预约取消和账单作废提交时，服务层与最终SQL更新都校验原因仍为启用状态，避免配置在并发窗口停用后继续写入；要求说明的原因必须提交`note`。到家服务原因已可维护，但须在到家订单状态机落地时再接营业选择接口，当前不标记到家取消闭环完成。
 
 首页图片展示位置固定为`PC_HOME/HOME_SERVICE_HOME`，跳转类型固定为`NONE/INTERNAL/EXTERNAL`。站内地址必须以单个`/`开头，站外地址必须是无用户凭据的完整HTTPS URL。配置停用或不在`validFrom~validTo`范围时，工作台接口和活动图片接口均不可读取；管理预览仍可查看停用配置。当前合同没有确认统一裁剪比例，因此只做文件类型、文件头和大小校验，不伪造裁剪验收。
+
+线上试色结构以旧系统`ItemColorStyleGroups`、`ItemColorStyles`、`ItemColorStyleGroupAssigns`映射及管理/WAP页面为依据：分类可有父级和分类图片，一个色号可归属多个分类并挂多张展示素材。分类与色号编码创建后固定，启用色号只能选择启用分类；停用分类前必须先处理启用子分类。合同包含“导入”，但旧源码未发现导入入口或字段模板，甲方确认文件格式、图片打包方式及覆盖规则前不提供临时导入接口，也不将本项标记为全量完成。
 
 ## 4. 会员、资产、标签和权益
 

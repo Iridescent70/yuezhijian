@@ -184,6 +184,7 @@ public class AuditService {
         if (value == null || value.isNull()) return null;
         if (value.isBoolean()) return value.asBoolean() ? "是" : "否";
         if (value.isNumber()) return new BigDecimal(value.asText()).stripTrailingZeros().toPlainString();
+        if (value.isArray() || value.isObject()) return value.toString();
         String text = value.asText();
         return switch (text) {
             case "ACTIVE" -> "启用";
