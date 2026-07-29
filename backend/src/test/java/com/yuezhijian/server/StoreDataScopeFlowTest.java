@@ -116,6 +116,20 @@ class StoreDataScopeFlowTest {
         assertForbidden(put("/api/v1/payment-methods/1/stores/2").with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"applicable\":true,\"enabled\":true,\"sortNo\":10,\"version\":\"1\"}"));
+        mockMvc.perform(get("/api/v1/service-areas").with(storeManager()).param("storeId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[*].storeId", everyItem(is(1))));
+        assertForbidden(get("/api/v1/service-areas").param("storeId", "2"));
+        assertForbidden(get("/api/v1/service-areas/2"));
+        assertForbidden(post("/api/v1/service-areas").with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "storeId":2,"city":"上海市","district":"浦东新区",
+                          "address":"跨店服务区","longitude":121.5000000,"latitude":31.2000000,
+                          "radiusKm":5.000,"visitFee":30.0000
+                        }
+                        """));
 
         mockMvc.perform(post("/api/v1/employees")
                         .with(storeManager()).with(csrf())
@@ -185,6 +199,8 @@ class StoreDataScopeFlowTest {
                 new SimpleGrantedAuthority("catalog:product:view"),
                 new SimpleGrantedAuthority("catalog:payment:view"),
                 new SimpleGrantedAuthority("catalog:payment:store-manage"),
+                new SimpleGrantedAuthority("home:service-area:view"),
+                new SimpleGrantedAuthority("home:service-area:manage"),
                 new SimpleGrantedAuthority("commission:plan:view"),
                 new SimpleGrantedAuthority("commission:plan:manage"),
                 new SimpleGrantedAuthority("commission:ledger:view"),

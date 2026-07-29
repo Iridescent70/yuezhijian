@@ -29,6 +29,7 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             "catalog:service:view", "catalog:service:manage", "catalog:service:export",
             "catalog:product:view", "catalog:product:manage", "catalog:product:export",
             "catalog:payment:view", "catalog:payment:manage", "catalog:payment:store-manage",
+            "home:service-area:view", "home:service-area:manage",
             "catalog:master:view", "catalog:master:manage",
             "appointment:appointment:view", "appointment:appointment:create", "appointment:appointment:manage",
             "trade:bill:view", "trade:bill:create", "trade:bill:manage", "trade:bill:settle",
@@ -45,6 +46,7 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
                             "member:member:export",
                             "member:tag:view", "member:tag:manage", "member:ownership:view",
                             "member:ownership:manage", "trade:bill:view",
+                            "home:service-area:view", "home:service-area:manage",
                             "system:job:view", "system:job:create", "system:job:cancel")));
 
     private static final List<MenuItem> MENUS = List.of(
@@ -100,6 +102,8 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
                                     "system:job:view", List.of()),
                             new MenuItem(59L, "payment-methods", "支付方式", "/app/system/payment-methods", "Wallet", 65,
                                     "catalog:payment:view", List.of()),
+                            new MenuItem(60L, "service-areas", "服务小区", "/app/system/service-areas", "Location", 67,
+                                    "home:service-area:view", List.of()),
                             new MenuItem(58L, "audit-logs", "操作日志", "/app/system/audit-logs", "Document", 70,
                                     "system:audit:view", List.of()))),
             new MenuItem(6L, "catalog", "基础资料", "/app/catalog", "Collection", 60, null,

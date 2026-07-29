@@ -107,6 +107,41 @@ export interface AuditLogDetail extends AuditLogSummary {
   afterValues: Record<string, string | undefined>
 }
 
+export interface ServiceArea {
+  id: number
+  storeId: number
+  storeCode: string
+  storeName: string
+  city: string
+  district: string
+  address: string
+  longitude: number
+  latitude: number
+  radiusKm: number
+  visitFee: number
+  status: 'ACTIVE' | 'DISABLED'
+  updatedAt: string
+  updatedBy?: number
+  updatedByName: string
+  version: string
+}
+
+export interface CreateServiceAreaPayload {
+  storeId: number
+  city: string
+  district: string
+  address: string
+  longitude: number
+  latitude: number
+  radiusKm: number
+  visitFee: number
+}
+
+export interface UpdateServiceAreaPayload extends Omit<CreateServiceAreaPayload, 'storeId'> {
+  status: 'ACTIVE' | 'DISABLED'
+  version: string
+}
+
 export type AsyncJobStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'PARTIAL' | 'FAILED' | 'CANCELLED'
 
 export interface AsyncJobItem {

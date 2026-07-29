@@ -110,6 +110,7 @@ plan/migration/
 | `V202607291420` | 产品/服务分类与计量单位维护权限和菜单 | `iam_permission`、`iam_role_permission`、`iam_menu` |
 | `V202607291430` | 操作日志查询权限和系统管理菜单 | `iam_permission`、`iam_role_permission`、`iam_menu` |
 | `V202607291440` | 支付方式门店配置版本、权限和菜单 | `cat_payment_method_store`、`iam_permission`、`iam_role_permission`、`iam_menu` |
+| `V202607291450` | 服务小区、门店范围、并发版本、权限和菜单 | `cfg_service_area`、`iam_permission`、`iam_role_permission`、`iam_menu` |
 | `R__reporting_views` | 可重复构建的统计视图 | `rpt_*` 视图/函数 |
 
 表中未落地版本仍属于设计基线；实际脚本只能在当前最高版本之后追加，逐个建立同号说明并记录各环境执行结果，禁止为了补齐旧编号而开启Flyway乱序执行。

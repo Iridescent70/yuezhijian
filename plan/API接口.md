@@ -149,8 +149,8 @@
 | API-EQP-002 | `GET/PUT /equipments/{id}` | 详情/资料、version | 详情/更新 | 系统管理-27 |
 | API-EQP-003 | `GET/POST /equipment-receipts` | 查询/设备、领取人、日期 | 领取记录/id | 系统管理-28 |
 | API-EQP-004 | `POST /equipment-receipts/{id}/return` | 归还时间、状态、说明 | 归还结果 | 系统管理-28 |
-| API-CFG-001 | `GET/POST /service-areas` | 门店/城市、区域、地址、经纬度、半径、上门费 | 列表/id | 系统管理-30、优化系统管理-03 |
-| API-CFG-002 | `GET/PUT /service-areas/{id}` | 详情/资料、version | 详情/更新 | 系统管理-30、优化系统管理-03 |
+| API-CFG-001 | `GET/POST /service-areas` | 门店、地址关键词、状态查询；新建门店、城市、区域、地址、经纬度、半径、上门费 | 列表/完整记录；`home:service-area:view/manage`，强制门店范围；已实现 | 系统管理-30、优化系统管理-03、到家服务-02 |
+| API-CFG-002 | `GET/PUT /service-areas/{id}` | 详情；城市、区域、地址、经纬度、半径、上门费、状态、version | 详情/并发安全更新；门店归属创建后不移动，变更写审计；已实现 | 系统管理-30、优化系统管理-03、到家服务-02 |
 | API-CFG-003 | `GET/POST /receipt-templates` | 门店/名称、组件 JSON、状态 | 列表/id | 优化系统管理-04 |
 | API-CFG-004 | `GET/PUT /receipt-templates/{id}` | 详情/组件、变量、version | 模板/更新 | 优化系统管理-04 |
 | API-CFG-005 | `POST /receipt-templates/{id}/preview` | 样例账单 id | 预览 HTML/PDF | 优化系统管理-04 |

@@ -22,6 +22,8 @@ const fieldLabels: Record<string, string> = {
   storeName: '门店', storePrice: '门店售价', saleStatus: '销售状态',
   type: '类型', electronic: '电子支付', includedInRevenue: '计入营业额',
   needsExternalReference: '需外部凭证', applicable: '适用门店', enabled: '门店启用', sortNo: '显示顺序',
+  city: '城市', district: '区域', address: '详细地址', longitude: '经度', latitude: '纬度',
+  radiusKm: '服务半径（公里）', visitFee: '上门费',
 }
 
 const detailChanges = computed(() => {

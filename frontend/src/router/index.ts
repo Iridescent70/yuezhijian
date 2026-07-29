@@ -71,6 +71,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '支付方式', permission: 'catalog:payment:view' },
       },
       {
+        path: 'system/service-areas',
+        name: 'service-areas',
+        component: () => import('@/views/system/ServiceAreaView.vue'),
+        meta: { title: '服务小区', permission: 'home:service-area:view' },
+      },
+      {
         path: 'catalog/products',
         name: 'products',
         component: () => import('@/views/catalog/ProductListView.vue'),
