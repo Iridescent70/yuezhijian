@@ -50,6 +50,12 @@ public class SqlServerMasterDataRepository implements MasterDataRepository {
     }
 
     @Override
+    public Optional<ServiceItemDetail> findServiceByCode(String code) {
+        ServiceItemRow row = mapper.findServiceByCode(code);
+        return row == null ? Optional.empty() : Optional.of(detail(row));
+    }
+
+    @Override
     public CreatedResource createEmployee(NewEmployee employee) {
         String ciphertext = employee.mobile() == null ? null : codec.encrypt(employee.mobile());
         String hash = employee.mobile() == null ? null : codec.searchableHash(employee.mobile());

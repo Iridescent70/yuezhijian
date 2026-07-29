@@ -42,7 +42,7 @@ class MemoryAsyncJobLeaseTest {
     private static MemoryAsyncJobRepository repositoryWithOneJob() {
         MemoryAsyncJobRepository repository = new MemoryAsyncJobRepository();
         repository.create(new AsyncJobDraft(
-                "JOB-LEASE-1", "租约测试", "TEST", "{}", 1,
+                "JOB-LEASE-1", "租约测试", "TEST", "{}", 1, null,
                 LocalDateTime.now().plusDays(1), 1));
         return repository;
     }

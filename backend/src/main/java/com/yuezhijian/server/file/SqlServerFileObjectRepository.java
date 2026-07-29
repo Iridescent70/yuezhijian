@@ -42,8 +42,8 @@ public class SqlServerFileObjectRepository implements FileObjectRepository {
     }
 
     @Override
-    public boolean markGeneratedDeleted(long fileId) {
-        return mapper.markGeneratedDeleted(fileId) == 1;
+    public boolean markJobFileDeleted(long fileId, String purpose) {
+        return mapper.markJobFileDeleted(fileId, purpose) == 1;
     }
 
     @Override

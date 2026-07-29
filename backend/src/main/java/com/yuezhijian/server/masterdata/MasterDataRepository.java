@@ -16,6 +16,8 @@ public interface MasterDataRepository {
 
     Optional<ServiceItemDetail> findService(long id);
 
+    Optional<ServiceItemDetail> findServiceByCode(String code);
+
     CreatedResource createEmployee(NewEmployee employee);
 
     CreatedResource createWorkstation(NewWorkstation workstation);

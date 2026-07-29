@@ -36,10 +36,14 @@ class FileObjectMapperSqlTest {
                 "removed_at = sysdatetime()", "removed_at IS NULL");
         assertThat(fileSql).contains("status = 'DELETED'", "status = 'ACTIVE'")
                 .doesNotContain("DELETE FROM");
-        Method generatedMethod = FileObjectMapper.class.getMethod("markGeneratedDeleted", long.class);
+        Method generatedMethod = FileObjectMapper.class.getMethod(
+                "markJobFileDeleted", long.class, String.class);
         String generatedSql = String.join(" ", generatedMethod.getAnnotation(Update.class).value());
         assertThat(generatedSql).contains(
-                "purpose = 'ASYNC_JOB_RESULT'", "status = 'DELETED'", "status = 'ACTIVE'")
+                "purpose = #{purpose}", "status = 'DELETED'", "status = 'ACTIVE'")
                 .doesNotContain("DELETE FROM");
+        Method insertMethod = FileObjectMapper.class.getMethod("insertFileObject", FileObjectDraft.class);
+        String insertSql = String.join(" ", insertMethod.getAnnotation(org.apache.ibatis.annotations.Select.class).value());
+        assertThat(insertSql).contains("ASYNC_JOB_INPUT", "ASYNC_JOB_RESULT", "THEN 'PRIVATE'", "ELSE 'STORE'");
     }
 }

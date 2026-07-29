@@ -14,7 +14,7 @@ public interface FileObjectRepository {
 
     Optional<StoredFileObject> findActiveFile(long fileId);
 
-    boolean markGeneratedDeleted(long fileId);
+    boolean markJobFileDeleted(long fileId, String purpose);
 
     BusinessAttachmentItem createAndAttach(FileObjectDraft file, AttachmentDraft attachment);
 

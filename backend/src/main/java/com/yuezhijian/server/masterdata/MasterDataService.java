@@ -1,5 +1,6 @@
 package com.yuezhijian.server.masterdata;
 
+import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
 import com.yuezhijian.server.iam.AccessCatalogService;
 import com.yuezhijian.server.iam.StoreDataScope;
@@ -103,6 +104,39 @@ public class MasterDataService {
                 currentUserId(username)));
     }
 
+    public ServiceImportOutcome importService(ServiceImportRow row, long storeId, long operatorId) {
+        String code = required(row.code(), 64, "项目编号").toUpperCase(Locale.ROOT);
+        String name = required(row.name(), 200, "项目名称");
+        String categoryCode = required(row.categoryCode(), 64, "分类编号").toUpperCase(Locale.ROOT);
+        CategoryOption category = repository.serviceCategories().stream()
+                .filter(item -> item.code().equalsIgnoreCase(categoryCode) && "ACTIVE".equals(item.status()))
+                .findFirst().orElseThrow(() -> new IllegalArgumentException("分类编号不存在或已停用"));
+        if (row.durationMinutes() < 5 || row.durationMinutes() > 1440) {
+            throw new IllegalArgumentException("服务时长必须在5到1440分钟之间");
+        }
+        validateAmount(row.costAmount(), "成本");
+        validateAmount(row.listPrice(), "标准售价");
+        validateAmount(row.storePrice(), "门店售价");
+        if (row.costAmount().compareTo(row.listPrice()) > 0) {
+            throw new IllegalArgumentException("服务成本不能高于标准售价");
+        }
+        String description = blankToNull(row.description());
+        if (description != null && description.length() > 2000) {
+            throw new IllegalArgumentException("项目说明不能超过2000个字符");
+        }
+        ServiceItemDetail existing = repository.findServiceByCode(code).orElse(null);
+        if (existing != null) {
+            if (sameImport(existing, name, category.id(), row, description, storeId)) {
+                return new ServiceImportOutcome(existing.id(), false, "已存在且内容一致");
+            }
+            throw new DuplicateResourceException("项目编号已存在且内容不一致");
+        }
+        CreatedResource created = repository.createService(new NewServiceItem(
+                code, name, category.id(), row.durationMinutes(), row.costAmount(), row.listPrice(),
+                row.storePrice(), List.of(storeId), description, operatorId));
+        return new ServiceImportOutcome(created.id(), true, "已新建");
+    }
+
     public ServiceItemDetail updateService(
             long id, UpdateServiceItemRequest request, String username) {
         ServiceItemDetail current = requireService(id);
@@ -154,6 +188,37 @@ public class MasterDataService {
                 || current.listPrice().compareTo(request.listPrice()) != 0
                 || !java.util.Objects.equals(current.description(), description)
                 || !current.status().equals(status);
+    }
+
+    private boolean sameImport(
+            ServiceItemDetail existing,
+            String name,
+            long categoryId,
+            ServiceImportRow row,
+            String description,
+            long storeId) {
+        ServiceStoreConfig store = existing.stores().stream()
+                .filter(item -> item.storeId() == storeId).findFirst().orElse(null);
+        return store != null && existing.name().equals(name) && existing.categoryId() == categoryId
+                && existing.durationMinutes() == row.durationMinutes()
+                && existing.costAmount().compareTo(row.costAmount()) == 0
+                && existing.listPrice().compareTo(row.listPrice()) == 0
+                && store.storePrice().compareTo(row.storePrice()) == 0
+                && "ACTIVE".equals(existing.status()) && "ON_SALE".equals(store.saleStatus())
+                && java.util.Objects.equals(existing.description(), description);
+    }
+
+    private void validateAmount(java.math.BigDecimal value, String field) {
+        if (value == null || value.signum() < 0 || value.scale() > 2 || value.precision() - value.scale() > 15) {
+            throw new IllegalArgumentException(field + "必须是最多15位整数、2位小数的非负金额");
+        }
+    }
+
+    private String required(String value, int maxLength, String field) {
+        String normalized = blankToNull(value);
+        if (normalized == null) throw new IllegalArgumentException(field + "不能为空");
+        if (normalized.length() > maxLength) throw new IllegalArgumentException(field + "不能超过" + maxLength + "个字符");
+        return normalized;
     }
 
     private long currentUserId(String username) {

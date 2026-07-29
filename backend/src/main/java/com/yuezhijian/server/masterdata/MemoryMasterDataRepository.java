@@ -97,6 +97,11 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
     }
 
     @Override
+    public synchronized Optional<ServiceItemDetail> findServiceByCode(String code) {
+        return services.values().stream().filter(service -> service.code().equals(code)).findFirst();
+    }
+
+    @Override
     public synchronized CreatedResource createEmployee(NewEmployee employee) {
         long id = employeeIds.incrementAndGet();
         String positionName = positions.stream().filter(position -> position.id() == employee.positionId())
@@ -119,6 +124,9 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
 
     @Override
     public synchronized CreatedResource createService(NewServiceItem service) {
+        if (findServiceByCode(service.code()).isPresent()) {
+            throw new com.yuezhijian.server.common.DuplicateResourceException("服务项目编号已存在");
+        }
         long id = serviceIds.incrementAndGet();
         String categoryName = categories.stream().filter(category -> category.id() == service.categoryId())
                 .findFirst().map(CategoryOption::name).orElse("未分类");

@@ -1,5 +1,6 @@
 import { apiRequest } from './http'
 import type {
+  AsyncJobItem,
   CategoryOption,
   CreateEmployeePayload,
   CreatedResource,
@@ -51,4 +52,10 @@ export function createService(payload: CreateServiceItemPayload): Promise<Create
 
 export function updateService(id: number, payload: UpdateServiceItemPayload): Promise<ServiceItemDetail> {
   return apiRequest<ServiceItemDetail>({ method: 'PUT', url: `/services/${id}`, data: payload })
+}
+
+export function importServices(file: File): Promise<AsyncJobItem> {
+  const data = new FormData()
+  data.append('file', file)
+  return apiRequest<AsyncJobItem>({ method: 'POST', url: '/services/import', data })
 }

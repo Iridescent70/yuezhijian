@@ -8,6 +8,7 @@ public record AsyncJobDraft(
         String jobType,
         String requestJson,
         long storeId,
+        Long inputFileId,
         LocalDateTime expiresAt,
         long operatorId) {
 }

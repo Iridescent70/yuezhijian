@@ -126,7 +126,7 @@
 | API-CAT-008 | `GET/POST /services` | 查询/项目、时长、售价、成本、分类 | 分页/id | 系统管理-21、优化系统管理-01 |
 | API-CAT-009 | `GET/PUT /services/{id}` | 基础详情、门店价格和状态、version；标签和物料消耗待后续 | 基础资料与单门店配置更新已实现；`catalog:service:view/manage` | 系统管理-21、优化系统管理-01 |
 | API-CAT-010 | `POST /services/batch-update` | ids、分类/标签/门店/状态 | 批量结果 | 优化系统管理-01 |
-| API-CAT-011 | `POST /services/import`、`POST /exports` | 导入文件/`exportType=SERVICE_CATALOG`、关键词 | 导入待开发；当前门店服务项目CSV任务已实现，需`catalog:service:export` | 优化系统管理-01 |
+| API-CAT-011 | `POST /services/import`、`POST /exports` | 当前门店UTF-8 CSV导入；`exportType=SERVICE_CATALOG`及关键词导出 | 导入返回202任务，最多5000行并生成逐行结果；导出需`catalog:service:export`；均已实现 | 优化系统管理-01 |
 | API-CAT-012 | `GET/POST /card-types` | 查询/名称、售价、总次、有效期、门店 | 分页/id | 系统管理-13、次卡管理-05 |
 | API-CAT-013 | `GET/PUT /card-types/{id}` | 详情/分组、说明、状态、version | 详情/更新结果 | 系统管理-13、次卡管理-05 |
 | API-CAT-014 | `POST /card-types/{id}/copy` | 新名称、适用门店 | 新 cardTypeId | 次卡管理-05 |

@@ -1,5 +1,6 @@
 package com.yuezhijian.server.job;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.time.LocalDateTime;
 
 public record AsyncJobItem(
@@ -21,5 +22,6 @@ public record AsyncJobItem(
         LocalDateTime expiresAt,
         LocalDateTime createdAt,
         long createdBy,
-        String createdByName) {
+        String createdByName,
+        @JsonIgnore Long inputFileId) {
 }

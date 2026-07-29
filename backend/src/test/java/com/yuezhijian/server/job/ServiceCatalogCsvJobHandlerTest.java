@@ -14,7 +14,7 @@ class ServiceCatalogCsvJobHandlerTest {
                 new MemoryMasterDataRepository(), new ObjectMapper());
         AsyncJobExecutionResult result = handler.execute(new AsyncJobTask(
                 1, "JOB-SERVICE-1", ServiceCatalogCsvJobHandler.JOB_TYPE,
-                "{\"keyword\":\"SVC001\"}", 2, 1, "worker-1", 1));
+                "{\"keyword\":\"SVC001\"}", 2, null, 1, "worker-1", 1));
 
         String csv = new String(result.content(), StandardCharsets.UTF_8);
         assertThat(result.successCount()).isEqualTo(1);

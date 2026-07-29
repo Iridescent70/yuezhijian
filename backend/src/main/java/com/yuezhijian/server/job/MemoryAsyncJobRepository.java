@@ -201,8 +201,8 @@ public class MemoryAsyncJobRepository implements AsyncJobRepository {
 
         private AsyncJobTask task() {
             return new AsyncJobTask(
-                    id, draft.jobNo(), draft.jobType(), draft.requestJson(), draft.storeId(), draft.operatorId(),
-                    leaseToken, attemptCount);
+                    id, draft.jobNo(), draft.jobType(), draft.requestJson(), draft.storeId(), draft.inputFileId(),
+                    draft.operatorId(), leaseToken, attemptCount);
         }
 
         private AsyncJobItem item() {
@@ -212,7 +212,7 @@ public class MemoryAsyncJobRepository implements AsyncJobRepository {
                     resultFile == null ? null : resultFile.id(),
                     resultFile == null ? null : resultFile.originalName(),
                     null, null, errorMessage, startedAt, finishedAt, draft.expiresAt(), createdAt,
-                    draft.operatorId(), "本地管理员");
+                    draft.operatorId(), "本地管理员", draft.inputFileId());
         }
     }
 }

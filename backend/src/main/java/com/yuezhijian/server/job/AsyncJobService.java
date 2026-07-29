@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class AsyncJobService {
@@ -69,9 +70,7 @@ public class AsyncJobService {
     public AsyncJobItem createExport(CreateExportRequest request, String username, long storeId) {
         String exportType = normalize(request.exportType());
         UserIdentity operator = accessCatalog.userIdentity(username);
-        if (repository.countActive(operator.id()) >= 3) {
-            throw new DuplicateResourceException("最多同时保留3个等待中或执行中的任务");
-        }
+        requireCapacity(operator.id());
         return switch (exportType) {
             case "SERVICE_FEEDBACK" -> create(
                     operator,
@@ -99,6 +98,24 @@ public class AsyncJobService {
         };
     }
 
+    public AsyncJobItem createServiceImport(MultipartFile upload, String username, long storeId) {
+        UserIdentity operator = accessCatalog.userIdentity(username);
+        requireCapacity(operator.id());
+        FileObjectItem input = files.storeJobInput(upload, operator.id());
+        try {
+            return create(
+                    operator,
+                    storeId,
+                    "服务项目导入",
+                    ServiceCatalogImportJobHandler.JOB_TYPE,
+                    Map.of("originalName", input.originalName()),
+                    input.id());
+        } catch (RuntimeException exception) {
+            files.purgeJobInput(input.id());
+            throw exception;
+        }
+    }
+
     public PageResult<AsyncJobItem> jobs(
             String jobType, String status, int page, int size, String username) {
         if (page < 1) throw new IllegalArgumentException("页码必须从1开始");
@@ -122,6 +139,7 @@ public class AsyncJobService {
                 .orElseThrow(() -> new ResourceNotFoundException("任务不存在"));
         if (!"PENDING".equals(current.status())) throw new DuplicateResourceException("只有等待中的任务可以取消");
         if (!repository.cancel(id, operator.id())) throw new DuplicateResourceException("任务状态已发生变化");
+        if (current.inputFileId() != null) files.purgeJobInput(current.inputFileId());
         return repository.findOwned(id, operator.id()).orElseThrow();
     }
 
@@ -163,6 +181,14 @@ public class AsyncJobService {
                 LOG.error("Async job {} attempt {} failed: {}", task.jobNo(), task.attemptCount(), message, exception);
             } finally {
                 heartbeat.cancel(false);
+                if (!leaseLost.get() && task.inputFileId() != null) {
+                    try {
+                        files.purgeJobInput(task.inputFileId());
+                    } catch (RuntimeException exception) {
+                        LOG.error("Could not purge async job {} input file {}: {}",
+                                task.jobNo(), task.inputFileId(), safeError(exception), exception);
+                    }
+                }
             }
             return true;
         }).orElse(false);
@@ -209,9 +235,20 @@ public class AsyncJobService {
     }
 
     private AsyncJobItem create(UserIdentity operator, long storeId, String name, String jobType, Object request) {
+        return create(operator, storeId, name, jobType, request, null);
+    }
+
+    private AsyncJobItem create(
+            UserIdentity operator, long storeId, String name, String jobType, Object request, Long inputFileId) {
         return repository.create(new AsyncJobDraft(
-                numbers.next(), name, jobType, json(request), storeId,
+                numbers.next(), name, jobType, json(request), storeId, inputFileId,
                 LocalDateTime.now().plusDays(7), operator.id()));
+    }
+
+    private void requireCapacity(long operatorId) {
+        if (repository.countActive(operatorId) >= 3) {
+            throw new DuplicateResourceException("最多同时保留3个等待中或执行中的任务");
+        }
     }
 
     private String json(Object value) {

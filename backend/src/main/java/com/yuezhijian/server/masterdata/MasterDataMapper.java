@@ -111,6 +111,18 @@ public interface MasterDataMapper {
     ServiceItemRow findService(long id);
 
     @Select("""
+            SELECT service.id, service.service_code AS code, service.service_name AS name,
+                   service.category_id AS categoryId, category.name AS categoryName,
+                   service.duration_minutes AS durationMinutes, service.cost_amount AS costAmount,
+                   service.list_price AS listPrice, service.description, service.status,
+                   CONVERT(varchar(18), service.row_version, 1) AS version
+            FROM dbo.cat_service service
+            JOIN dbo.cat_category category ON category.id = service.category_id
+            WHERE service.service_code = #{code}
+            """)
+    ServiceItemRow findServiceByCode(String code);
+
+    @Select("""
             SELECT item_store.store_id AS storeId, store.store_name AS storeName,
                    item_store.sale_price AS storePrice, item_store.sale_status AS saleStatus
             FROM dbo.cat_item_store item_store

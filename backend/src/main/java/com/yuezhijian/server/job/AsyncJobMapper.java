@@ -18,7 +18,7 @@ public interface AsyncJobMapper {
                    job.error_message AS errorMessage, job.started_at AS startedAt,
                    job.finished_at AS finishedAt, job.expires_at AS expiresAt,
                    job.created_at AS createdAt, job.created_by AS createdBy,
-                   creator.full_name AS createdByName
+                   creator.full_name AS createdByName, job.input_file_id AS inputFileId
             FROM dbo.sys_async_job job
             LEFT JOIN dbo.sys_file_object result_file ON result_file.id = job.result_file_id
             LEFT JOIN dbo.sys_file_object error_file ON error_file.id = job.error_file_id
@@ -33,12 +33,12 @@ public interface AsyncJobMapper {
 
     @Select(value = """
             INSERT INTO dbo.sys_async_job (
-                job_no, job_name, job_type, request_json, store_id, expires_at,
+                job_no, job_name, job_type, request_json, store_id, input_file_id, expires_at,
                 status, progress, success_count, failure_count, created_by, updated_by
             )
             OUTPUT INSERTED.id
             VALUES (
-                #{jobNo}, #{jobName}, #{jobType}, #{requestJson}, #{storeId}, #{expiresAt},
+                #{jobNo}, #{jobName}, #{jobType}, #{requestJson}, #{storeId}, #{inputFileId}, #{expiresAt},
                 'PENDING', 0, 0, 0, #{operatorId}, #{operatorId}
             )
             """, affectData = true)
@@ -86,6 +86,7 @@ public interface AsyncJobMapper {
                 finished_at = NULL, updated_at = sysdatetime(), updated_by = created_by
             OUTPUT INSERTED.id, INSERTED.job_no AS jobNo, INSERTED.job_type AS jobType,
                    INSERTED.request_json AS requestJson, INSERTED.store_id AS storeId,
+                   INSERTED.input_file_id AS inputFileId,
                    INSERTED.created_by AS createdBy, INSERTED.lease_token AS leaseToken,
                    INSERTED.attempt_count AS attemptCount;
             """, affectData = true)

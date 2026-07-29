@@ -3,6 +3,7 @@ package com.yuezhijian.server;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -16,6 +17,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
@@ -107,6 +109,35 @@ class AsyncJobFlowTest {
         String csv = new String(mockMvc.perform(get("/api/v1/jobs/" + id + "/result").session(session))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
         assertThat(csv).contains("项目编号", "门店售价", "SVC001");
+    }
+
+    @Test
+    void serviceCatalogImportCreatesValidRowsAndReturnsRowErrors() throws Exception {
+        MockHttpSession session = login();
+        String csv = "\ufeff\"项目编号\",\"项目名称\",\"分类编号\",\"时长(分钟)\",\"成本\",\"标准售价\",\"门店售价\",\"项目说明\"\r\n"
+                + "\"SVC-IMPORT-1\",\"导入服务\",\"NAIL_SERVICE\",\"60\",\"20.00\",\"100.00\",\"88.00\",\"自动化测试\"\r\n"
+                + "\"SVC001\",\"冲突项目\",\"NAIL_SERVICE\",\"60\",\"30.00\",\"168.00\",\"168.00\",\"\"\r\n";
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "服务项目.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8));
+        JsonNode created = json(mockMvc.perform(multipart("/api/v1/services/import").file(file)
+                        .with(csrf()).session(session))
+                .andExpect(status().isAccepted()).andReturn().getResponse().getContentAsString()).path("data");
+        assertThat(created.has("inputFileId")).isFalse();
+        long id = created.path("id").asLong();
+
+        assertThat(jobs.processNext()).isTrue();
+        JsonNode detail = json(mockMvc.perform(get("/api/v1/jobs/" + id).session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data");
+        assertThat(detail.path("status").asText()).isEqualTo("PARTIAL");
+        assertThat(detail.path("successCount").asInt()).isEqualTo(1);
+        assertThat(detail.path("failureCount").asInt()).isEqualTo(1);
+
+        String result = new String(mockMvc.perform(get("/api/v1/jobs/" + id + "/result").session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
+        assertThat(result).contains("SVC-IMPORT-1", "成功", "SVC001", "失败", "内容不一致");
+        String services = mockMvc.perform(get("/api/v1/services?storeId=1&keyword=SVC-IMPORT-1").session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(services).contains("SVC-IMPORT-1", "导入服务");
     }
 
     private MockHttpSession login() throws Exception {

@@ -6,6 +6,7 @@ public record AsyncJobTask(
         String jobType,
         String requestJson,
         long storeId,
+        Long inputFileId,
         long createdBy,
         String leaseToken,
         int attemptCount) {

@@ -83,4 +83,20 @@ class FileObjectServiceTest {
         assertThat(file.contentType()).isEqualTo("text/csv");
         assertThat(service.downloadGenerated(file.id()).content()).isEqualTo(content);
     }
+
+    @Test
+    void jobInputOnlyAcceptsUtf8CsvAndCanBePurged() {
+        byte[] content = "\ufeff项目编号,项目名称\r\nSVC-1,测试服务\r\n".getBytes(StandardCharsets.UTF_8);
+        FileObjectItem file = service.storeJobInput(
+                new MockMultipartFile("file", "服务项目.csv", "text/csv", content), 1);
+
+        assertThat(file.purpose()).isEqualTo("ASYNC_JOB_INPUT");
+        assertThat(service.downloadJobInput(file.id()).content()).isEqualTo(content);
+        service.purgeJobInput(file.id());
+        assertThatThrownBy(() -> service.downloadJobInput(file.id()))
+                .isInstanceOf(ResourceNotFoundException.class);
+        assertThatThrownBy(() -> service.storeJobInput(
+                new MockMultipartFile("file", "项目.xlsx", "application/octet-stream", content), 1))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("CSV");
+    }
 }

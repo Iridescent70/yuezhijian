@@ -17,7 +17,7 @@ class AsyncJobMapperSqlTest {
         assertThat(sql).contains(
                 "UPDLOCK", "READPAST", "ROWLOCK", "status = 'PENDING'",
                 "status = 'RUNNING'", "lease_expires_at", "lease_token = #{leaseToken}",
-                "attempt_count = attempt_count + 1", "OUTPUT INSERTED.id");
+                "attempt_count = attempt_count + 1", "OUTPUT INSERTED.id", "INSERTED.input_file_id AS inputFileId");
         Method complete = AsyncJobMapper.class.getMethod(
                 "complete", long.class, String.class, String.class, int.class, int.class, long.class);
         String completeSql = String.join(" ", complete.getAnnotation(Update.class).value());

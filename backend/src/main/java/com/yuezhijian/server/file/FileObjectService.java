@@ -2,6 +2,10 @@ package com.yuezhijian.server.file;
 
 import com.yuezhijian.server.common.ResourceNotFoundException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
@@ -99,6 +103,29 @@ public class FileObjectService {
         }
     }
 
+    public FileObjectItem storeJobInput(MultipartFile upload, long operatorId) {
+        byte[] content = read(upload);
+        String name = normalizeName(upload.getOriginalFilename());
+        if (!name.toLowerCase(Locale.ROOT).endsWith(".csv")) {
+            throw new IllegalArgumentException("服务项目导入只支持CSV文件");
+        }
+        validateUtf8Csv(content);
+        String objectKey = jobObjectKey("ASYNC_JOB_INPUT", ".csv");
+        FileObjectDraft file = new FileObjectDraft(
+                objectKey, name, "text/csv", content.length, sha256(content), "ASYNC_JOB_INPUT", operatorId);
+        storage.put(objectKey, content, "text/csv");
+        try {
+            return repository.create(file);
+        } catch (RuntimeException exception) {
+            try {
+                storage.delete(objectKey);
+            } catch (RuntimeException cleanupFailure) {
+                exception.addSuppressed(cleanupFailure);
+            }
+            throw exception;
+        }
+    }
+
     public StoredFileDownload download(String businessType, long businessId, long attachmentId) {
         StoredFileObject file = repository.findActive(businessType, businessId, attachmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("附件不存在或已删除"));
@@ -111,6 +138,15 @@ public class FileObjectService {
         return verifiedDownload(file);
     }
 
+    public StoredFileDownload downloadJobInput(long fileId) {
+        StoredFileObject file = repository.findActiveFile(fileId)
+                .orElseThrow(() -> new ResourceNotFoundException("任务输入文件不存在或已删除"));
+        if (!"ASYNC_JOB_INPUT".equals(file.purpose())) {
+            throw new IllegalArgumentException("文件不是任务输入文件");
+        }
+        return verifiedDownload(file);
+    }
+
     public void purgeGenerated(long fileId) {
         StoredFileObject file = repository.findActiveFile(fileId).orElse(null);
         if (file == null) return;
@@ -118,8 +154,22 @@ public class FileObjectService {
             throw new IllegalArgumentException("只允许清理任务结果文件");
         }
         storage.delete(file.objectKey());
-        if (!repository.markGeneratedDeleted(fileId) && repository.findActiveFile(fileId).isPresent()) {
+        if (!repository.markJobFileDeleted(fileId, "ASYNC_JOB_RESULT")
+                && repository.findActiveFile(fileId).isPresent()) {
             throw new FileStorageException("任务结果文件状态更新失败", null);
+        }
+    }
+
+    public void purgeJobInput(long fileId) {
+        StoredFileObject file = repository.findActiveFile(fileId).orElse(null);
+        if (file == null) return;
+        if (!"ASYNC_JOB_INPUT".equals(file.purpose())) {
+            throw new IllegalArgumentException("只允许清理任务输入文件");
+        }
+        storage.delete(file.objectKey());
+        if (!repository.markJobFileDeleted(fileId, "ASYNC_JOB_INPUT")
+                && repository.findActiveFile(fileId).isPresent()) {
+            throw new FileStorageException("任务输入文件状态更新失败", null);
         }
     }
 
@@ -189,6 +239,30 @@ public class FileObjectService {
         String path = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
         return "generated/" + purpose.toLowerCase(Locale.ROOT).replace('_', '-') + "/" + path + "/"
                 + UUID.randomUUID() + GENERATED_EXTENSIONS.get(contentType);
+    }
+
+    private static String jobObjectKey(String purpose, String extension) {
+        String path = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
+        return "private/" + purpose.toLowerCase(Locale.ROOT).replace('_', '-') + "/" + path + "/"
+                + UUID.randomUUID() + extension;
+    }
+
+    private static void validateUtf8Csv(byte[] content) {
+        if (content.length == 0) throw new IllegalArgumentException("导入文件不能为空");
+        if (content.length >= 2 && (content[0] & 0xff) == 0xff && (content[1] & 0xff) == 0xfe) {
+            throw new IllegalArgumentException("CSV必须使用UTF-8编码");
+        }
+        try {
+            StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(CodingErrorAction.REPORT)
+                    .decode(ByteBuffer.wrap(content));
+        } catch (CharacterCodingException exception) {
+            throw new IllegalArgumentException("CSV必须使用UTF-8编码", exception);
+        }
+        for (byte value : content) {
+            if (value == 0) throw new IllegalArgumentException("CSV内容无效");
+        }
     }
 
     private StoredFileDownload verifiedDownload(StoredFileObject file) {

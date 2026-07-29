@@ -30,7 +30,7 @@ class AsyncJobCleanupTest {
         FileObjectItem file = files.storeGenerated(
                 "ASYNC_JOB_RESULT", "expired.csv", "text/csv", "result".getBytes(StandardCharsets.UTF_8), 1);
         AsyncJobItem created = jobs.create(new AsyncJobDraft(
-                "JOB-CLEAN-1", "到期清理测试", "TEST", "{}", 1,
+                "JOB-CLEAN-1", "到期清理测试", "TEST", "{}", 1, null,
                 LocalDateTime.now().minusSeconds(1), 1));
         AsyncJobTask task = jobs.claimNext("worker-1", LocalDateTime.now().plusMinutes(30), 3).orElseThrow();
         jobs.complete(task.id(), task.leaseToken(), file, 1, 0);
