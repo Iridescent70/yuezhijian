@@ -50,7 +50,9 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
                     List.of(
                             new MenuItem(101L, "commission-plans", "提成方案", "/app/commission/plans", "SetUp", 10,
                                     "commission:plan:view", List.of()),
-                            new MenuItem(102L, "commission-ledgers", "提成流水", "/app/commission/ledgers", "List", 20,
+                            new MenuItem(103L, "commission-simulator", "薪资测算", "/app/commission/simulator", "DataAnalysis", 20,
+                                    "commission:plan:view", List.of()),
+                            new MenuItem(102L, "commission-ledgers", "提成流水", "/app/commission/ledgers", "List", 30,
                                     "commission:ledger:view", List.of()))),
             new MenuItem(5L, "system", "系统管理", "/app/system", "Setting", 90, null,
                     List.of(

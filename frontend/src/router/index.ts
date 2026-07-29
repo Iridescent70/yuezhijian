@@ -162,6 +162,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '提成流水', permission: 'commission:ledger:view' },
       },
       {
+        path: 'commission/simulator',
+        name: 'commission-simulator',
+        component: () => import('@/views/commission/CommissionSimulatorView.vue'),
+        meta: { title: '薪资测算', permission: 'commission:plan:view' },
+      },
+      {
         path: 'forbidden',
         name: 'forbidden',
         component: () => import('@/views/ForbiddenView.vue'),

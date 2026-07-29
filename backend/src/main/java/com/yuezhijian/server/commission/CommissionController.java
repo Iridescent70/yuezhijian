@@ -55,6 +55,14 @@ public class CommissionController {
         return ApiResponse.ok(service.updatePlan(id, request, principal.getName()));
     }
 
+    @PostMapping("/commission-plans/{id}/simulate")
+    @PreAuthorize("hasAuthority('commission:plan:view')")
+    public ApiResponse<CommissionSimulationResult> simulate(
+            @PathVariable long id,
+            @Valid @RequestBody SimulateCommissionPlanRequest request) {
+        return ApiResponse.ok(service.simulate(id, request));
+    }
+
     @GetMapping("/commission-ledgers")
     @PreAuthorize("hasAuthority('commission:ledger:view')")
     public ApiResponse<List<CommissionLedgerItem>> ledgers(

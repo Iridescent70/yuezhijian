@@ -284,7 +284,7 @@
 | --- | --- | --- | --- | --- |
 | API-COMM-001 | `GET/POST /commission-plans` | 查询/编码、名称、场景、基础模式、适用门店/职务、有效期 | 列表/详情；已实现 | 系统管理-34、薪酬-01 |
 | API-COMM-002 | `GET/PUT /commission-plans/{id}` | 详情/基础规则、状态、version | 详情/更新；已实现 | 系统管理-34、薪酬-01 |
-| API-COMM-003 | `POST /commission-plans/{id}/simulate` | 员工、样例业绩、期间 | 逐步计算结果 | 薪酬-01 |
+| API-COMM-003 | `POST /commission-plans/{id}/simulate` | `employeeId/storeId/businessDate/performanceAmount/itemCount` | 方案版本、适用性、告警、逐步公式和结果；只读不写流水；`commission:plan:view`；已实现 | 薪酬-01 |
 | API-COMM-004 | `GET /commission-ledgers` | 员工、门店、期间、正负向、计算状态 | 提成流水；服务账单和冲销已实现 | 薪酬全模块 |
 | API-COMM-005 | `GET /commission-ledgers/{id}/calculation` | 流水 id | 公式、参数、阶梯和结果 | 统计分析优化-04 |
 | API-COMM-006 | `GET/POST /third-party-share-rules` | 查询/项目、第三方、比例、有效期 | 规则列表/id | 薪酬-02 |
@@ -301,7 +301,7 @@
 | API-COMM-017 | `GET /payroll-runs/{id}/employees/{employeeId}` | 员工 | 工资项和提成来源明细 | 统计分析-27 |
 | API-COMM-018 | `POST /payroll-runs/{id}/confirm` | 说明 | 锁定工资单 | 统计分析-27 |
 
-`API-COMM-001/002/004`首版已落地。基础计算方式为`RATE/FIXED/NONE`；普通服务、售卡、次卡实耗分别匹配`SERVICE/CARD_SALE/CARD_CONSUME`，未匹配规则时生成`PENDING_RULE`事实。账单冲销、换卡和退卡追加关联原流水的负向记录，转赠后换卡/退卡沿卡谱系追溯原售卡事实。六种完整模式、累计阶梯、多人分配、模拟计算、人工调账和工资批次仍按后续接口实施，当前不得用基础比例替代甲方未确认口径。
+`API-COMM-001~004`基础版已落地。基础计算方式为`RATE/FIXED/NONE`；普通服务、售卡、次卡实耗分别匹配`SERVICE/CARD_SALE/CARD_CONSUME`，未匹配规则时生成`PENDING_RULE`事实。账单冲销、换卡和退卡追加关联原流水的负向记录，转赠后换卡/退卡沿卡谱系追溯原售卡事实。六种完整模式、累计阶梯、多人分配、人工调账和工资批次仍需后续实施，当前不得用基础比例替代甲方未确认口径。
 
 ## 8. 到家服务与移动端
 

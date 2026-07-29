@@ -977,6 +977,36 @@ export interface CommissionPlanPayload {
   effectiveTo?: string
 }
 
+export interface CommissionSimulationPayload {
+  employeeId: number
+  storeId: number
+  businessDate: string
+  performanceAmount: number
+  itemCount: number
+}
+
+export interface CommissionSimulationResult {
+  planId: number
+  planCode: string
+  planName: string
+  planRuleVersion: number
+  scene: CommissionScene
+  calculationMode: CommissionCalculationMode
+  employeeId: number
+  employeeName: string
+  positionId?: number
+  positionName?: string
+  storeId: number
+  storeName: string
+  businessDate: string
+  performanceAmount: number
+  itemCount: number
+  commissionAmount: number
+  applicable: boolean
+  calculationSteps: string[]
+  warnings: string[]
+}
+
 export interface CommissionLedgerItem {
   id: number
   ledgerNo: string

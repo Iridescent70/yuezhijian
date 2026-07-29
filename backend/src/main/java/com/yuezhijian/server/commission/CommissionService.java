@@ -56,6 +56,51 @@ public class CommissionService {
         return repository.findPlan(id).orElseThrow(() -> new ResourceNotFoundException("提成方案不存在"));
     }
 
+    public CommissionSimulationResult simulate(long planId, SimulateCommissionPlanRequest request) {
+        CommissionPlan plan = plan(planId);
+        validateStore(request.storeId());
+        EmployeeSummary employee = masterData.employees(request.storeId(), null).stream()
+                .filter(item -> item.id() == request.employeeId())
+                .findFirst().orElseThrow(() -> new ResourceNotFoundException("员工不存在或不属于所选门店"));
+        BigDecimal performance = money(request.performanceAmount());
+        BigDecimal amount;
+        List<String> steps = new ArrayList<>();
+        steps.add("业绩基数=" + performance + "；业务数量=" + request.itemCount());
+        switch (plan.calculationMode()) {
+            case "RATE" -> {
+                amount = money(performance.multiply(plan.rate()));
+                steps.add("比例提成=" + performance + "×" + plan.rate() + "=" + amount);
+            }
+            case "FIXED" -> {
+                amount = money(plan.fixedAmount().multiply(BigDecimal.valueOf(request.itemCount())));
+                steps.add("固定提成=" + plan.fixedAmount() + "×" + request.itemCount() + "=" + amount);
+            }
+            case "NONE" -> {
+                amount = BigDecimal.ZERO.setScale(4);
+                steps.add("方案设置为不计提成，结果=0.0000");
+            }
+            default -> throw new IllegalArgumentException("不支持的提成计算方式");
+        }
+        List<String> warnings = new ArrayList<>();
+        if (!"ACTIVE".equals(plan.status())) warnings.add("方案当前未启用");
+        if (request.businessDate().isBefore(plan.effectiveFrom())
+                || (plan.effectiveTo() != null && request.businessDate().isAfter(plan.effectiveTo()))) {
+            warnings.add("业务日期不在方案有效期内");
+        }
+        if (plan.storeId() != null && plan.storeId() != request.storeId()) {
+            warnings.add("方案不适用所选门店");
+        }
+        if (plan.positionId() != null && !java.util.Objects.equals(plan.positionId(), employee.positionId())) {
+            warnings.add("方案不适用所选员工职务");
+        }
+        if (!"ACTIVE".equals(employee.status())) warnings.add("所选员工未启用");
+        return new CommissionSimulationResult(
+                plan.id(), plan.code(), plan.name(), plan.ruleVersion(), plan.scene(), plan.calculationMode(),
+                employee.id(), employee.name(), employee.positionId(), employee.positionName(),
+                request.storeId(), storeName(request.storeId()), request.businessDate(), performance,
+                request.itemCount(), amount, warnings.isEmpty(), List.copyOf(steps), List.copyOf(warnings));
+    }
+
     @Transactional
     public CommissionPlan createPlan(CreateCommissionPlanRequest request, String username) {
         String code = request.code().trim().toUpperCase(Locale.ROOT);
@@ -301,6 +346,17 @@ public class CommissionService {
     private EmployeeSummary employee(long id, long storeId) {
         return masterData.employees(storeId, null).stream().filter(item -> item.id() == id).findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("账单技师不存在"));
+    }
+
+    private void validateStore(long storeId) {
+        if (accessCatalog.stores().stream().noneMatch(store -> store.id() == storeId)) {
+            throw new ResourceNotFoundException("门店不存在");
+        }
+    }
+
+    private String storeName(long storeId) {
+        return accessCatalog.stores().stream().filter(store -> store.id() == storeId)
+                .findFirst().map(com.yuezhijian.server.iam.StoreSummary::name).orElse("未知门店");
     }
 
     private String normalizeRequired(String value, Set<String> allowed, String message) {

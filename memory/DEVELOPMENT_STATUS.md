@@ -50,22 +50,23 @@
 | 提成PC页面 | DONE | `/app/commission/plans`基础规则配置和`/app/commission/ledgers`筛选/计算详情 |
 | 次卡提成联动 | DONE | 每卡售卡提成、次卡实耗独立方案、换卡旧卡冲回/补差计提、退卡冲回状态 |
 | 转赠卡提成谱系 | DONE | 连续转赠后换卡/退卡可追溯最近原售卡流水并冲回 |
+| 提成模拟测算 | DONE | 方案、员工、门店、日期和样例业绩验算，含适用性告警且不写流水 |
 | 完整薪酬规则 | TODO | 累计阶梯、多人分配、店长提成、跨月扣减、借调和工资计算尚未开发 |
 | 敏感字段保护 | DONE | AES-256-GCM密文、带pepper检索哈希、手机号接口脱敏 |
-| 数据库版本 | DONE | 0900、0910、1030、1100、1110、1120、1130、1140、1150、1160、1170、1180、1190、1200、1210、1220、1230共17个Migration脚本及人工记录 |
-| 前端按需加载 | DONE | Element Plus按需加载，最大公共JS约169.01 KB |
+| 数据库版本 | DONE | 0900、0910、1030、1100、1110、1120、1130、1140、1150、1160、1170、1180、1190、1200、1210、1220、1230、1240共18个Migration脚本及人工记录 |
+| 前端按需加载 | DONE | Element Plus按需加载，最大公共JS约169.42 KB |
 
 ## 最近验证
 
 ```text
 ./mvnw test
-  66 tests，0 failure，0 error
+  67 tests，0 failure，0 error
 
 pnpm test
   1个测试文件、2个测试通过
 
 pnpm build
-  含类型检查并通过；最大公共JS约169.01 KB（原约1.06 MB）
+  含类型检查并通过；最大公共JS约169.42 KB（原约1.06 MB）
 
 docker compose --env-file .env.example -f infra/compose.yaml config --quiet
   通过
@@ -73,7 +74,7 @@ docker compose --env-file .env.example -f infra/compose.yaml config --quiet
 
 ## 当前限制
 
-- SQL Server镜像未就绪，17个Migration及数据库版Mapper尚未在真实空库执行。
+- SQL Server镜像未就绪，18个Migration及数据库版Mapper尚未在真实空库执行。
 - 甲方数据库备份、完整数据字典、齐总版和钇休版代码尚未进入工作区。
 - 数据中心5项、AI最终输出范围、支付/短信通道及部分计算口径仍需甲方确认。
 - 当前会员主档范围是API-MEM-001~003；编辑、冻结、标签和归属调整尚未开发。

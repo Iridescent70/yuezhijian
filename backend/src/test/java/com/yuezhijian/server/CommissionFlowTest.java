@@ -95,13 +95,47 @@ class CommissionFlowTest {
                 .isEqualTo(original.path("id").asLong());
     }
 
+    @Test
+    void simulatorCalculatesFixedPlanWithoutWritingLedger() throws Exception {
+        MockHttpSession session = login();
+        String code = "FIXED_SIM_" + System.nanoTime();
+        JsonNode plan = json(postJson(session, "/api/v1/commission-plans", """
+                {"code":"%s","name":"固定奖励测算","scene":"CARD_SALE","calculationMode":"FIXED",
+                 "fixedAmount":15,"storeId":2,"positionId":1,"effectiveFrom":"%s"}
+                """.formatted(code, LocalDate.now().minusDays(1)), 201)).path("data");
+        int ledgerCountBefore = allLedgers(session).size();
+
+        JsonNode result = json(postJson(
+                session, "/api/v1/commission-plans/" + plan.path("id").asLong() + "/simulate", """
+                {"employeeId":101,"storeId":2,"businessDate":"%s",
+                 "performanceAmount":800,"itemCount":3}
+                """.formatted(LocalDate.now()), 200)).path("data");
+
+        org.assertj.core.api.Assertions.assertThat(result.path("applicable").asBoolean()).isTrue();
+        org.assertj.core.api.Assertions.assertThat(result.path("commissionAmount").decimalValue())
+                .isEqualByComparingTo("45.0000");
+        org.assertj.core.api.Assertions.assertThat(result.path("calculationSteps").get(1).asText())
+                .contains("15.0000×3=45.0000");
+        org.assertj.core.api.Assertions.assertThat(result.path("warnings").size()).isZero();
+        org.assertj.core.api.Assertions.assertThat(allLedgers(session)).hasSize(ledgerCountBefore);
+
+        JsonNode outsideEffectiveDate = json(postJson(
+                session, "/api/v1/commission-plans/" + plan.path("id").asLong() + "/simulate", """
+                {"employeeId":101,"storeId":2,"businessDate":"%s",
+                 "performanceAmount":800,"itemCount":3}
+                """.formatted(LocalDate.now().minusDays(2)), 200)).path("data");
+        org.assertj.core.api.Assertions.assertThat(outsideEffectiveDate.path("applicable").asBoolean()).isFalse();
+        org.assertj.core.api.Assertions.assertThat(outsideEffectiveDate.path("warnings").get(0).asText())
+                .isEqualTo("业务日期不在方案有效期内");
+        org.assertj.core.api.Assertions.assertThat(allLedgers(session)).hasSize(ledgerCountBefore);
+    }
+
     private List<JsonNode> ledgersForBill(MockHttpSession session, long billId, String sourceType) throws Exception {
         return ledgersForSource(session, billId, sourceType);
     }
 
     private List<JsonNode> ledgersForSource(MockHttpSession session, long sourceId, String sourceType) throws Exception {
-        JsonNode data = json(mockMvc.perform(get("/api/v1/commission-ledgers").session(session))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data");
+        JsonNode data = allLedgers(session);
         List<JsonNode> result = new ArrayList<>();
         data.forEach(item -> {
             if (item.path("sourceId").asLong() == sourceId && sourceType.equals(item.path("sourceType").asText())) {
@@ -109,6 +143,11 @@ class CommissionFlowTest {
             }
         });
         return result;
+    }
+
+    private JsonNode allLedgers(MockHttpSession session) throws Exception {
+        return json(mockMvc.perform(get("/api/v1/commission-ledgers").session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data");
     }
 
     private String postJson(MockHttpSession session, String url, String content, int code) throws Exception {

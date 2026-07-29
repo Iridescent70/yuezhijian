@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
 import { createCommissionPlan, getCommissionPlans, updateCommissionPlan } from '@/api/commission'
 import { getPositions } from '@/api/masterData'
 import { getStores } from '@/api/platform'
@@ -11,6 +12,7 @@ import type {
 import { formatMoney } from '@/utils/formatMoney'
 
 const auth = useAuthStore()
+const router = useRouter()
 const loading = ref(false)
 const saving = ref(false)
 const keyword = ref('')
@@ -123,7 +125,10 @@ onMounted(async () => {
   <section class="page-content">
     <div class="section-title-row">
       <div><h1>提成方案</h1><p>方案按门店、职务和生效日期匹配；每次修改都会增加规则版本，历史流水不重算。</p></div>
-      <el-button v-if="auth.hasPermission('commission:plan:manage')" type="primary" @click="openCreate">新建方案</el-button>
+      <div class="title-actions">
+        <el-button @click="router.push('/app/commission/simulator')">薪资测算</el-button>
+        <el-button v-if="auth.hasPermission('commission:plan:manage')" type="primary" @click="openCreate">新建方案</el-button>
+      </div>
     </div>
     <el-alert type="warning" :closable="false" show-icon>
       当前已落地比例、固定金额和不计提成三种基础规则；阶梯、门店等级等合同组合规则将在后续规则引擎中补齐。

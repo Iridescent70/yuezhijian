@@ -1,5 +1,11 @@
 import { apiRequest } from './http'
-import type { CommissionLedgerItem, CommissionPlan, CommissionPlanPayload } from '@/types/api'
+import type {
+  CommissionLedgerItem,
+  CommissionPlan,
+  CommissionPlanPayload,
+  CommissionSimulationPayload,
+  CommissionSimulationResult,
+} from '@/types/api'
 
 export function getCommissionPlans(params?: {
   keyword?: string; status?: string
@@ -15,6 +21,14 @@ export function updateCommissionPlan(
   id: number, payload: CommissionPlanPayload & { status: string; version: string },
 ): Promise<CommissionPlan> {
   return apiRequest<CommissionPlan>({ method: 'PUT', url: `/commission-plans/${id}`, data: payload })
+}
+
+export function simulateCommissionPlan(
+  id: number, payload: CommissionSimulationPayload,
+): Promise<CommissionSimulationResult> {
+  return apiRequest<CommissionSimulationResult>({
+    method: 'POST', url: `/commission-plans/${id}/simulate`, data: payload,
+  })
 }
 
 export function getCommissionLedgers(params?: {
