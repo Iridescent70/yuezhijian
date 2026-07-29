@@ -10,10 +10,12 @@ public record SettlementQuoteRequest(
         List<@Valid SettlementPaymentRequest> payments,
         @DecimalMin("0.00") BigDecimal balanceAmount,
         @Min(0) int points,
-        List<@Valid SettlementCardSelectionRequest> cards) {
+        List<@Valid SettlementCardSelectionRequest> cards,
+        List<Long> voucherCodeIds) {
     public SettlementQuoteRequest {
         payments = payments == null ? List.of() : List.copyOf(payments);
         balanceAmount = balanceAmount == null ? BigDecimal.ZERO : balanceAmount;
         cards = cards == null ? List.of() : List.copyOf(cards);
+        voucherCodeIds = voucherCodeIds == null ? List.of() : List.copyOf(voucherCodeIds);
     }
 }

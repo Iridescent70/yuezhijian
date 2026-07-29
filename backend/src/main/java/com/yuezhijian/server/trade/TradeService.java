@@ -15,6 +15,10 @@ import com.yuezhijian.server.asset.PointAccount;
 import com.yuezhijian.server.asset.PointSettlementConsumption;
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
+import com.yuezhijian.server.benefit.BenefitRepository;
+import com.yuezhijian.server.benefit.VoucherCodeSummary;
+import com.yuezhijian.server.benefit.VoucherSettlementConsumption;
+import com.yuezhijian.server.benefit.VoucherSettlementOption;
 import com.yuezhijian.server.iam.AccessCatalogService;
 import com.yuezhijian.server.masterdata.EmployeeSummary;
 import com.yuezhijian.server.masterdata.MasterDataRepository;
@@ -48,6 +52,7 @@ public class TradeService {
     private final MemberRepository members;
     private final AssetRepository assets;
     private final CardRepository cards;
+    private final BenefitRepository benefits;
     private final AccessCatalogService accessCatalog;
     private final TradeNumberGenerator numbers;
 
@@ -58,6 +63,7 @@ public class TradeService {
             MemberRepository members,
             AssetRepository assets,
             CardRepository cards,
+            BenefitRepository benefits,
             AccessCatalogService accessCatalog,
             TradeNumberGenerator numbers) {
         this.repository = repository;
@@ -66,6 +72,7 @@ public class TradeService {
         this.members = members;
         this.assets = assets;
         this.cards = cards;
+        this.benefits = benefits;
         this.accessCatalog = accessCatalog;
         this.numbers = numbers;
     }
@@ -258,14 +265,28 @@ public class TradeService {
     public SettlementAssetOptions assetOptions(long billId) {
         BillDetail bill = detail(billId);
         if (bill.bill().memberId() == null) {
-            return new SettlementAssetOptions(null, null, assets.pointsPerYuan(), List.of());
+            return new SettlementAssetOptions(null, null, assets.pointsPerYuan(), List.of(), List.of());
         }
         long memberId = bill.bill().memberId();
         return new SettlementAssetOptions(
                 assets.findBalanceAccount(memberId).orElse(null),
                 assets.findPointAccount(memberId).orElse(null),
                 assets.pointsPerYuan(),
-                cardOptions(billId));
+                cardOptions(billId),
+                voucherOptions(memberId, bill.bill().receivableAmount()));
+    }
+
+    private List<VoucherSettlementOption> voucherOptions(long memberId, BigDecimal receivable) {
+        LocalDateTime now = LocalDateTime.now();
+        return benefits.voucherCodes(memberId, "BOUND", null).stream()
+                .filter(item -> !item.validFrom().isAfter(now) && !item.validUntil().isBefore(now))
+                .filter(item -> receivable.compareTo(item.minSpend()) >= 0)
+                .map(item -> new VoucherSettlementOption(
+                        item.id(), item.code(), item.voucherName(), item.benefitType(), item.faceAmount(),
+                        item.discountRate(), item.minSpend(), voucherAmount(item, money(receivable)),
+                        item.validUntil(), item.version()))
+                .filter(item -> item.previewAmount().signum() > 0)
+                .toList();
     }
 
     public SettlementQuote quote(long billId, SettlementQuoteRequest request, String username) {
@@ -275,7 +296,8 @@ public class TradeService {
             throw new IllegalArgumentException("账单没有可结算的消费明细");
         }
         Long memberId = bill.bill().memberId();
-        if ((request.balanceAmount().signum() > 0 || request.points() > 0 || !request.cards().isEmpty())
+        if ((request.balanceAmount().signum() > 0 || request.points() > 0 || !request.cards().isEmpty()
+                || !request.voucherCodeIds().isEmpty())
                 && memberId == null) {
             throw new IllegalArgumentException("散客账单不能使用会员资产");
         }
@@ -304,9 +326,31 @@ public class TradeService {
             BillLine line = billLines.get(option.billLineId());
             BigDecimal amount = money(line.receivableAmount());
             assetUsages.add(new SettlementAssetUsage(
-                    "CARD", memberId, card.card().id(), balance.id(), line.id(), line.itemId(),
+                    "CARD", memberId, null, card.card().id(), balance.id(), line.id(), line.itemId(),
                     option.requiredTimes(), amount, balance.version(),
                     card.card().cardTypeName() + "抵扣" + line.itemName()));
+            assetTotal = assetTotal.add(amount);
+        }
+
+        Set<Long> selectedVouchers = new HashSet<>();
+        boolean discountVoucherSelected = false;
+        for (Long voucherId : request.voucherCodeIds()) {
+            if (voucherId == null || !selectedVouchers.add(voucherId)) {
+                throw new IllegalArgumentException("同一张代金券不能重复使用");
+            }
+            VoucherCodeSummary voucher = benefits.findVoucherCode(voucherId)
+                    .orElseThrow(() -> new IllegalArgumentException("代金券不存在"));
+            validateVoucher(voucher, memberId, receivable);
+            if ("DISCOUNT".equals(voucher.benefitType()) && discountVoucherSelected) {
+                throw new IllegalArgumentException("一笔账单最多使用一张折扣券");
+            }
+            discountVoucherSelected |= "DISCOUNT".equals(voucher.benefitType());
+            BigDecimal remaining = receivable.subtract(assetTotal).max(BigDecimal.ZERO).setScale(4);
+            BigDecimal amount = voucherAmount(voucher, remaining);
+            if (amount.signum() <= 0) throw new IllegalArgumentException("代金券没有可抵扣金额");
+            assetUsages.add(new SettlementAssetUsage(
+                    "VOUCHER", memberId, voucher.id(), null, null, null, null,
+                    BigDecimal.ONE.setScale(4), amount, voucher.version(), voucher.voucherName() + "（" + voucher.code() + "）"));
             assetTotal = assetTotal.add(amount);
         }
 
@@ -321,7 +365,7 @@ public class TradeService {
                 throw new IllegalArgumentException("储值抵扣金额超过账单剩余应收");
             }
             assetUsages.add(new SettlementAssetUsage(
-                    "BALANCE", memberId, null, null, null, null, balanceAmount, balanceAmount,
+                    "BALANCE", memberId, null, null, null, null, null, balanceAmount, balanceAmount,
                     account.version(), "会员储值抵扣"));
             assetTotal = assetTotal.add(balanceAmount);
         }
@@ -337,7 +381,8 @@ public class TradeService {
                 throw new IllegalArgumentException("积分抵扣金额超过账单剩余应收");
             }
             assetUsages.add(new SettlementAssetUsage(
-                    "POINT", memberId, null, null, null, null, BigDecimal.valueOf(request.points()), pointAmount,
+                    "POINT", memberId, null, null, null, null, null,
+                    BigDecimal.valueOf(request.points()), pointAmount,
                     account.version(), request.points() + "积分抵扣"));
             assetTotal = assetTotal.add(pointAmount);
         }
@@ -406,6 +451,9 @@ public class TradeService {
                         bill.lines().stream().filter(line -> line.id() == asset.billLineId())
                                 .findFirst().orElseThrow().originalAmount(),
                         asset.assetVersion(), asset.displayName(), operatorId));
+                case "VOUCHER" -> benefits.consume(new VoucherSettlementConsumption(
+                        billId, asset.memberId(), asset.voucherCodeId(), asset.amount(), asset.assetVersion(),
+                        asset.displayName(), operatorId));
                 default -> throw new IllegalArgumentException("不支持的会员资产类型");
             }
         }
@@ -512,6 +560,14 @@ public class TradeService {
                         throw new IllegalArgumentException("次卡剩余次数不足");
                     }
                 }
+                case "VOUCHER" -> {
+                    VoucherCodeSummary voucher = benefits.findVoucherCode(asset.voucherCodeId())
+                            .orElseThrow(() -> new IllegalArgumentException("代金券不存在"));
+                    validateVoucher(voucher, asset.memberId(), bill.bill().receivableAmount());
+                    if (!voucher.version().equals(asset.assetVersion())) {
+                        throw new DuplicateResourceException("代金券状态已变化，请重新试算");
+                    }
+                }
                 default -> throw new IllegalArgumentException("不支持的会员资产类型");
             }
         }
@@ -521,6 +577,24 @@ public class TradeService {
         if (!MUTABLE_BILL_STATUSES.contains(bill.status())) {
             throw new IllegalArgumentException("当前账单状态不允许修改或结算");
         }
+    }
+
+    private void validateVoucher(VoucherCodeSummary voucher, Long memberId, BigDecimal receivable) {
+        LocalDateTime now = LocalDateTime.now();
+        if (memberId == null || !java.util.Objects.equals(voucher.memberId(), memberId)) {
+            throw new IllegalArgumentException("代金券不属于当前账单会员");
+        }
+        if (!"BOUND".equals(voucher.status())) throw new IllegalArgumentException("代金券当前不可使用");
+        if (voucher.validFrom().isAfter(now) || voucher.validUntil().isBefore(now)) {
+            throw new IllegalArgumentException("代金券不在有效期内");
+        }
+        if (receivable.compareTo(voucher.minSpend()) < 0) throw new IllegalArgumentException("账单金额未达到代金券门槛");
+    }
+
+    private BigDecimal voucherAmount(VoucherCodeSummary voucher, BigDecimal remaining) {
+        if (remaining.signum() <= 0) return BigDecimal.ZERO.setScale(4);
+        if ("FIXED_AMOUNT".equals(voucher.benefitType())) return money(voucher.faceAmount().min(remaining));
+        return money(remaining.multiply(BigDecimal.ONE.subtract(voucher.discountRate()))).min(remaining);
     }
 
     private String normalizeStatus(String status) {

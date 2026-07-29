@@ -273,7 +273,7 @@ public class MemoryTradeRepository implements TradeRepository {
                 .map(asset -> {
                     long usageId = assetUsageIds.incrementAndGet();
                     return new BillAssetUsageItem(
-                            usageId, asset.assetType(), asset.memberId(), asset.memberCardId(),
+                            usageId, asset.assetType(), asset.memberId(), asset.voucherCodeId(), asset.memberCardId(),
                             asset.memberCardBalanceId(), asset.billLineId(), asset.serviceId(), asset.quantity(),
                             asset.amount(), usageId, asset.displayName(), LocalDateTime.now());
                 })
@@ -447,7 +447,7 @@ public class MemoryTradeRepository implements TradeRepository {
         List<ReversalPaymentImpact> payments = reversalPayments(bill);
         List<ReversalAssetImpact> assets = bill.assetUsages().stream()
                 .map(asset -> new ReversalAssetImpact(
-                        asset.id(), asset.assetType(), asset.memberId(), asset.memberCardId(),
+                        asset.id(), asset.assetType(), asset.memberId(), asset.voucherCodeId(), asset.memberCardId(),
                         asset.memberCardBalanceId(), asset.billLineId(), asset.serviceId(), asset.quantity(),
                         asset.amount(), asset.assetLedgerId(), asset.displayName()))
                 .toList();

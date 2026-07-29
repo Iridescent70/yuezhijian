@@ -76,6 +76,7 @@ export interface SettlementQuotePayload {
   balanceAmount?: number
   points?: number
   cards?: Array<{ billLineId: number; memberCardId: number }>
+  voucherCodeIds?: number[]
 }
 
 export function quoteSettlement(id: number, payload: SettlementQuotePayload): Promise<SettlementQuote> {

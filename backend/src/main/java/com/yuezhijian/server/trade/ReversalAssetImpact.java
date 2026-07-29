@@ -6,6 +6,7 @@ public record ReversalAssetImpact(
         long usageId,
         String assetType,
         long memberId,
+        Long voucherCodeId,
         Long memberCardId,
         Long memberCardBalanceId,
         Long billLineId,

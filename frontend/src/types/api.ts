@@ -841,8 +841,9 @@ export interface QuotePayment {
 }
 
 export interface SettlementAssetUsage {
-  assetType: 'BALANCE' | 'POINT' | 'CARD'
+  assetType: 'BALANCE' | 'POINT' | 'CARD' | 'VOUCHER'
   memberId: number
+  voucherCodeId?: number
   memberCardId?: number
   memberCardBalanceId?: number
   billLineId?: number
@@ -872,6 +873,57 @@ export interface SettlementAssetOptions {
   pointAccount?: PointAccount
   pointsPerYuan: number
   cardOptions: CardSettlementOption[]
+  voucherOptions: VoucherSettlementOption[]
+}
+
+export interface VoucherDefinition {
+  id: number
+  code: string
+  name: string
+  benefitType: 'FIXED_AMOUNT' | 'DISCOUNT'
+  faceAmount: number
+  discountRate: number
+  minSpend: number
+  validDays: number
+  commissionRule?: string
+  status: 'ACTIVE' | 'INACTIVE'
+  version: string
+}
+
+export type VoucherCodeStatus = 'UNBOUND' | 'BOUND' | 'REDEEMED' | 'EXPIRED' | 'VOIDED'
+
+export interface VoucherCodeSummary {
+  id: number
+  code: string
+  voucherId: number
+  voucherCode: string
+  voucherName: string
+  benefitType: 'FIXED_AMOUNT' | 'DISCOUNT'
+  faceAmount: number
+  discountRate: number
+  minSpend: number
+  memberId?: number
+  memberName?: string
+  validFrom: string
+  validUntil: string
+  status: VoucherCodeStatus
+  boundAt?: string
+  redeemedAt?: string
+  redeemedBillId?: number
+  version: string
+}
+
+export interface VoucherSettlementOption {
+  id: number
+  code: string
+  voucherName: string
+  benefitType: 'FIXED_AMOUNT' | 'DISCOUNT'
+  faceAmount: number
+  discountRate: number
+  minSpend: number
+  previewAmount: number
+  validUntil: string
+  version: string
 }
 
 export interface SettlementQuote {

@@ -7,6 +7,8 @@ import com.yuezhijian.server.asset.CardRepository;
 import com.yuezhijian.server.asset.PointRefundCommand;
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
+import com.yuezhijian.server.benefit.BenefitRepository;
+import com.yuezhijian.server.benefit.VoucherRefundCommand;
 import com.yuezhijian.server.iam.AccessCatalogService;
 import java.math.BigDecimal;
 import java.util.List;
@@ -23,6 +25,7 @@ public class ReversalService {
     private final TradeRepository trades;
     private final AssetRepository assets;
     private final CardRepository cards;
+    private final BenefitRepository benefits;
     private final AccessCatalogService accessCatalog;
     private final TradeNumberGenerator numbers;
 
@@ -30,11 +33,13 @@ public class ReversalService {
             TradeRepository trades,
             AssetRepository assets,
             CardRepository cards,
+            BenefitRepository benefits,
             AccessCatalogService accessCatalog,
             TradeNumberGenerator numbers) {
         this.trades = trades;
         this.assets = assets;
         this.cards = cards;
+        this.benefits = benefits;
         this.accessCatalog = accessCatalog;
         this.numbers = numbers;
     }
@@ -112,6 +117,9 @@ public class ReversalService {
                         id, impact.usageId(), impact.memberId(), impact.memberCardId(),
                         impact.memberCardBalanceId(), impact.serviceId(), impact.quantity(), impact.amount(),
                         impact.assetLedgerId(), note, operatorId));
+                case "VOUCHER" -> benefits.refund(new VoucherRefundCommand(
+                        id, bill.bill().id(), impact.usageId(), impact.voucherCodeId(),
+                        impact.assetLedgerId(), note, operatorId));
                 default -> throw new IllegalArgumentException("不支持的冲销资产类型：" + impact.assetType());
             }
         }
@@ -145,6 +153,9 @@ public class ReversalService {
             if ("CARD".equals(impact.assetType()) && (impact.memberCardId() == null
                     || impact.memberCardBalanceId() == null || impact.serviceId() == null)) {
                 throw new IllegalArgumentException("次卡冲销数据不完整");
+            }
+            if ("VOUCHER".equals(impact.assetType()) && impact.voucherCodeId() == null) {
+                throw new IllegalArgumentException("代金券冲销数据不完整");
             }
         }
     }

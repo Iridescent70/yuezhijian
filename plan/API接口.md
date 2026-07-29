@@ -133,8 +133,8 @@
 | API-CAT-018 | `GET /card-types/{id}/preview` | 门店 | 购买页预览 | 次卡管理-05 |
 | API-CAT-019 | `GET/POST /payment-methods` | 门店、类型/代码、名称、统计标志 | 列表/id | 系统管理-29、优化系统管理-02 |
 | API-CAT-020 | `PUT /payment-methods/{id}`、`PUT /payment-methods/sort` | 配置/version、排序 | 更新结果 | 系统管理-29、优化系统管理-02 |
-| API-CAT-021 | `GET/POST /vouchers` | 查询/名称、面额、折扣、有效期、规则 | 分页/id | 系统管理-16 |
-| API-CAT-022 | `GET/PUT /vouchers/{id}` | 详情/规则、状态、version | 详情/更新结果 | 系统管理-16 |
+| API-CAT-021 | `GET/POST /vouchers` | 关键词和状态查询；编码、名称、金额/折扣、门槛、有效天数和提成口径 | 定义列表/详情；`benefit:voucher:view/manage` | 系统管理-16 |
+| API-CAT-022 | `GET/PUT /vouchers/{id}` | 详情；规则、状态和`version` | 详情/并发安全更新结果；`benefit:voucher:view/manage` | 系统管理-16 |
 | API-CAT-023 | `GET/POST /gifts` | 查询/编码、名称、积分价、状态 | 分页/id | 系统管理-23~26 |
 | API-INV-001 | `GET /inventories` | 门店、物品、低库存 | 现存量分页 | 系统管理-25 |
 | API-INV-002 | `GET/POST /inventory-transfers` | 查询/调出入门店、明细 | 单据分页/id | 系统管理-23 |
@@ -199,11 +199,12 @@
 | API-BEN-001 | `POST /points/redemptions/quote` | memberId、giftLines | 积分和库存校验 | 快捷入口-07 |
 | API-BEN-002 | `POST /points/redemptions` | quoteId、门店 | 兑换单、积分/库存流水 | 系统管理-26、快捷入口-07 |
 | API-BEN-003 | `POST /point-redemptions/{id}/void`、`/reverse` | 原因 | 反向流水 | 系统管理-26 |
-| API-BEN-004 | `POST /voucher-codes/bind` | code、memberId | 绑定结果 | 快捷入口-08 |
-| API-BEN-005 | `POST /voucher-codes/redeem` | code、memberId、billId | 核销结果 | 快捷入口-08 |
-| API-BEN-006 | `POST /service-code-jobs` | 类别、数量、有效期、渠道、提成规则 | 生成任务 id | 系统管理-02 |
-| API-BEN-007 | `GET /service-codes` | 批次、码、会员、状态、门店 | 服务码分页 | 系统管理-03 |
-| API-BEN-008 | `POST /service-codes/{code}/bind`、`/redeem` | 会员、门店、服务 | 绑定/核销流水 | 快捷入口-09 |
+| API-BEN-004 | `GET /voucher-codes`、`GET /voucher-codes/{code}` | 会员、状态、关键词/券码 | 发放规则快照、会员、有效期、核销账单和版本；`benefit:voucher:view` | 快捷入口-08 |
+| API-BEN-005 | `POST /voucher-code-issues` | voucherId、数量、可选memberId、幂等键 | 1~100张券码；可直接绑定会员；`benefit:voucher:issue` | 系统管理-16、优化会员-01 |
+| API-BEN-006 | `POST /voucher-codes/{code}/bind` | memberId、幂等键 | 仅`UNBOUND → BOUND`；`benefit:voucher:issue` | 快捷入口-08 |
+| API-BEN-007 | `POST /service-code-jobs` | 类别、数量、有效期、渠道、提成规则 | 生成任务 id | 系统管理-02 |
+| API-BEN-008 | `GET /service-codes` | 批次、码、会员、状态、门店 | 服务码分页 | 系统管理-03 |
+| API-BEN-009 | `POST /service-codes/{code}/bind`、`/redeem` | 会员、门店、服务 | 绑定/核销流水 | 快捷入口-09 |
 
 ## 5. 预约、账单、结算、调账和冲销
 
@@ -229,9 +230,9 @@
 | API-TRD-005 | `POST /bills/{id}/lines` | 项目/产品/次卡、数量、原价、技师及分配 | 行 id、金额重算 | 结算管理-06 |
 | API-TRD-006 | `PUT/DELETE /bills/{id}/lines/{lineId}` | PUT：数量、技师、备注、`version`；DELETE：`version` | 最新账单；删除为软删除 | 结算管理-06 |
 | API-TRD-007 | `POST /bills/{id}/discounts` | `discountType=AMOUNT/RATE`、`value`、原因、`version` | 按行分摊后的账单和优惠明细 | 混合支付 |
-| API-TRD-008 | `GET /bills/{id}/asset-options`、`/card-options` | 账单会员和明细 | 储值/积分余额、积分比例、项目-次卡匹配和推荐 | 结算管理-01 |
-| API-TRD-009 | `POST /bills/{id}/settlement/quote` | `payments`、`balanceAmount`、`points`、`cards[]` | 金额、资产版本及10分钟有效试算 | 结算管理-01、02 |
-| API-TRD-010 | `POST /bills/{id}/settle` | `quoteNo`、`idempotencyKey` | SETTLED、外部支付及储值/积分/次卡流水 | 业务管理-02、结算-01、02 |
+| API-TRD-008 | `GET /bills/{id}/asset-options`、`/card-options` | 账单会员和明细 | 储值/积分、次卡推荐及满足会员/有效期/门槛的代金券 | 结算管理-01、02 |
+| API-TRD-009 | `POST /bills/{id}/settlement/quote` | `payments`、`balanceAmount`、`points`、`cards[]`、`voucherCodeIds[]` | 金额、券规则快照、全部资产版本及10分钟有效试算 | 结算管理-01、02 |
+| API-TRD-010 | `POST /bills/{id}/settle` | `quoteNo`、`idempotencyKey` | SETTLED、外部支付及储值/积分/次卡/代金券不可变流水 | 业务管理-02、结算-01、02 |
 | API-TRD-011 | `POST /bills/{id}/void` | 原因；仅允许未结算 | VOIDED | 业务管理-02 |
 | API-TRD-012 | `GET /bills/{id}/receipt` | templateId | 小票数据/打印内容 | 优化系统管理-04 |
 | API-TRD-013 | `GET/POST /bill-adjustments` | 查询/原账单、调整项、原因、证明文件 | 申请分页/id | 结算管理-03 |
@@ -241,7 +242,7 @@
 | API-TRD-017 | `GET /reversals`、`POST /bills/{billId}/reversals` | 状态查询/原因、`idempotencyKey` | 列表/冲销申请、支付及资产影响；`trade:reversal:view/manage` | 结算管理-04 |
 | API-TRD-018 | `GET /reversals/{id}` | 冲销 id | 申请、原账单、支付退款及资产返还明细；`trade:reversal:view` | 结算管理-04 |
 | API-TRD-019 | `POST /reversals/{id}/review` | `approved`、意见、`version` | `APPROVED/REJECTED`；`trade:reversal:approve` | 结算管理-04 |
-| API-TRD-020 | `POST /reversals/{id}/execute` | `version`、`idempotencyKey` | `EXECUTED`、账单`REVERSED`、支付退款及资产反向流水；`trade:reversal:manage` | 业务管理-02、结算管理-04 |
+| API-TRD-020 | `POST /reversals/{id}/execute` | `version`、`idempotencyKey` | `EXECUTED`、账单`REVERSED`、支付退款及储值/积分/次卡/代金券反向流水；`trade:reversal:manage` | 业务管理-02、结算管理-04 |
 | API-TRD-021 | `GET /recommendation-card-performance` | 日期、门店、技师 | 推荐卡卡数和金额 | 业务管理-04 |
 | API-TRD-022 | `GET /global-search` | keyword、types | 会员、账单、预约、功能结果 | 优化系统管理-05 |
 

@@ -7,6 +7,7 @@ public record BillAssetUsageItem(
         long id,
         String assetType,
         long memberId,
+        Long voucherCodeId,
         Long memberCardId,
         Long memberCardBalanceId,
         Long billLineId,

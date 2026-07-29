@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 public record SettlementAssetUsage(
         String assetType,
         long memberId,
+        Long voucherCodeId,
         Long memberCardId,
         Long memberCardBalanceId,
         Long billLineId,

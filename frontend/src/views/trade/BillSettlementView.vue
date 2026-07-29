@@ -30,6 +30,7 @@ const assetOptions = ref<SettlementAssetOptions | null>(null)
 const quote = ref<SettlementQuote | null>(null)
 const balanceAmount = ref(0)
 const points = ref(0)
+const selectedVoucherIds = ref<number[]>([])
 const selectedCards = reactive<Record<number, number | undefined>>({})
 const payments = reactive<Array<{
   paymentMethodId?: number
@@ -46,7 +47,23 @@ const cardAmount = computed(() => selectedCardOptions.value.reduce((sum, option)
   return sum + Number(line?.receivableAmount ?? 0)
 }, 0))
 const pointAmount = computed(() => points.value / Number(assetOptions.value?.pointsPerYuan || 1))
-const estimatedAssetAmount = computed(() => roundMoney(cardAmount.value + balanceAmount.value + pointAmount.value))
+const voucherAmount = computed(() => {
+  let remaining = Math.max(receivable.value - cardAmount.value, 0)
+  let total = 0
+  for (const id of selectedVoucherIds.value) {
+    const voucher = assetOptions.value?.voucherOptions.find((item) => item.id === id)
+    if (!voucher) continue
+    const amount = voucher.benefitType === 'FIXED_AMOUNT'
+      ? Math.min(Number(voucher.faceAmount), remaining)
+      : roundMoney(remaining * (1 - Number(voucher.discountRate)))
+    total += amount
+    remaining = Math.max(roundMoney(remaining - amount), 0)
+  }
+  return roundMoney(total)
+})
+const estimatedAssetAmount = computed(() => roundMoney(
+  cardAmount.value + voucherAmount.value + balanceAmount.value + pointAmount.value,
+))
 const externalPaymentAmount = computed(() => roundMoney(
   payments.reduce((sum, item) => sum + Number(item.amount || 0), 0),
 ))
@@ -56,11 +73,11 @@ const estimatedPaymentTotal = computed(() => roundMoney(
 const difference = computed(() => Math.max(roundMoney(receivable.value - estimatedPaymentTotal.value), 0))
 const balanceLimit = computed(() => Math.max(Math.min(
   Number(assetOptions.value?.balanceAccount?.availableBalance ?? 0),
-  receivable.value - cardAmount.value,
+  receivable.value - cardAmount.value - voucherAmount.value,
 ), 0))
 const pointLimit = computed(() => Math.max(Math.min(
   Number(assetOptions.value?.pointAccount?.availablePoints ?? 0),
-  Math.floor(Math.max(receivable.value - cardAmount.value - balanceAmount.value, 0)
+  Math.floor(Math.max(receivable.value - cardAmount.value - voucherAmount.value - balanceAmount.value, 0)
     * Number(assetOptions.value?.pointsPerYuan || 1)),
 ), 0))
 
@@ -152,6 +169,7 @@ async function createQuote() {
       cards: Object.entries(selectedCards)
         .filter((entry): entry is [string, number] => entry[1] !== undefined)
         .map(([lineId, cardId]) => ({ billLineId: Number(lineId), memberCardId: cardId })),
+      voucherCodeIds: selectedVoucherIds.value,
       payments: nonEmptyPayments.map((item) => ({
         paymentMethodId: item.paymentMethodId!,
         amount: item.amount,
@@ -243,6 +261,26 @@ onMounted(load)
           <el-card v-if="detail.bill.memberId && assetOptions" shadow="never">
             <template #header><strong>会员资产抵扣</strong></template>
             <div class="asset-fields">
+              <div class="asset-field asset-field-wide">
+                <label>代金券</label>
+                <el-select
+                  v-model="selectedVoucherIds"
+                  multiple
+                  clearable
+                  collapse-tags
+                  placeholder="选择可用券"
+                  @change="onAssetChange"
+                >
+                  <el-option
+                    v-for="voucher in assetOptions.voucherOptions"
+                    :key="voucher.id"
+                    :value="voucher.id"
+                    :label="`${voucher.voucherName} · 可抵${formatMoney(voucher.previewAmount)} · ${voucher.code}`"
+                  />
+                </el-select>
+                <small v-if="assetOptions.voucherOptions.length">预计抵扣 {{ formatMoney(voucherAmount) }}；一笔账单最多一张折扣券</small>
+                <small v-else>当前会员没有满足门槛的可用券</small>
+              </div>
               <div class="asset-field">
                 <label>储值余额</label>
                 <el-input-number
@@ -334,6 +372,7 @@ onMounted(load)
 .settlement-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(360px, 1fr); gap: 16px; align-items: start; }
 .settlement-left { display: grid; gap: 16px; }
 .asset-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.asset-field-wide { grid-column: 1 / -1; }
 .asset-field { display: grid; grid-template-columns: 90px minmax(140px, 1fr); align-items: center; gap: 8px 12px; }
 .asset-field label { font-weight: 600; }
 .asset-field small { grid-column: 2; color: var(--el-text-color-secondary); }

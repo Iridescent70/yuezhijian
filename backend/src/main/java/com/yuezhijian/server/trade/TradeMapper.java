@@ -106,7 +106,8 @@ public interface TradeMapper {
     List<BillDiscountItem> findDiscounts(long billId);
 
     @Select("""
-            SELECT id, asset_type AS assetType, member_id AS memberId, member_card_id AS memberCardId,
+            SELECT id, asset_type AS assetType, member_id AS memberId, voucher_code_id AS voucherCodeId,
+                   member_card_id AS memberCardId,
                    member_card_balance_id AS memberCardBalanceId, bill_line_id AS billLineId,
                    service_id AS serviceId, quantity, amount, asset_ledger_id AS assetLedgerId,
                    display_name AS displayName,
@@ -325,10 +326,10 @@ public interface TradeMapper {
 
     @Insert("""
             INSERT INTO dbo.trd_settlement_quote_asset (
-                quote_id, asset_type, member_id, member_card_id, member_card_balance_id,
+                quote_id, asset_type, member_id, voucher_code_id, member_card_id, member_card_balance_id,
                 bill_line_id, service_id, quantity, amount, asset_version, display_name, sort_no
             ) VALUES (
-                #{quoteId}, #{asset.assetType}, #{asset.memberId}, #{asset.memberCardId},
+                #{quoteId}, #{asset.assetType}, #{asset.memberId}, #{asset.voucherCodeId}, #{asset.memberCardId},
                 #{asset.memberCardBalanceId}, #{asset.billLineId}, #{asset.serviceId},
                 #{asset.quantity}, #{asset.amount}, #{asset.assetVersion}, #{asset.displayName}, #{sortNo}
             )
@@ -361,7 +362,7 @@ public interface TradeMapper {
     List<QuotePayment> findQuotePayments(long quoteId);
 
     @Select("""
-            SELECT asset_type AS assetType, member_id AS memberId,
+            SELECT asset_type AS assetType, member_id AS memberId, voucher_code_id AS voucherCodeId,
                    member_card_id AS memberCardId, member_card_balance_id AS memberCardBalanceId,
                    bill_line_id AS billLineId, service_id AS serviceId,
                    quantity, amount, asset_version AS assetVersion, display_name AS displayName

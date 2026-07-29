@@ -144,6 +144,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '退卡管理', permission: 'member:card:refund:view' },
       },
       {
+        path: 'benefits/vouchers',
+        name: 'vouchers',
+        component: () => import('@/views/benefit/VoucherListView.vue'),
+        meta: { title: '代金券管理', permission: 'benefit:voucher:view' },
+      },
+      {
         path: 'forbidden',
         name: 'forbidden',
         component: () => import('@/views/ForbiddenView.vue'),
