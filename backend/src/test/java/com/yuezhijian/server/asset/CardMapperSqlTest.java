@@ -41,4 +41,23 @@ class CardMapperSqlTest {
                 "remaining_times + #{times} <= total_times - frozen_times",
                 "row_version = #{rowVersion}");
     }
+
+    @Test
+    void exchangeUsesLockedBalancesAndVersionedOldCardClose() throws Exception {
+        Method lock = CardMapper.class.getMethod("lockMemberCardBalances", long.class);
+        Method create = CardMapper.class.getMethod(
+                "insertExchangeMemberCard", String.class, CardExchangeCommand.class);
+        Method close = CardMapper.class.getMethod("markCardExchanged", long.class, String.class, long.class);
+        String lockSql = String.join(" ", lock.getAnnotation(Select.class).value());
+        String createSql = String.join(" ", create.getAnnotation(Select.class).value());
+        String closeSql = String.join(" ", close.getAnnotation(Update.class).value());
+
+        assertThat(lockSql).contains("UPDLOCK, HOLDLOCK", "balance.member_card_id = #{memberCardId}");
+        assertThat(createSql).contains(
+                "cat_card_type target WITH (UPDLOCK, HOLDLOCK)",
+                "target.row_version = CONVERT(binary(8), #{command.quote.targetCardTypeVersion}, 1)");
+        assertThat(closeSql).contains(
+                "status = 'EXCHANGED'", "status = 'ACTIVE'",
+                "row_version = CONVERT(binary(8), #{version}, 1)");
+    }
 }

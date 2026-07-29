@@ -351,4 +351,188 @@ public interface CardMapper {
     void restoreMemberCardStatus(
             @Param("memberCardId") long memberCardId,
             @Param("operatorId") long operatorId);
+
+    @Select(value = """
+            INSERT INTO dbo.ast_card_exchange_quote (
+                quote_no, old_card_id, target_card_type_id, old_remaining_times,
+                old_remaining_value, new_card_value, difference_amount,
+                old_card_row_version, target_card_type_row_version, expires_at, created_by
+            )
+            OUTPUT INSERTED.id
+            VALUES (
+                #{quoteNo}, #{oldCard.id}, #{targetCardType.id}, #{oldRemainingTimes},
+                #{oldRemainingValue}, #{targetCardType.salePrice}, #{differenceAmount},
+                CONVERT(binary(8), #{oldCard.version}, 1),
+                CONVERT(binary(8), #{targetCardType.version}, 1), #{expiresAt}, #{operatorId}
+            )
+            """, affectData = true)
+    long insertExchangeQuote(CardExchangeQuoteDraft draft);
+
+    @Select("""
+            SELECT quote.id, quote.quote_no AS quoteNo, quote.old_card_id AS oldCardId,
+                   old_card.card_no AS oldCardNo,
+                   old_card.card_type_name_snapshot AS oldCardTypeName,
+                   quote.target_card_type_id AS targetCardTypeId,
+                   target.card_type_name AS targetCardTypeName,
+                   CONVERT(varchar(18), quote.target_card_type_row_version, 1) AS targetCardTypeVersion,
+                   quote.old_remaining_times AS oldRemainingTimes,
+                   quote.old_remaining_value AS oldRemainingValue,
+                   quote.new_card_value AS newCardValue,
+                   quote.difference_amount AS differenceAmount,
+                   CONVERT(varchar(18), quote.old_card_row_version, 1) AS oldCardVersion,
+                   quote.expires_at AS expiresAt,
+                   CASE WHEN quote.used_at IS NULL THEN CAST(0 AS bit) ELSE CAST(1 AS bit) END AS used
+            FROM dbo.ast_card_exchange_quote quote
+            JOIN dbo.ast_member_card old_card ON old_card.id = quote.old_card_id
+            JOIN dbo.cat_card_type target ON target.id = quote.target_card_type_id
+            WHERE quote.quote_no = #{quoteNo}
+            """)
+    CardExchangeQuote findExchangeQuote(String quoteNo);
+
+    @Update("""
+            UPDATE dbo.ast_card_exchange_quote SET used_at = sysdatetime()
+            WHERE id = #{id} AND used_at IS NULL AND expires_at >= sysdatetime()
+              AND old_card_row_version = CONVERT(binary(8), #{oldCardVersion}, 1)
+            """)
+    int markExchangeQuoteUsed(@Param("id") long id, @Param("oldCardVersion") String oldCardVersion);
+
+    @Select("""
+            SELECT balance.id, balance.member_card_id AS memberCardId, balance.service_id AS serviceId,
+                   service.service_code AS serviceCode, service.service_name AS serviceName,
+                   balance.total_times AS totalTimes, balance.remaining_times AS remainingTimes,
+                   balance.frozen_times AS frozenTimes, balance.deduct_times AS deductTimes,
+                   balance.row_version AS rowVersion
+            FROM dbo.ast_member_card_balance balance WITH (UPDLOCK, HOLDLOCK)
+            JOIN dbo.cat_service service ON service.id = balance.service_id
+            WHERE balance.member_card_id = #{memberCardId}
+            ORDER BY balance.id
+            """)
+    List<MemberCardBalanceRow> lockMemberCardBalances(long memberCardId);
+
+    @Select(value = """
+            INSERT INTO dbo.ast_member_card (
+                card_no, member_id, card_type_id, card_type_code_snapshot, card_type_name_snapshot,
+                source_order_id, purchase_store_id, sale_employee_id, purchase_price,
+                started_at, expires_at, original_card_id, created_by, updated_by
+            )
+            OUTPUT INSERTED.id
+            SELECT
+                #{cardNo}, #{command.memberId}, #{command.targetCardType.id},
+                #{command.targetCardType.code}, #{command.targetCardType.name}, NULL,
+                #{command.storeId}, #{command.employeeId}, #{command.targetCardType.salePrice},
+                #{command.startedAt}, DATEADD(day, #{command.targetCardType.validDays}, #{command.startedAt}),
+                #{command.quote.oldCardId}, #{command.operatorId}, #{command.operatorId}
+            FROM dbo.cat_card_type target WITH (UPDLOCK, HOLDLOCK)
+            WHERE target.id = #{command.targetCardType.id}
+              AND target.row_version = CONVERT(binary(8), #{command.quote.targetCardTypeVersion}, 1)
+            """, affectData = true)
+    Long insertExchangeMemberCard(@Param("cardNo") String cardNo, @Param("command") CardExchangeCommand command);
+
+    @Select(value = """
+            INSERT INTO dbo.ast_card_exchange (
+                exchange_no, quote_id, old_card_id, new_card_id, member_id,
+                old_remaining_value, new_card_value, difference_amount,
+                handled_store_id, handled_employee_id, idempotency_key, created_by
+            )
+            OUTPUT INSERTED.id
+            VALUES (
+                #{command.exchangeNo}, #{command.quote.id}, #{command.quote.oldCardId}, #{newCardId},
+                #{command.memberId}, #{command.quote.oldRemainingValue}, #{command.quote.newCardValue},
+                #{command.quote.differenceAmount}, #{command.storeId}, #{command.employeeId},
+                #{command.idempotencyKey}, #{command.operatorId}
+            )
+            """, affectData = true)
+    long insertExchange(@Param("command") CardExchangeCommand command, @Param("newCardId") long newCardId);
+
+    @Update("""
+            UPDATE dbo.ast_member_card_balance
+            SET remaining_times = 0, updated_at = sysdatetime()
+            WHERE id = #{id} AND row_version = #{rowVersion} AND frozen_times = 0
+            """)
+    int clearCardBalance(@Param("id") long id, @Param("rowVersion") byte[] rowVersion);
+
+    @Insert("""
+            INSERT INTO dbo.ast_member_card_ledger (
+                ledger_no, member_card_id, service_id, transaction_type,
+                before_times, change_times, after_times, value_amount,
+                source_type, source_id, occurred_at, correlation_id, note, created_by
+            ) VALUES (
+                #{ledgerNo}, #{balance.memberCardId}, #{balance.serviceId}, 'EXCHANGE_OUT',
+                #{balance.remainingTimes}, -#{balance.remainingTimes}, 0, #{valueAmount},
+                'CARD_EXCHANGE', #{exchangeId}, sysdatetime(),
+                CONCAT('card-exchange:', #{exchangeId}, ':out:', #{balance.id}),
+                N'换卡转出剩余次数', #{operatorId}
+            )
+            """)
+    void insertExchangeOutLedger(
+            @Param("ledgerNo") String ledgerNo,
+            @Param("exchangeId") long exchangeId,
+            @Param("balance") MemberCardBalanceRow balance,
+            @Param("valueAmount") BigDecimal valueAmount,
+            @Param("operatorId") long operatorId);
+
+    @Insert("""
+            INSERT INTO dbo.ast_member_card_ledger (
+                ledger_no, member_card_id, service_id, transaction_type,
+                before_times, change_times, after_times, value_amount,
+                source_type, source_id, occurred_at, correlation_id, note, created_by
+            ) VALUES (
+                #{ledgerNo}, #{newCardId}, #{rule.serviceId}, 'EXCHANGE_IN',
+                0, #{rule.includedTimes}, #{rule.includedTimes}, #{valueAmount},
+                'CARD_EXCHANGE', #{exchangeId}, sysdatetime(),
+                CONCAT('card-exchange:', #{exchangeId}, ':in:', #{rule.serviceId}),
+                N'换卡转入新卡次数', #{operatorId}
+            )
+            """)
+    void insertExchangeInLedger(
+            @Param("ledgerNo") String ledgerNo,
+            @Param("exchangeId") long exchangeId,
+            @Param("newCardId") long newCardId,
+            @Param("rule") CardServiceRule rule,
+            @Param("valueAmount") BigDecimal valueAmount,
+            @Param("operatorId") long operatorId);
+
+    @Insert("""
+            INSERT INTO dbo.ast_card_exchange_payment (
+                exchange_id, payment_method_id, amount, external_reference, sort_no
+            ) VALUES (#{exchangeId}, #{payment.paymentMethodId}, #{payment.amount},
+                      #{payment.externalReference}, #{sortNo})
+            """)
+    void insertExchangePayment(
+            @Param("exchangeId") long exchangeId,
+            @Param("payment") CardExchangePayment payment,
+            @Param("sortNo") int sortNo);
+
+    @Update("""
+            UPDATE dbo.ast_member_card
+            SET status = 'EXCHANGED', updated_at = sysdatetime(), updated_by = #{operatorId}
+            WHERE id = #{cardId} AND status = 'ACTIVE'
+              AND row_version = CONVERT(binary(8), #{version}, 1)
+            """)
+    int markCardExchanged(
+            @Param("cardId") long cardId,
+            @Param("version") String version,
+            @Param("operatorId") long operatorId);
+
+    @Select("""
+            SELECT exchange.id, exchange.exchange_no AS exchangeNo,
+                   exchange.old_card_id AS oldCardId, exchange.new_card_id AS newCardId,
+                   exchange.old_remaining_value AS oldRemainingValue,
+                   exchange.new_card_value AS newCardValue,
+                   exchange.difference_amount AS differenceAmount,
+                   exchange.executed_at AS executedAt
+            FROM dbo.ast_card_exchange exchange
+            WHERE exchange.idempotency_key = #{key}
+            """)
+    CardExchangeRow findExchangeByIdempotencyKey(String key);
+
+    @Select("""
+            SELECT payment.payment_method_id AS paymentMethodId, method.method_name AS paymentMethodName,
+                   payment.amount, payment.external_reference AS externalReference
+            FROM dbo.ast_card_exchange_payment payment
+            JOIN dbo.cat_payment_method method ON method.id = payment.payment_method_id
+            WHERE payment.exchange_id = #{exchangeId}
+            ORDER BY payment.sort_no
+            """)
+    List<CardExchangePayment> findExchangePayments(long exchangeId);
 }

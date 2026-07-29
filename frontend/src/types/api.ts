@@ -320,6 +320,43 @@ export interface CardSaleResult {
   cards: MemberCardSummary[]
 }
 
+export interface CardExchangeQuote {
+  id: number
+  quoteNo: string
+  oldCardId: number
+  oldCardNo: string
+  oldCardTypeName: string
+  targetCardTypeId: number
+  targetCardTypeName: string
+  targetCardTypeVersion: string
+  oldRemainingTimes: number
+  oldRemainingValue: number
+  newCardValue: number
+  differenceAmount: number
+  oldCardVersion: string
+  expiresAt: string
+  used: boolean
+}
+
+export interface CardExchangePayment {
+  paymentMethodId: number
+  paymentMethodName: string
+  amount: number
+  externalReference?: string
+}
+
+export interface CardExchangeResult {
+  exchangeId: number
+  exchangeNo: string
+  oldCard: MemberCardSummary
+  newCard: MemberCardSummary
+  oldRemainingValue: number
+  newCardValue: number
+  differenceAmount: number
+  payments: CardExchangePayment[]
+  executedAt: string
+}
+
 export interface CreateMemberPayload {
   fullName: string
   nickname?: string

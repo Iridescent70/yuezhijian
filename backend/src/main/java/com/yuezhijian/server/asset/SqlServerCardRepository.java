@@ -153,6 +153,92 @@ public class SqlServerCardRepository implements CardRepository {
         mapper.restoreMemberCardStatus(command.memberCardId(), command.operatorId());
     }
 
+    @Override
+    public Optional<CardExchangeQuote> findExchangeQuote(String quoteNo) {
+        if (quoteNo == null) return Optional.empty();
+        return Optional.ofNullable(mapper.findExchangeQuote(quoteNo));
+    }
+
+    @Override
+    @Transactional
+    public CardExchangeQuote createExchangeQuote(CardExchangeQuoteDraft draft) {
+        mapper.insertExchangeQuote(draft);
+        return findExchangeQuote(draft.quoteNo()).orElseThrow();
+    }
+
+    @Override
+    public Optional<CardExchangeResult> findExchangeByIdempotencyKey(String key) {
+        if (key == null) return Optional.empty();
+        CardExchangeRow row = mapper.findExchangeByIdempotencyKey(key);
+        if (row == null) return Optional.empty();
+        MemberCardSummary oldCard = findMemberCard(row.oldCardId()).orElseThrow().card();
+        MemberCardSummary newCard = findMemberCard(row.newCardId()).orElseThrow().card();
+        return Optional.of(new CardExchangeResult(
+                row.id(), row.exchangeNo(), oldCard, newCard, row.oldRemainingValue(), row.newCardValue(),
+                row.differenceAmount(), mapper.findExchangePayments(row.id()), row.executedAt()));
+    }
+
+    @Override
+    @Transactional
+    public CardExchangeResult exchange(CardExchangeCommand command) {
+        Optional<CardExchangeResult> existing = findExchangeByIdempotencyKey(command.idempotencyKey());
+        if (existing.isPresent()) return existing.get();
+        if (mapper.markExchangeQuoteUsed(command.quote().id(), command.quote().oldCardVersion()) != 1) {
+            throw new DuplicateResourceException("换卡试算已失效或已被使用，请重新试算");
+        }
+        List<MemberCardBalanceRow> oldBalances = mapper.lockMemberCardBalances(command.quote().oldCardId());
+        if (oldBalances.isEmpty()) throw new IllegalArgumentException("原次卡没有项目余额");
+        if (oldBalances.stream().anyMatch(item -> item.frozenTimes().signum() > 0)) {
+            throw new IllegalArgumentException("原次卡存在冻结次数，不能换卡");
+        }
+        BigDecimal remaining = oldBalances.stream().map(MemberCardBalanceRow::remainingTimes)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (remaining.compareTo(command.quote().oldRemainingTimes()) != 0) {
+            throw new DuplicateResourceException("原次卡剩余次数已发生变化，请重新试算");
+        }
+        Long newCardId = mapper.insertExchangeMemberCard(numbers.memberCardNo(), command);
+        if (newCardId == null) {
+            throw new DuplicateResourceException("目标次卡配置已发生变化，请重新试算");
+        }
+        long exchangeId = mapper.insertExchange(command, newCardId);
+
+        BigDecimal allocatedOld = BigDecimal.ZERO.setScale(4);
+        List<MemberCardBalanceRow> positiveOld = oldBalances.stream()
+                .filter(item -> item.remainingTimes().signum() > 0).toList();
+        for (int index = 0; index < positiveOld.size(); index++) {
+            MemberCardBalanceRow balance = positiveOld.get(index);
+            BigDecimal value = index == positiveOld.size() - 1
+                    ? command.quote().oldRemainingValue().subtract(allocatedOld)
+                    : command.quote().oldRemainingValue().multiply(balance.remainingTimes())
+                            .divide(remaining, 4, RoundingMode.HALF_UP);
+            value = value.setScale(4, RoundingMode.HALF_UP);
+            allocatedOld = allocatedOld.add(value);
+            if (mapper.clearCardBalance(balance.id(), balance.rowVersion()) != 1) {
+                throw new DuplicateResourceException("原次卡次数已发生变化，请重新试算");
+            }
+            mapper.insertExchangeOutLedger(
+                    numbers.cardLedgerNo(), exchangeId, balance, value, command.operatorId());
+        }
+
+        BigDecimal targetTotal = command.targetCardType().serviceRules().stream()
+                .map(CardServiceRule::includedTimes).reduce(BigDecimal.ZERO, BigDecimal::add);
+        for (CardServiceRule rule : command.targetCardType().serviceRules()) {
+            mapper.insertMemberCardBalance(newCardId, rule);
+            mapper.insertExchangeInLedger(
+                    numbers.cardLedgerNo(), exchangeId, newCardId, rule,
+                    allocatedValue(command.targetCardType().salePrice(), rule.includedTimes(), targetTotal),
+                    command.operatorId());
+        }
+        for (int index = 0; index < command.payments().size(); index++) {
+            mapper.insertExchangePayment(exchangeId, command.payments().get(index), (index + 1) * 10);
+        }
+        if (mapper.markCardExchanged(
+                command.quote().oldCardId(), command.quote().oldCardVersion(), command.operatorId()) != 1) {
+            throw new DuplicateResourceException("原次卡状态已发生变化，请重新试算");
+        }
+        return findExchangeByIdempotencyKey(command.idempotencyKey()).orElseThrow();
+    }
+
     private CardTypeDetail toCardType(CardTypeRow row) {
         return new CardTypeDetail(
                 row.id(), row.code(), row.name(), row.salePrice(), row.listPrice(), row.totalTimes(),

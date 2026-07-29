@@ -1,5 +1,7 @@
 import { apiRequest } from './http'
 import type {
+  CardExchangeQuote,
+  CardExchangeResult,
   CardSaleResult,
   CardTypeDetail,
   CreateCardTypePayload,
@@ -33,5 +35,23 @@ export function purchaseMemberCard(memberId: number, payload: {
 }): Promise<CardSaleResult> {
   return apiRequest<CardSaleResult>({
     method: 'POST', url: `/members/${memberId}/cards`, data: payload,
+  })
+}
+
+export function quoteCardExchange(cardId: number, targetCardTypeId: number): Promise<CardExchangeQuote> {
+  return apiRequest<CardExchangeQuote>({
+    method: 'POST', url: `/member-cards/${cardId}/exchange/quote`, data: { targetCardTypeId },
+  })
+}
+
+export function executeCardExchange(cardId: number, payload: {
+  quoteNo: string
+  storeId: number
+  employeeId?: number
+  payments: Array<{ paymentMethodId: number; amount: number; externalReference?: string }>
+  idempotencyKey: string
+}): Promise<CardExchangeResult> {
+  return apiRequest<CardExchangeResult>({
+    method: 'POST', url: `/member-cards/${cardId}/exchange`, data: payload,
   })
 }

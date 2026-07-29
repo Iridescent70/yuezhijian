@@ -20,11 +20,15 @@ public class MemoryCardRepository implements CardRepository {
     private final Map<Long, CardTypeDetail> cardTypes = new LinkedHashMap<>();
     private final Map<Long, MemberCardDetail> cards = new LinkedHashMap<>();
     private final Map<String, CardSaleResult> sales = new LinkedHashMap<>();
+    private final Map<String, CardExchangeQuote> exchangeQuotes = new LinkedHashMap<>();
+    private final Map<String, CardExchangeResult> exchanges = new LinkedHashMap<>();
     private final AtomicLong typeIds = new AtomicLong(501);
     private final AtomicLong orderIds = new AtomicLong(600);
     private final AtomicLong cardIds = new AtomicLong(700);
     private final AtomicLong balanceIds = new AtomicLong(800);
     private final AtomicLong ledgerIds = new AtomicLong(900);
+    private final AtomicLong exchangeQuoteIds = new AtomicLong(1000);
+    private final AtomicLong exchangeIds = new AtomicLong(1100);
     private final AssetNumberGenerator numbers;
 
     public MemoryCardRepository(AssetNumberGenerator numbers) {
@@ -211,6 +215,116 @@ public class MemoryCardRepository implements CardRepository {
                 old.purchaseStoreId(), old.purchaseStoreName(), old.purchasePrice(), old.totalTimes(),
                 remainingTotal, old.frozenTimes(), old.startedAt(), old.expiresAt(), status, nextVersion(old.version()));
         cards.put(card.id(), new MemberCardDetail(card, balances, List.copyOf(ledgers)));
+    }
+
+    @Override
+    public synchronized Optional<CardExchangeQuote> findExchangeQuote(String quoteNo) {
+        return Optional.ofNullable(exchangeQuotes.get(quoteNo));
+    }
+
+    @Override
+    public synchronized CardExchangeQuote createExchangeQuote(CardExchangeQuoteDraft draft) {
+        long id = exchangeQuoteIds.incrementAndGet();
+        CardExchangeQuote result = new CardExchangeQuote(
+                id, draft.quoteNo(), draft.oldCard().id(), draft.oldCard().cardNo(),
+                draft.oldCard().cardTypeName(), draft.targetCardType().id(), draft.targetCardType().name(),
+                draft.targetCardType().version(),
+                draft.oldRemainingTimes(), draft.oldRemainingValue(), draft.targetCardType().salePrice(),
+                draft.differenceAmount(), draft.oldCard().version(), draft.expiresAt(), false);
+        exchangeQuotes.put(result.quoteNo(), result);
+        return result;
+    }
+
+    @Override
+    public synchronized Optional<CardExchangeResult> findExchangeByIdempotencyKey(String key) {
+        return Optional.ofNullable(exchanges.get(key));
+    }
+
+    @Override
+    public synchronized CardExchangeResult exchange(CardExchangeCommand command) {
+        Optional<CardExchangeResult> existing = findExchangeByIdempotencyKey(command.idempotencyKey());
+        if (existing.isPresent()) return existing.get();
+        CardExchangeQuote quote = exchangeQuotes.get(command.quote().quoteNo());
+        if (quote == null || quote.used() || quote.expiresAt().isBefore(LocalDateTime.now())) {
+            throw new DuplicateResourceException("换卡试算已失效或已被使用，请重新试算");
+        }
+        MemberCardDetail oldDetail = cards.get(quote.oldCardId());
+        if (oldDetail == null || !"ACTIVE".equals(oldDetail.card().status())
+                || !oldDetail.card().version().equals(quote.oldCardVersion())) {
+            throw new DuplicateResourceException("原次卡状态已发生变化，请重新试算");
+        }
+        if (oldDetail.balances().stream().anyMatch(item -> item.frozenTimes().signum() > 0)) {
+            throw new IllegalArgumentException("原次卡存在冻结次数，不能换卡");
+        }
+        BigDecimal remaining = oldDetail.balances().stream().map(MemberCardBalanceItem::remainingTimes)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (remaining.compareTo(quote.oldRemainingTimes()) != 0) {
+            throw new DuplicateResourceException("原次卡剩余次数已发生变化，请重新试算");
+        }
+        long exchangeId = exchangeIds.incrementAndGet();
+        List<MemberCardBalanceItem> oldBalances = oldDetail.balances().stream().map(item ->
+                new MemberCardBalanceItem(
+                        item.id(), item.serviceId(), item.serviceCode(), item.serviceName(), item.totalTimes(),
+                        BigDecimal.ZERO.setScale(4), item.frozenTimes(), item.deductTimes(), nextVersion(item.version())))
+                .toList();
+        List<MemberCardLedgerItem> oldLedgers = new ArrayList<>(oldDetail.ledgers());
+        List<MemberCardBalanceItem> positiveOld = oldDetail.balances().stream()
+                .filter(item -> item.remainingTimes().signum() > 0).toList();
+        BigDecimal allocatedOld = BigDecimal.ZERO.setScale(4);
+        for (int index = 0; index < positiveOld.size(); index++) {
+            MemberCardBalanceItem balance = positiveOld.get(index);
+            BigDecimal value = index == positiveOld.size() - 1
+                    ? quote.oldRemainingValue().subtract(allocatedOld)
+                    : quote.oldRemainingValue().multiply(balance.remainingTimes())
+                            .divide(remaining, 4, java.math.RoundingMode.HALF_UP);
+            value = value.setScale(4, java.math.RoundingMode.HALF_UP);
+            allocatedOld = allocatedOld.add(value);
+            oldLedgers.add(new MemberCardLedgerItem(
+                    ledgerIds.incrementAndGet(), numbers.cardLedgerNo(), balance.serviceId(), balance.serviceName(),
+                    "EXCHANGE_OUT", balance.remainingTimes(), balance.remainingTimes().negate(),
+                    BigDecimal.ZERO.setScale(4), value, "CARD_EXCHANGE", exchangeId, LocalDateTime.now(),
+                    "card-exchange:" + exchangeId + ":out:" + balance.id(), null, "换卡转出剩余次数"));
+        }
+        MemberCardSummary old = oldDetail.card();
+        MemberCardSummary exchangedOld = new MemberCardSummary(
+                old.id(), old.cardNo(), old.memberId(), old.cardTypeId(), old.cardTypeCode(), old.cardTypeName(),
+                old.purchaseStoreId(), old.purchaseStoreName(), old.purchasePrice(), old.totalTimes(),
+                BigDecimal.ZERO.setScale(4), old.frozenTimes(), old.startedAt(), old.expiresAt(),
+                "EXCHANGED", nextVersion(old.version()));
+        cards.put(old.id(), new MemberCardDetail(exchangedOld, oldBalances, List.copyOf(oldLedgers)));
+
+        long newCardId = cardIds.incrementAndGet();
+        BigDecimal targetTotal = command.targetCardType().serviceRules().stream().map(CardServiceRule::includedTimes)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        MemberCardSummary newCard = new MemberCardSummary(
+                newCardId, numbers.memberCardNo(), command.memberId(), command.targetCardType().id(),
+                command.targetCardType().code(), command.targetCardType().name(), command.storeId(), command.storeName(),
+                command.targetCardType().salePrice(), targetTotal, targetTotal, BigDecimal.ZERO.setScale(4),
+                command.startedAt(), command.startedAt().plusDays(command.targetCardType().validDays()), "ACTIVE", "1");
+        List<MemberCardBalanceItem> newBalances = new ArrayList<>();
+        List<MemberCardLedgerItem> newLedgers = new ArrayList<>();
+        for (CardServiceRule rule : command.targetCardType().serviceRules()) {
+            newBalances.add(new MemberCardBalanceItem(
+                    balanceIds.incrementAndGet(), rule.serviceId(), rule.serviceCode(), rule.serviceName(),
+                    rule.includedTimes(), rule.includedTimes(), BigDecimal.ZERO.setScale(4), rule.deductTimes(), "1"));
+            newLedgers.add(new MemberCardLedgerItem(
+                    ledgerIds.incrementAndGet(), numbers.cardLedgerNo(), rule.serviceId(), rule.serviceName(),
+                    "EXCHANGE_IN", BigDecimal.ZERO.setScale(4), rule.includedTimes(), rule.includedTimes(),
+                    allocatedValue(command.targetCardType().salePrice(), rule.includedTimes(), targetTotal),
+                    "CARD_EXCHANGE", exchangeId, LocalDateTime.now(),
+                    "card-exchange:" + exchangeId + ":in:" + rule.serviceId(), null, "换卡转入新卡次数"));
+        }
+        cards.put(newCardId, new MemberCardDetail(newCard, List.copyOf(newBalances), List.copyOf(newLedgers)));
+        CardExchangeResult result = new CardExchangeResult(
+                exchangeId, command.exchangeNo(), exchangedOld, newCard, quote.oldRemainingValue(),
+                quote.newCardValue(), quote.differenceAmount(), command.payments(), LocalDateTime.now());
+        exchanges.put(command.idempotencyKey(), result);
+        exchangeQuotes.put(quote.quoteNo(), new CardExchangeQuote(
+                quote.id(), quote.quoteNo(), quote.oldCardId(), quote.oldCardNo(), quote.oldCardTypeName(),
+                quote.targetCardTypeId(), quote.targetCardTypeName(), quote.targetCardTypeVersion(), quote.oldRemainingTimes(),
+                quote.oldRemainingValue(), quote.newCardValue(), quote.differenceAmount(), quote.oldCardVersion(),
+                quote.expiresAt(), true));
+        return result;
     }
 
     private BigDecimal allocatedValue(BigDecimal price, BigDecimal included, BigDecimal total) {

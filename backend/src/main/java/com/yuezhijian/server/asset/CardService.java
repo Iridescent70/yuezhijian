@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CardService {
@@ -121,6 +122,85 @@ public class CardService {
                 numbers.cardSaleNo(), memberId, cardType, request.quantity(), request.storeId(),
                 storeName(request.storeId()), request.salesEmployeeId(), paymentMethod.id(), paymentMethod.name(),
                 externalReference, startDate.atStartOfDay(), request.idempotencyKey(), currentUserId(username)));
+    }
+
+    public CardExchangeQuote quoteExchange(
+            long cardId, CardExchangeQuoteRequest request, String username) {
+        MemberCardDetail old = memberCard(cardId);
+        if (!"ACTIVE".equals(old.card().status()) || old.card().expiresAt().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("只有正常有效的次卡可以换卡");
+        }
+        if (old.balances().stream().anyMatch(item -> item.frozenTimes().signum() > 0)) {
+            throw new IllegalArgumentException("原次卡存在冻结次数，不能换卡");
+        }
+        BigDecimal remainingTimes = old.balances().stream().map(MemberCardBalanceItem::remainingTimes)
+                .reduce(BigDecimal.ZERO, BigDecimal::add).setScale(4, RoundingMode.HALF_UP);
+        if (remainingTimes.signum() <= 0) throw new IllegalArgumentException("原次卡没有可换购的剩余次数");
+        CardTypeDetail target = cardType(request.targetCardTypeId());
+        if (!"ACTIVE".equals(target.status())) throw new IllegalArgumentException("目标次卡类型已停用");
+        if (target.id() == old.card().cardTypeId()) throw new IllegalArgumentException("目标次卡不能与原次卡相同");
+        BigDecimal remainingValue = money(old.card().purchasePrice().multiply(remainingTimes)
+                .divide(old.card().totalTimes(), 8, RoundingMode.HALF_UP));
+        BigDecimal newValue = money(target.salePrice());
+        if (newValue.compareTo(remainingValue) < 0) {
+            throw new IllegalArgumentException("目标次卡价值不能低于原卡剩余价值");
+        }
+        return repository.createExchangeQuote(new CardExchangeQuoteDraft(
+                numbers.cardExchangeQuoteNo(), old.card(), target, remainingTimes, remainingValue,
+                newValue.subtract(remainingValue), LocalDateTime.now().plusMinutes(10), currentUserId(username)));
+    }
+
+    @Transactional
+    public CardExchangeResult exchange(
+            long cardId, ExecuteCardExchangeRequest request, String username) {
+        CardExchangeResult existing = repository.findExchangeByIdempotencyKey(request.idempotencyKey()).orElse(null);
+        if (existing != null) {
+            if (existing.oldCard().id() != cardId) throw new IllegalArgumentException("幂等键已用于其他换卡业务");
+            return existing;
+        }
+        CardExchangeQuote quote = repository.findExchangeQuote(request.quoteNo())
+                .orElseThrow(() -> new ResourceNotFoundException("换卡试算不存在"));
+        if (quote.oldCardId() != cardId) throw new IllegalArgumentException("换卡试算与原次卡不匹配");
+        if (quote.used() || quote.expiresAt().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("换卡试算已失效，请重新试算");
+        }
+        MemberCardDetail old = memberCard(cardId);
+        if (old.card().memberId() <= 0) throw new IllegalArgumentException("原次卡会员无效");
+        requireMember(old.card().memberId(), true);
+        validateStore(request.storeId());
+        if (request.employeeId() != null) validateSalesEmployee(request.storeId(), request.employeeId());
+        CardTypeDetail target = cardType(quote.targetCardTypeId());
+        if (!"ACTIVE".equals(target.status()) || !target.storeIds().contains(request.storeId())) {
+            throw new IllegalArgumentException("目标次卡未在当前门店上架");
+        }
+        if (!target.version().equals(quote.targetCardTypeVersion())) {
+            throw new DuplicateResourceException("目标次卡配置已发生变化，请重新试算");
+        }
+        List<PaymentMethodOption> enabledMethods = trades.paymentMethods(request.storeId());
+        Set<Long> seenMethods = new HashSet<>();
+        List<CardExchangePayment> payments = new ArrayList<>();
+        BigDecimal paymentTotal = BigDecimal.ZERO.setScale(4);
+        for (CardExchangePaymentRequest item : request.payments()) {
+            if (!seenMethods.add(item.paymentMethodId())) throw new IllegalArgumentException("补差支付方式不能重复");
+            PaymentMethodOption method = enabledMethods.stream()
+                    .filter(option -> option.id() == item.paymentMethodId()).findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("支付方式未在当前门店启用"));
+            if ("STORED_VALUE".equals(method.type())) throw new IllegalArgumentException("换卡补差暂不支持储值余额支付");
+            String reference = trimToNull(item.externalReference());
+            if (method.needsExternalReference() && reference == null) {
+                throw new IllegalArgumentException(method.name() + "必须填写外部凭证号");
+            }
+            BigDecimal amount = money(item.amount());
+            payments.add(new CardExchangePayment(method.id(), method.name(), amount, reference));
+            paymentTotal = paymentTotal.add(amount);
+        }
+        if (paymentTotal.compareTo(quote.differenceAmount()) != 0) {
+            throw new IllegalArgumentException("补差支付合计必须等于换卡补差金额");
+        }
+        return repository.exchange(new CardExchangeCommand(
+                numbers.cardExchangeNo(), quote, target, old.card().memberId(), request.storeId(),
+                storeName(request.storeId()), request.employeeId(), payments, LocalDateTime.now(),
+                request.idempotencyKey(), currentUserId(username)));
     }
 
     private List<CardServiceRule> validateRules(List<CardServiceRuleRequest> requests, List<Long> storeIds) {

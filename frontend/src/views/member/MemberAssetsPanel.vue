@@ -12,12 +12,19 @@ import {
   quoteRecharge,
 } from '@/api/asset'
 import { getPaymentMethods } from '@/api/trade'
-import { getCardTypes, getMemberCards, purchaseMemberCard } from '@/api/card'
+import {
+  executeCardExchange,
+  getCardTypes,
+  getMemberCards,
+  purchaseMemberCard,
+  quoteCardExchange,
+} from '@/api/card'
 import { getEmployees } from '@/api/masterData'
 import { useAuthStore } from '@/stores/auth'
 import type {
   BalanceAccount,
   BalanceLedgerItem,
+  CardExchangeQuote,
   CardTypeDetail,
   EmployeeSummary,
   MemberCardSummary,
@@ -45,12 +52,19 @@ const salesEmployees = ref<EmployeeSummary[]>([])
 const rechargeVisible = ref(false)
 const pointVisible = ref(false)
 const cardVisible = ref(false)
+const exchangeVisible = ref(false)
+const exchangeQuoteLoading = ref(false)
+const exchangeQuote = ref<CardExchangeQuote>()
+const exchangeSourceCard = ref<MemberCardSummary>()
 const rechargeForm = reactive({ rechargeAmount: 0, giftAmount: 0, paymentMethodId: 0, externalReference: '' })
 const pointForm = reactive({ changePoints: 0, reason: '' })
 const cardForm = reactive({ cardTypeId: 0, quantity: 1, salesEmployeeId: undefined as number | undefined, paymentMethodId: 0, externalReference: '' })
+const exchangeForm = reactive({ targetCardTypeId: 0, employeeId: undefined as number | undefined, paymentMethodId: 0, externalReference: '' })
 const selectedMethod = computed(() => paymentMethods.value.find((item) => item.id === rechargeForm.paymentMethodId))
 const selectedCardMethod = computed(() => paymentMethods.value.find((item) => item.id === cardForm.paymentMethodId))
 const selectedCardType = computed(() => cardTypes.value.find((item) => item.id === cardForm.cardTypeId))
+const selectedExchangeMethod = computed(() => paymentMethods.value.find((item) => item.id === exchangeForm.paymentMethodId))
+const exchangeCardTypes = computed(() => cardTypes.value.filter((item) => item.id !== exchangeSourceCard.value?.cardTypeId))
 const canManage = computed(() => auth.hasPermission('member:asset:manage'))
 
 const balanceTypeLabels: Record<string, string> = {
@@ -205,6 +219,91 @@ async function submitCardPurchase() {
   finally { submitting.value = false }
 }
 
+async function refreshExchangeQuote() {
+  const card = exchangeSourceCard.value
+  const targetCardTypeId = exchangeForm.targetCardTypeId
+  exchangeQuote.value = undefined
+  if (!card || !targetCardTypeId) return
+  exchangeQuoteLoading.value = true
+  try {
+    const quote = await quoteCardExchange(card.id, targetCardTypeId)
+    if (exchangeForm.targetCardTypeId === targetCardTypeId) exchangeQuote.value = quote
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '换卡试算失败')
+  } finally {
+    exchangeQuoteLoading.value = false
+  }
+}
+
+async function openCardExchange(row: unknown) {
+  const card = row as MemberCardSummary
+  try {
+    const [nextTypes, nextMethods, nextEmployees] = await Promise.all([
+      getCardTypes({ storeId: props.storeId, status: 'ACTIVE' }),
+      paymentMethods.value.length ? Promise.resolve(paymentMethods.value) : getPaymentMethods(props.storeId),
+      salesEmployees.value.length ? Promise.resolve(salesEmployees.value) : getEmployees({ storeId: props.storeId }),
+    ])
+    exchangeSourceCard.value = card
+    cardTypes.value = nextTypes
+    paymentMethods.value = nextMethods
+    salesEmployees.value = nextEmployees.filter((item) => item.canSell && item.status === 'ACTIVE')
+    const candidates = nextTypes.filter((item) => item.id !== card.cardTypeId)
+    if (!candidates.length) { ElMessage.warning('当前门店没有其他可换购的次卡类型'); return }
+    const preferred = candidates.find((item) => Number(item.salePrice) >= Number(card.purchasePrice)) ?? candidates[0]
+    const method = nextMethods.find((item) => item.type !== 'STORED_VALUE')
+    Object.assign(exchangeForm, {
+      targetCardTypeId: preferred?.id ?? 0,
+      employeeId: salesEmployees.value[0]?.id,
+      paymentMethodId: method?.id ?? 0,
+      externalReference: '',
+    })
+    exchangeQuote.value = undefined
+    exchangeVisible.value = true
+    await refreshExchangeQuote()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '换卡资料加载失败')
+  }
+}
+
+async function submitCardExchange() {
+  const card = exchangeSourceCard.value
+  const quote = exchangeQuote.value
+  if (!card || !quote) { ElMessage.warning('请先完成换卡试算'); return }
+  if (quote.differenceAmount > 0 && !exchangeForm.paymentMethodId) {
+    ElMessage.warning('请选择补差支付方式'); return
+  }
+  if (quote.differenceAmount > 0 && selectedExchangeMethod.value?.needsExternalReference && !exchangeForm.externalReference.trim()) {
+    ElMessage.warning('当前支付方式必须填写外部凭证号'); return
+  }
+  await ElMessageBox.confirm(
+    `确认将 ${card.cardTypeName} 换为 ${quote.targetCardTypeName}，收取补差 ${formatMoney(quote.differenceAmount)} 吗？`,
+    '确认换卡',
+    { type: 'warning' },
+  )
+  submitting.value = true
+  try {
+    const payments = quote.differenceAmount > 0 ? [{
+      paymentMethodId: exchangeForm.paymentMethodId,
+      amount: quote.differenceAmount,
+      externalReference: exchangeForm.externalReference.trim() || undefined,
+    }] : []
+    const result = await executeCardExchange(card.id, {
+      quoteNo: quote.quoteNo,
+      storeId: props.storeId,
+      employeeId: exchangeForm.employeeId,
+      payments,
+      idempotencyKey: crypto.randomUUID(),
+    })
+    exchangeVisible.value = false
+    ElMessage.success(`换卡完成，新卡号：${result.newCard.cardNo}`)
+    await load()
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '换卡失败')
+  } finally {
+    submitting.value = false
+  }
+}
+
 function formatTime(value?: string) { return value ? value.replace('T', ' ').slice(0, 19) : '—' }
 
 onMounted(load)
@@ -279,6 +378,9 @@ onMounted(load)
           <el-table-column prop="purchaseStoreName" label="购卡门店" min-width="140" />
           <el-table-column label="到期日期" width="120"><template #default="scope">{{ scope.row.expiresAt.slice(0, 10) }}</template></el-table-column>
           <el-table-column label="状态" width="100"><template #default="scope"><el-tag :type="scope.row.status === 'ACTIVE' ? 'success' : 'info'">{{ scope.row.status === 'ACTIVE' ? '有效' : scope.row.status }}</el-tag></template></el-table-column>
+          <el-table-column v-if="auth.hasPermission('member:card:manage')" label="操作" width="90" fixed="right">
+            <template #default="scope"><el-button v-if="scope.row.status === 'ACTIVE'" link type="primary" @click="openCardExchange(scope.row)">换卡</el-button></template>
+          </el-table-column>
         </el-table>
       </el-tab-pane>
     </el-tabs>
@@ -314,6 +416,30 @@ onMounted(load)
         <el-form-item v-if="selectedCardMethod?.needsExternalReference" label="外部凭证" required><el-input v-model="cardForm.externalReference" maxlength="128" /></el-form-item>
       </el-form>
       <template #footer><el-button @click="cardVisible = false">取消</el-button><el-button type="primary" :loading="submitting" @click="submitCardPurchase">确认收款并发卡</el-button></template>
+    </el-dialog>
+
+    <el-dialog v-model="exchangeVisible" title="次卡换购" width="620px" destroy-on-close>
+      <el-alert title="原卡按办卡金额和剩余次数折算；换卡完成后原卡立即关闭，不能撤回。" type="warning" :closable="false" />
+      <el-form v-loading="exchangeQuoteLoading" label-width="110px" style="margin-top: 20px">
+        <el-form-item label="原次卡"><span>{{ exchangeSourceCard?.cardTypeName }} · 剩余 {{ exchangeSourceCard?.remainingTimes }} 次</span></el-form-item>
+        <el-form-item label="目标次卡" required>
+          <el-select v-model="exchangeForm.targetCardTypeId" style="width: 100%" @change="refreshExchangeQuote">
+            <el-option v-for="item in exchangeCardTypes" :key="item.id" :label="`${item.name}（${formatMoney(item.salePrice)}）`" :value="item.id" />
+          </el-select>
+        </el-form-item>
+        <template v-if="exchangeQuote">
+          <el-form-item label="原卡剩余价值"><strong>{{ formatMoney(exchangeQuote.oldRemainingValue) }}</strong></el-form-item>
+          <el-form-item label="新卡售价"><span>{{ formatMoney(exchangeQuote.newCardValue) }}</span></el-form-item>
+          <el-form-item label="应收补差"><strong class="asset-out">{{ formatMoney(exchangeQuote.differenceAmount) }}</strong></el-form-item>
+          <el-form-item label="经办员工"><el-select v-model="exchangeForm.employeeId" clearable style="width: 100%"><el-option v-for="item in salesEmployees" :key="item.id" :label="item.name" :value="item.id" /></el-select></el-form-item>
+          <template v-if="exchangeQuote.differenceAmount > 0">
+            <el-form-item label="支付方式" required><el-select v-model="exchangeForm.paymentMethodId" style="width: 100%"><el-option v-for="item in paymentMethods.filter((method) => method.type !== 'STORED_VALUE')" :key="item.id" :label="item.name" :value="item.id" /></el-select></el-form-item>
+            <el-form-item v-if="selectedExchangeMethod?.needsExternalReference" label="外部凭证" required><el-input v-model="exchangeForm.externalReference" maxlength="128" /></el-form-item>
+          </template>
+          <el-form-item label="报价有效期"><span>{{ formatTime(exchangeQuote.expiresAt) }}</span></el-form-item>
+        </template>
+      </el-form>
+      <template #footer><el-button @click="exchangeVisible = false">取消</el-button><el-button type="primary" :disabled="!exchangeQuote" :loading="submitting" @click="submitCardExchange">确认收款并换卡</el-button></template>
     </el-dialog>
   </div>
 </template>

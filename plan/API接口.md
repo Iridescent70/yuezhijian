@@ -188,8 +188,8 @@
 | API-AST-008 | `GET /members/{id}/cards` | 状态、到期范围 | 会员次卡列表 | 次卡全生命周期 |
 | API-AST-009 | `GET /member-cards/{id}` | 次卡 id | 次卡、项目余额、来源和流水 | 次卡全生命周期 |
 | API-AST-010 | `POST /members/{id}/cards` | cardTypeId、数量、有效期、销售员工、支付 | 购卡单和次卡 id | 次卡全生命周期 |
-| API-AST-011 | `POST /member-cards/{id}/exchange/quote` | targetCardTypeId、剩余价值规则 | 补差试算 | 次卡管理-02 |
-| API-AST-012 | `POST /member-cards/{id}/exchange` | quoteId、支付明细、新有效期 | 新旧卡和流水 | 次卡管理-02 |
+| API-AST-011 | `POST /member-cards/{id}/exchange/quote` | `targetCardTypeId`；按原办卡金额÷原总次数×剩余次数折算，报价10分钟有效 | 原卡余次/余值、目标卡售价、补差、原卡及卡种版本；`member:card:manage` | 次卡管理-02 |
+| API-AST-012 | `POST /member-cards/{id}/exchange` | `quoteNo`、门店、经办员工、补差支付明细、幂等键 | 原卡`EXCHANGED`、新卡、双向流水和换卡单；`member:card:manage` | 次卡管理-02 |
 | API-AST-013 | `POST /member-cards/{id}/transfer` | 接收会员、有效期、原因 | 转赠流水 | 次卡管理-03 |
 | API-AST-014 | `POST /member-cards/{id}/refund-requests` | 重计规则、退款方式、手续费、原因 | 退卡申请 id | 次卡管理-04 |
 | API-AST-015 | `POST /card-refund-requests/{id}/approve`、`/reject` | 意见 | 审批结果 | 次卡管理-04 |

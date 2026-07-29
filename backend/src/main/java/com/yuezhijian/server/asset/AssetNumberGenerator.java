@@ -17,6 +17,8 @@ public class AssetNumberGenerator {
     public String cardSaleNo() { return next("CS"); }
     public String memberCardNo() { return next("MC"); }
     public String cardLedgerNo() { return next("CL"); }
+    public String cardExchangeQuoteNo() { return next("EQ"); }
+    public String cardExchangeNo() { return next("EX"); }
 
     private String next(String prefix) {
         return prefix + LocalDateTime.now().format(FORMAT)

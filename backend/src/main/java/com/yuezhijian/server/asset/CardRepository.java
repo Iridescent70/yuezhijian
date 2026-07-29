@@ -14,4 +14,12 @@ public interface CardRepository {
     CardSaleResult purchase(PurchaseMemberCardDraft draft);
     void consumeCard(CardSettlementConsumption command);
     void refundCard(CardRefundCommand command);
+
+    Optional<CardExchangeQuote> findExchangeQuote(String quoteNo);
+
+    CardExchangeQuote createExchangeQuote(CardExchangeQuoteDraft draft);
+
+    Optional<CardExchangeResult> findExchangeByIdempotencyKey(String key);
+
+    CardExchangeResult exchange(CardExchangeCommand command);
 }

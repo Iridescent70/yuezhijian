@@ -69,4 +69,22 @@ public class CardController {
             Principal principal) {
         return ApiResponse.ok(service.purchase(memberId, request, principal.getName()));
     }
+
+    @PostMapping("/member-cards/{id}/exchange/quote")
+    @PreAuthorize("hasAuthority('member:card:manage')")
+    public ApiResponse<CardExchangeQuote> quoteExchange(
+            @PathVariable long id,
+            @Valid @RequestBody CardExchangeQuoteRequest request,
+            Principal principal) {
+        return ApiResponse.ok(service.quoteExchange(id, request, principal.getName()));
+    }
+
+    @PostMapping("/member-cards/{id}/exchange")
+    @PreAuthorize("hasAuthority('member:card:manage')")
+    public ApiResponse<CardExchangeResult> exchange(
+            @PathVariable long id,
+            @Valid @RequestBody ExecuteCardExchangeRequest request,
+            Principal principal) {
+        return ApiResponse.ok(service.exchange(id, request, principal.getName()));
+    }
 }
