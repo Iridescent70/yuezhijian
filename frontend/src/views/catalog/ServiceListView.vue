@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { createExport } from '@/api/jobs'
 import { createService, getServiceCategories, getServices } from '@/api/masterData'
 import { useAuthStore } from '@/stores/auth'
 import type { CategoryOption, ServiceItemSummary } from '@/types/api'
 import { formatMoney } from '@/utils/formatMoney'
 
 const auth = useAuthStore()
+const router = useRouter()
 const loading = ref(false)
+const exporting = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
 const services = ref<ServiceItemSummary[]>([])
@@ -26,6 +30,26 @@ async function load() {
     ])
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : '服务项目加载失败') }
   finally { loading.value = false }
+}
+
+async function exportCurrentStore() {
+  if (filters.storeId && filters.storeId !== auth.user?.currentStoreId) {
+    ElMessage.warning('服务项目导出固定使用当前登录门店，请切换门店后再导出')
+    return
+  }
+  exporting.value = true
+  try {
+    await createExport({
+      exportType: 'SERVICE_CATALOG',
+      keyword: filters.keyword.trim() || undefined,
+    })
+    ElMessage.success('服务项目导出任务已创建')
+    await router.push('/app/system/downloads')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '服务项目导出任务创建失败')
+  } finally {
+    exporting.value = false
+  }
 }
 
 function openCreate() {
@@ -64,7 +88,14 @@ onMounted(load)
   <section class="page-content">
     <div class="section-title-row">
       <div><h1>服务项目</h1><p>统一维护服务时长、标准售价和门店销售价格。</p></div>
-      <el-button v-if="auth.hasPermission('catalog:service:manage')" type="primary" @click="openCreate">新建服务</el-button>
+      <div>
+        <el-button
+          v-if="auth.hasPermission('system:job:create') && auth.hasPermission('system:job:view') && auth.hasPermission('catalog:service:export')"
+          :loading="exporting"
+          @click="exportCurrentStore"
+        >导出当前门店</el-button>
+        <el-button v-if="auth.hasPermission('catalog:service:manage')" type="primary" @click="openCreate">新建服务</el-button>
+      </div>
     </div>
     <el-card class="filter-card" shadow="never">
       <el-form inline @submit.prevent="load"><el-form-item label="项目查询"><el-input v-model="filters.keyword" clearable placeholder="编号或名称" /></el-form-item><el-form-item label="适用门店"><el-select v-model="filters.storeId" clearable placeholder="全部门店" class="master-filter-select"><el-option v-for="store in auth.user?.stores" :key="store.id" :label="store.name" :value="store.id" /></el-select></el-form-item><el-form-item><el-button type="primary" @click="load">查询</el-button></el-form-item></el-form>

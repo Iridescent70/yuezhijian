@@ -9,7 +9,7 @@ export interface JobQuery {
 }
 
 export function createExport(payload: {
-  exportType: 'SERVICE_FEEDBACK' | 'MEMBER'
+  exportType: 'SERVICE_FEEDBACK' | 'MEMBER' | 'SERVICE_CATALOG'
   keyword?: string
   status?: string
   overdue?: boolean

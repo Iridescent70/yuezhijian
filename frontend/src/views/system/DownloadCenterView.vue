@@ -14,7 +14,9 @@ const detail = ref<AsyncJobItem>()
 const detailVisible = ref(false)
 const query = reactive({ status: '' as '' | AsyncJobStatus, page: 1, size: 20 })
 const exportForm = reactive({
-  exportType: (auth.hasPermission('member:member:export') ? 'MEMBER' : 'SERVICE_FEEDBACK') as 'MEMBER' | 'SERVICE_FEEDBACK',
+  exportType: (auth.hasPermission('member:member:export') ? 'MEMBER'
+    : auth.hasPermission('catalog:service:export') ? 'SERVICE_CATALOG'
+      : 'SERVICE_FEEDBACK') as 'MEMBER' | 'SERVICE_CATALOG' | 'SERVICE_FEEDBACK',
   keyword: '',
   status: '',
   overdue: 'ALL' as 'ALL' | 'YES' | 'NO',
@@ -31,7 +33,8 @@ const statusTypes: Record<AsyncJobStatus, 'info' | 'primary' | 'success' | 'warn
   FAILED: 'danger', CANCELLED: 'info',
 }
 const canCreateExport = computed(() => auth.hasPermission('system:job:create') && (
-  auth.hasPermission('member:member:export') || auth.hasPermission('visit:feedback:view')
+  auth.hasPermission('member:member:export') || auth.hasPermission('catalog:service:export')
+  || auth.hasPermission('visit:feedback:view')
 ))
 
 async function load(silent = false) {
@@ -57,7 +60,8 @@ async function submitExport() {
   try {
     await createExport({
       exportType: exportForm.exportType,
-      keyword: exportForm.exportType === 'MEMBER' ? exportForm.keyword.trim() || undefined : undefined,
+      keyword: ['MEMBER', 'SERVICE_CATALOG'].includes(exportForm.exportType)
+        ? exportForm.keyword.trim() || undefined : undefined,
       status: exportForm.status || undefined,
       overdue: exportForm.exportType === 'SERVICE_FEEDBACK'
         ? exportForm.overdue === 'ALL' ? undefined : exportForm.overdue === 'YES'
@@ -156,7 +160,7 @@ watch(() => exportForm.exportType, () => {
     <div class="section-title-row">
       <div>
         <h1>下载中心</h1>
-        <p>任务按创建人隔离，结果文件默认保留7天；会员和服务反馈均固定导出当前门店。</p>
+        <p>任务按创建人隔离，结果文件默认保留7天；会员、服务项目和服务反馈均固定导出当前门店。</p>
       </div>
     </div>
 
@@ -166,14 +170,15 @@ watch(() => exportForm.exportType, () => {
         <el-form-item label="导出内容">
           <el-select v-model="exportForm.exportType" style="width: 170px">
             <el-option v-if="auth.hasPermission('member:member:export')" label="会员名单" value="MEMBER" />
+            <el-option v-if="auth.hasPermission('catalog:service:export')" label="服务项目" value="SERVICE_CATALOG" />
             <el-option v-if="auth.hasPermission('visit:feedback:view')" label="服务反馈" value="SERVICE_FEEDBACK" />
           </el-select>
         </el-form-item>
         <el-form-item label="当前门店"><el-input :model-value="auth.user?.currentStoreName" disabled style="width: 180px" /></el-form-item>
-        <el-form-item v-if="exportForm.exportType === 'MEMBER'" label="会员查询">
-          <el-input v-model="exportForm.keyword" clearable maxlength="100" placeholder="姓名、手机号、会员号或卡号" style="width: 220px" />
+        <el-form-item v-if="['MEMBER', 'SERVICE_CATALOG'].includes(exportForm.exportType)" :label="exportForm.exportType === 'MEMBER' ? '会员查询' : '项目查询'">
+          <el-input v-model="exportForm.keyword" clearable maxlength="100" :placeholder="exportForm.exportType === 'MEMBER' ? '姓名、手机号、会员号或卡号' : '项目编号或名称'" style="width: 220px" />
         </el-form-item>
-        <el-form-item :label="exportForm.exportType === 'MEMBER' ? '会员状态' : '反馈状态'">
+        <el-form-item v-if="exportForm.exportType !== 'SERVICE_CATALOG'" :label="exportForm.exportType === 'MEMBER' ? '会员状态' : '反馈状态'">
           <el-select v-model="exportForm.status" clearable placeholder="全部" style="width: 150px">
             <template v-if="exportForm.exportType === 'SERVICE_FEEDBACK'">
               <el-option label="待处理" value="OPEN" /><el-option label="处理中" value="PROCESSING" />

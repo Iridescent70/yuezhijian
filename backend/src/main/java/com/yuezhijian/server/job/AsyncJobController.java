@@ -36,7 +36,8 @@ public class AsyncJobController {
     @PreAuthorize("""
             hasAuthority('system:job:create') and (
               (#request.exportType == 'SERVICE_FEEDBACK' and hasAuthority('visit:feedback:view')) or
-              (#request.exportType == 'MEMBER' and hasAuthority('member:member:export'))
+              (#request.exportType == 'MEMBER' and hasAuthority('member:member:export')) or
+              (#request.exportType == 'SERVICE_CATALOG' and hasAuthority('catalog:service:export'))
             )
             """)
     public ApiResponse<AsyncJobItem> createExport(

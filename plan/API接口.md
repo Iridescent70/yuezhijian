@@ -101,7 +101,7 @@
 | API-ORG-014 | `GET/POST /terminals` | 门店/设备指纹、名称、状态 | 终端列表/id | 系统管理-15 |
 | API-COM-001 | `POST /files` | multipart 文件、用途 | 通用独立入口尚未开放；服务反馈和任务结果已使用业务专用入口 | 通用-导入导出 |
 | API-COM-002 | `GET /files/{id}` | fileId | 通用独立入口尚未开放；文件只能从已授权业务或本人任务下载，不提供公开URL | 通用-导入导出 |
-| API-COM-003 | `POST /exports` | `exportType=SERVICE_FEEDBACK/MEMBER`及对应筛选条件 | 当前门店导出任务；除`system:job:create`外还校验业务查看/导出权限；202；已实现 | 系统管理-01 |
+| API-COM-003 | `POST /exports` | `exportType=SERVICE_FEEDBACK/MEMBER/SERVICE_CATALOG`及对应筛选条件 | 当前门店导出任务；除`system:job:create`外还校验业务查看/导出权限；202；已实现 | 系统管理-01 |
 | API-COM-004 | `GET /jobs/{id}`、`POST /jobs/{id}/cancel`、`GET /jobs/{id}/result` | 本人任务id | 详情、等待任务取消、7天内私有结果文件；到期后定时物理清理但保留审计元数据；后台执行使用30分钟可续租租约，失联最多重领3次；`system:job:view/cancel`；已实现 | 系统管理-01 |
 | API-COM-005 | `GET /jobs` | `jobType/status/page/size` | 只返回当前创建人的任务分页；`system:job:view`；已实现 | 系统管理-01 |
 | API-COM-006 | `GET /audit-logs` | 用户、模块、动作、对象、日期 | 审计分页 | 系统管理-07 |
@@ -124,7 +124,7 @@
 | API-CAT-008 | `GET/POST /services` | 查询/项目、时长、售价、成本、分类 | 分页/id | 系统管理-21、优化系统管理-01 |
 | API-CAT-009 | `GET/PUT /services/{id}` | 详情/门店、标签、物料消耗、version | 详情/更新结果 | 系统管理-21、优化系统管理-01 |
 | API-CAT-010 | `POST /services/batch-update` | ids、分类/标签/门店/状态 | 批量结果 | 优化系统管理-01 |
-| API-CAT-011 | `POST /services/import`、`POST /services/export` | 文件/筛选条件 | 任务 id | 优化系统管理-01 |
+| API-CAT-011 | `POST /services/import`、`POST /exports` | 导入文件/`exportType=SERVICE_CATALOG`、关键词 | 导入待开发；当前门店服务项目CSV任务已实现，需`catalog:service:export` | 优化系统管理-01 |
 | API-CAT-012 | `GET/POST /card-types` | 查询/名称、售价、总次、有效期、门店 | 分页/id | 系统管理-13、次卡管理-05 |
 | API-CAT-013 | `GET/PUT /card-types/{id}` | 详情/分组、说明、状态、version | 详情/更新结果 | 系统管理-13、次卡管理-05 |
 | API-CAT-014 | `POST /card-types/{id}/copy` | 新名称、适用门店 | 新 cardTypeId | 次卡管理-05 |

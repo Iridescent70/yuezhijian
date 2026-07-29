@@ -87,6 +87,11 @@ public class AsyncJobService {
                     new MemberExportRequest(
                             limitedKeyword(request.keyword()),
                             optionalStatus(request.status(), MEMBER_STATUSES, "会员状态无效")));
+            case "SERVICE_CATALOG" -> create(
+                    operator,
+                    "服务项目导出",
+                    ServiceCatalogCsvJobHandler.JOB_TYPE,
+                    new ServiceCatalogExportRequest(limitedKeyword(request.keyword())));
             default -> throw new IllegalArgumentException("暂不支持该导出类型");
         };
     }
