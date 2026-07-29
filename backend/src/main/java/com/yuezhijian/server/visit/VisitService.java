@@ -5,6 +5,7 @@ import com.yuezhijian.server.feedback.ServiceFeedbackService;
 import com.yuezhijian.server.iam.AccessCatalogService;
 import com.yuezhijian.server.masterdata.EmployeeSummary;
 import com.yuezhijian.server.masterdata.MasterDataRepository;
+import com.yuezhijian.server.settings.SystemSettingsService;
 import com.yuezhijian.server.trade.BillDetail;
 import com.yuezhijian.server.trade.BillLine;
 import java.time.LocalDate;
@@ -28,18 +29,21 @@ public class VisitService {
     private final AccessCatalogService accessCatalog;
     private final VisitNumberGenerator numbers;
     private final ServiceFeedbackService feedback;
+    private final SystemSettingsService settings;
 
     public VisitService(
             VisitRepository repository,
             MasterDataRepository masterData,
             AccessCatalogService accessCatalog,
             VisitNumberGenerator numbers,
-            ServiceFeedbackService feedback) {
+            ServiceFeedbackService feedback,
+            SystemSettingsService settings) {
         this.repository = repository;
         this.masterData = masterData;
         this.accessCatalog = accessCatalog;
         this.numbers = numbers;
         this.feedback = feedback;
+        this.settings = settings;
     }
 
     public List<VisitTaskSummary> tasks(
@@ -84,7 +88,9 @@ public class VisitService {
         return repository.create(new VisitTaskDraft(
                 numbers.taskNo(), bill.bill().memberId(), bill.bill().id(), bill.bill().billNo(),
                 bill.bill().customerName(), bill.bill().maskedMobile(), bill.bill().storeId(), bill.bill().storeName(),
-                settledAt.plusHours(24), settledAt, participants, operatorId));
+                settledAt.plusHours(settings.integerValue(
+                        "VISIT", "AFTER_SALE_DUE_HOURS", 24, 1, 720)),
+                settledAt, participants, operatorId));
     }
 
     @Transactional

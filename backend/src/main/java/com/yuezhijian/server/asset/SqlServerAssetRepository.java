@@ -1,6 +1,7 @@
 package com.yuezhijian.server.asset;
 
 import com.yuezhijian.server.common.DuplicateResourceException;
+import com.yuezhijian.server.settings.SystemSettingsService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -16,10 +17,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class SqlServerAssetRepository implements AssetRepository {
     private final AssetMapper mapper;
     private final AssetNumberGenerator numbers;
+    private final SystemSettingsService settings;
 
-    public SqlServerAssetRepository(AssetMapper mapper, AssetNumberGenerator numbers) {
+    public SqlServerAssetRepository(
+            AssetMapper mapper, AssetNumberGenerator numbers, SystemSettingsService settings) {
         this.mapper = mapper;
         this.numbers = numbers;
+        this.settings = settings;
     }
 
     @Override
@@ -151,14 +155,7 @@ public class SqlServerAssetRepository implements AssetRepository {
 
     @Override
     public int pointsPerYuan() {
-        String value = mapper.findPointsPerYuan();
-        try {
-            int result = Integer.parseInt(value);
-            if (result <= 0) throw new NumberFormatException();
-            return result;
-        } catch (RuntimeException exception) {
-            throw new IllegalStateException("积分抵现比例配置无效");
-        }
+        return settings.integerValue("ASSET", "POINTS_PER_YUAN", 100, 1, 100000);
     }
 
     @Override

@@ -243,12 +243,6 @@ public interface AssetMapper {
             @Param("note") String note,
             @Param("operatorId") long operatorId);
 
-    @Select("""
-            SELECT value_ciphertext FROM dbo.sys_parameter
-            WHERE param_group = 'ASSET' AND param_key = 'POINTS_PER_YUAN' AND status = 'ACTIVE'
-            """)
-    String findPointsPerYuan();
-
     @Update("""
             UPDATE dbo.ast_balance_account
             SET available_balance = available_balance - #{amount},

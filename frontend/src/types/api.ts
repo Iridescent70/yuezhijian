@@ -1155,3 +1155,48 @@ export interface HandleFeedbackPayload {
   content?: string
   result?: string
 }
+
+export type SettingStatus = 'ACTIVE' | 'DISABLED'
+
+export interface SystemParameterItem {
+  id: number
+  paramGroup: string
+  paramKey: string
+  value: string
+  valueType: 'STRING' | 'INTEGER' | 'DECIMAL' | 'BOOLEAN' | 'JSON'
+  description?: string
+  status: SettingStatus
+  updatedAt: string
+  version: string
+}
+
+export interface SatisfactionRule {
+  id: number
+  ruleName: string
+  keywords: string[]
+  score: number
+  componentMapping: Record<string, string>
+  priority: number
+  status: SettingStatus
+  updatedAt: string
+  version: string
+}
+
+export interface SatisfactionRulePayload {
+  ruleName: string
+  keywords: string[]
+  score: number
+  componentMapping: Record<string, string>
+  priority: number
+  status: SettingStatus
+}
+
+export interface SatisfactionRuleTestResult {
+  matched: boolean
+  ruleId?: number
+  ruleName?: string
+  matchedKeyword?: string
+  score?: number
+  componentMapping: Record<string, string>
+  message: string
+}

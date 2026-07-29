@@ -1,6 +1,7 @@
 package com.yuezhijian.server.asset;
 
 import com.yuezhijian.server.common.DuplicateResourceException;
+import com.yuezhijian.server.settings.SystemSettingsService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -29,9 +30,11 @@ public class MemoryAssetRepository implements AssetRepository {
     private final AtomicLong balanceLedgerIds = new AtomicLong(3000);
     private final AtomicLong pointLedgerIds = new AtomicLong(4000);
     private final AssetNumberGenerator numbers;
+    private final SystemSettingsService settings;
 
-    public MemoryAssetRepository(AssetNumberGenerator numbers) {
+    public MemoryAssetRepository(AssetNumberGenerator numbers, SystemSettingsService settings) {
         this.numbers = numbers;
+        this.settings = settings;
         balances.put(1001L, new MutableBalanceAccount(
                 new BigDecimal("1280.0000"), BigDecimal.ZERO.setScale(4), new BigDecimal("3000.0000"), null, 1));
         balances.put(1002L, new MutableBalanceAccount(
@@ -186,7 +189,7 @@ public class MemoryAssetRepository implements AssetRepository {
 
     @Override
     public int pointsPerYuan() {
-        return 100;
+        return settings.integerValue("ASSET", "POINTS_PER_YUAN", 100, 1, 100000);
     }
 
     @Override

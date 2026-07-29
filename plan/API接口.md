@@ -105,7 +105,7 @@
 | API-COM-005 | `GET /jobs` | 类型、状态、创建人、日期 | 下载中心分页 | 系统管理-01 |
 | API-COM-006 | `GET /audit-logs` | 用户、模块、动作、对象、日期 | 审计分页 | 系统管理-07 |
 | API-COM-007 | `GET /audit-logs/{id}` | 日志 id | 前后值摘要、结果、traceId | 系统管理-07 |
-| API-COM-008 | `GET/PUT /system-parameters` | 分组/键值、version | 参数列表/更新结果 | 系统管理-17 |
+| API-COM-008 | `GET /system-parameters`、`PUT /system-parameters/{id}` | `group`/`value/status/version` | 非密钥参数列表/更新结果；`system:parameter:view/manage`；已实现 | 系统管理-17 |
 | API-COM-009 | `GET/POST /cancel-reasons` | 业务类型/代码、名称、状态 | 列表/id | 系统管理-31 |
 | API-COM-010 | `GET /operation-history/{objectType}/{objectId}` | 对象类型/id | 业务变更时间线 | 通用-历史追踪 |
 
@@ -258,7 +258,7 @@
 | API-VIS-002 | `GET /visit-tasks/{id}` | id | 任务、账单、会员、参与技师和回访历史；`visit:task:view`；已实现 | 会员管理-03 |
 | API-VIS-003 | `POST /visit-tasks/{id}/records` | `employeeId/resultCode/satisfactionScore/complaintFlag/content/nextFollowAt` | 更新后的完整任务；`visit:task:manage`；已实现 | 结算管理-05 |
 | API-VIS-004 | `POST /visit-tasks/{id}/complete` | `conclusion`；仅所有参与技师完成后允许 | 完成状态和总结；`visit:task:manage`；已实现 | 结算管理-05 |
-| API-VIS-005 | `GET/PUT /satisfaction-rules` | 无/识别关键字、评分映射 | 规则 | 系统管理-19 |
+| API-VIS-005 | `GET/POST /satisfaction-rules`、`PUT /satisfaction-rules/{id}`、`POST /satisfaction-rules/test` | 状态/名称、字面关键词、1~5分、组件键值映射、优先级、状态、version；试算文本 | 规则列表/保存结果/首条命中结果；`visit:satisfaction:view/manage`；已实现 | 系统管理-19 |
 | API-VIS-006 | `GET /service-feedback`、`GET /service-feedback/{id}` | `storeId/handlerId/score/status/keyword`；详情 id | 反馈列表/反馈、会员、账单、负责人和处理历史；`visit:feedback:view`；已实现 | 系统管理-20 |
 | API-VIS-007 | `POST /service-feedback/{id}/handle` | `action/handlerId/content/result`；动作`ASSIGN/NOTE/RESOLVE/CLOSE/REOPEN` | 更新后的反馈和处理历史；`visit:feedback:manage`；已实现 | 系统管理-20 |
 | API-MKT-001 | `POST /sms-tasks` | 名称、号码/客群、内容、sendAt | taskId、预估条数 | 短信-01、05 |
@@ -278,7 +278,9 @@
 | API-NTF-006 | `GET/POST /announcements` | 查询/标题、内容、门店、有效期 | 公告列表/id | 系统管理-18 |
 | API-NTF-007 | `PUT /announcements/{id}` | 公告内容、状态、version | 更新结果 | 系统管理-18 |
 
-`API-VIS-001~004`基础闭环已落地。会员账单确认结算后在同一事务中生成一张回访任务，默认到期时间为结算后24小时；同一账单重复结算不会重复生成。每位服务技师生成一个参与项，无技师账单生成“待分配”项。`CONTACTED`必须填写1至5分满意度，`NO_ANSWER/FOLLOW_UP`必须填写未来的下次跟进时间，`DECLINED`直接结束该技师参与项；所有参与项完成后任务自动完成。整单冲销只取消尚未完成的任务。24小时规则后续应改为系统参数，咨询卡/色号和满意度识别规则继续按`API-VIS-005`开发。
+`API-VIS-001~005`基础闭环已落地。会员账单确认结算后在同一事务中生成一张回访任务，同一账单重复结算不会重复生成。到期时间读取`VISIT/AFTER_SALE_DUE_HOURS`系统参数，默认24小时，参数只影响新任务。每位服务技师生成一个参与项，无技师账单生成“待分配”项。`CONTACTED`必须填写1至5分满意度，`NO_ANSWER/FOLLOW_UP`必须填写未来的下次跟进时间，`DECLINED`直接结束该技师参与项；所有参与项完成后任务自动完成。整单冲销只取消尚未完成的任务。
+
+满意度规则按优先级从小到大执行字面包含匹配，同一规则内优先测试较长关键词；不执行正则或大模型推断，未命中时不生成分值。组件映射保存为甲方定义的字符串键值。样例试算只返回命中结果，不写会员、回访或短信数据；自动识别短信须等上行短信通道接入。
 
 `API-VIS-006~007`客诉闭环已落地。只有回访人员明确勾选客诉时才自动建反馈单，低评分不会擅自转客诉；一条回访记录最多一张反馈单。客诉未评分时不伪造分值。状态按`OPEN → PROCESSING → RESOLVED → CLOSED`流转，已解决或已关闭可以`REOPEN`回到处理中。分配、备注、解决、关闭和重开均追加`vis_feedback_action`，不覆盖原客诉内容。附件和非回访渠道反馈仍待文件模块及甲方渠道口径确认。
 

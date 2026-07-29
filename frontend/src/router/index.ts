@@ -180,6 +180,18 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '服务反馈', permission: 'visit:feedback:view' },
       },
       {
+        path: 'service/satisfaction-rules',
+        name: 'satisfaction-rules',
+        component: () => import('@/views/settings/SatisfactionRuleView.vue'),
+        meta: { title: '满意度规则', permission: 'visit:satisfaction:view' },
+      },
+      {
+        path: 'system/parameters',
+        name: 'system-parameters',
+        component: () => import('@/views/settings/SystemParameterView.vue'),
+        meta: { title: '系统参数', permission: 'system:parameter:view' },
+      },
+      {
         path: 'forbidden',
         name: 'forbidden',
         component: () => import('@/views/ForbiddenView.vue'),
