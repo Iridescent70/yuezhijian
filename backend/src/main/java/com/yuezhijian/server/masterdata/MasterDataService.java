@@ -26,7 +26,16 @@ public class MasterDataService {
     }
 
     public List<PositionOption> positions() {
-        return repository.positions();
+        return positions(true);
+    }
+
+    public List<PositionOption> positions(boolean activeOnly) {
+        return repository.positions(activeOnly);
+    }
+
+    public PositionOption position(long id) {
+        return repository.findPosition(id)
+                .orElseThrow(() -> new ResourceNotFoundException("职务不存在"));
     }
 
     public List<CategoryOption> serviceCategories() {
@@ -72,6 +81,22 @@ public class MasterDataService {
         ServiceItemDetail service = requireService(id);
         return copyWithStores(service, service.stores().stream()
                 .filter(store -> storeDataScope.canAccess(store.storeId())).toList());
+    }
+
+    public CreatedResource createPosition(CreatePositionRequest request, String username) {
+        return repository.createPosition(new NewPosition(
+                request.code().trim().toUpperCase(Locale.ROOT), request.name().trim(), request.level(),
+                normalizedRate(request.defaultServiceRate()), normalizedRate(request.defaultSalesRate()),
+                currentUserId(username)));
+    }
+
+    public PositionOption updatePosition(long id, UpdatePositionRequest request, String username) {
+        PositionOption current = position(id);
+        String status = normalize(request.status(), Set.of("ACTIVE", "DISABLED"), "职务状态无效");
+        return repository.updatePosition(new PositionUpdate(
+                current.id(), request.name().trim(), request.level(),
+                normalizedRate(request.defaultServiceRate()), normalizedRate(request.defaultSalesRate()),
+                status, request.version(), currentUserId(username)));
     }
 
     public CreatedResource createEmployee(CreateEmployeeRequest request, String username) {
@@ -271,9 +296,13 @@ public class MasterDataService {
     }
 
     private void requireActivePosition(long positionId) {
-        boolean positionExists = repository.positions().stream()
+        boolean positionExists = repository.positions(true).stream()
                 .anyMatch(position -> position.id() == positionId && "ACTIVE".equals(position.status()));
         if (!positionExists) throw new IllegalArgumentException("所选职务不存在或已停用");
+    }
+
+    private java.math.BigDecimal normalizedRate(java.math.BigDecimal rate) {
+        return rate.setScale(6, java.math.RoundingMode.HALF_UP);
     }
 
     private void validateEmploymentDates(

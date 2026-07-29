@@ -294,7 +294,8 @@ public class CommissionService {
         if (storeId != null && accessCatalog.stores().stream().noneMatch(store -> store.id() == storeId)) {
             throw new IllegalArgumentException("适用门店不存在");
         }
-        if (positionId != null && masterData.positions().stream().noneMatch(position -> position.id() == positionId)) {
+        if (positionId != null && masterData.positions(true).stream()
+                .noneMatch(position -> position.id() == positionId)) {
             throw new IllegalArgumentException("适用职务不存在");
         }
         BigDecimal rate = rateValue == null ? null : rateValue.setScale(6, RoundingMode.HALF_UP);

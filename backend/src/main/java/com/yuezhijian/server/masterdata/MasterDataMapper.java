@@ -11,12 +11,27 @@ import org.apache.ibatis.annotations.Update;
 @Mapper
 public interface MasterDataMapper {
     @Select("""
-            SELECT id, position_code AS code, position_name AS name, status
+            <script>
+            SELECT id, position_code AS code, position_name AS name, position_level AS level,
+                   default_service_rate AS defaultServiceRate, default_sales_rate AS defaultSalesRate,
+                   status, CONVERT(varchar(18), row_version, 1) AS version
             FROM dbo.org_position
+            <if test="activeOnly">
             WHERE status = 'ACTIVE'
+            </if>
             ORDER BY position_level DESC, id
+            </script>
             """)
-    List<PositionOption> findPositions();
+    List<PositionOption> findPositions(@Param("activeOnly") boolean activeOnly);
+
+    @Select("""
+            SELECT id, position_code AS code, position_name AS name, position_level AS level,
+                   default_service_rate AS defaultServiceRate, default_sales_rate AS defaultSalesRate,
+                   status, CONVERT(varchar(18), row_version, 1) AS version
+            FROM dbo.org_position
+            WHERE id = #{id}
+            """)
+    PositionOption findPosition(long id);
 
     @Select("""
             SELECT id, category_code AS code, name, category_type AS type, status
@@ -168,6 +183,28 @@ public interface MasterDataMapper {
             ORDER BY store.store_code, item_store.store_id
             """)
     List<ServiceStoreConfig> findServiceStores(long serviceId);
+
+    @Select(value = """
+            INSERT INTO dbo.org_position (
+                position_code, position_name, position_level,
+                default_service_rate, default_sales_rate, created_by, updated_by
+            )
+            OUTPUT INSERTED.id
+            VALUES (
+                #{code}, #{name}, #{level}, #{defaultServiceRate}, #{defaultSalesRate},
+                #{createdBy}, #{createdBy}
+            )
+            """, affectData = true)
+    long insertPosition(NewPosition position);
+
+    @Update("""
+            UPDATE dbo.org_position
+            SET position_name = #{name}, position_level = #{level},
+                default_service_rate = #{defaultServiceRate}, default_sales_rate = #{defaultSalesRate},
+                status = #{status}, updated_at = sysdatetime(), updated_by = #{updatedBy}
+            WHERE id = #{id} AND row_version = CONVERT(binary(8), #{version}, 1)
+            """)
+    int updatePosition(PositionUpdate update);
 
     @Select(value = """
             INSERT INTO dbo.org_employee (

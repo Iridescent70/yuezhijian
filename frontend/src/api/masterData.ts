@@ -3,6 +3,7 @@ import type {
   AsyncJobItem,
   CategoryOption,
   CreateEmployeePayload,
+  CreatePositionPayload,
   CreatedResource,
   CreateServiceItemPayload,
   CreateWorkstationPayload,
@@ -12,12 +13,25 @@ import type {
   ServiceItemDetail,
   UpdateServiceItemPayload,
   UpdateEmployeePayload,
+  UpdatePositionPayload,
   UpdateWorkstationPayload,
   WorkstationSummary,
 } from '@/types/api'
 
-export function getPositions(): Promise<PositionOption[]> {
-  return apiRequest<PositionOption[]>({ method: 'GET', url: '/positions' })
+export function getPositions(activeOnly = true): Promise<PositionOption[]> {
+  return apiRequest<PositionOption[]>({ method: 'GET', url: '/positions', params: { activeOnly } })
+}
+
+export function getPosition(id: number): Promise<PositionOption> {
+  return apiRequest<PositionOption>({ method: 'GET', url: `/positions/${id}` })
+}
+
+export function createPosition(payload: CreatePositionPayload): Promise<CreatedResource> {
+  return apiRequest<CreatedResource>({ method: 'POST', url: '/positions', data: payload })
+}
+
+export function updatePosition(id: number, payload: UpdatePositionPayload): Promise<PositionOption> {
+  return apiRequest<PositionOption>({ method: 'PUT', url: `/positions/${id}`, data: payload })
 }
 
 export function getEmployees(params?: { storeId?: number; keyword?: string }): Promise<EmployeeSummary[]> {

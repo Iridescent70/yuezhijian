@@ -92,8 +92,8 @@
 | API-ORG-003 | `GET/PUT /organizations/{id}` | 详情/资料、version | 详情/更新结果 | 多门店通用 |
 | API-ORG-004 | `GET/POST /stores` | 门店查询/编码、名称、地址、等级 | 门店列表/id | 多门店通用 |
 | API-ORG-005 | `GET/PUT /stores/{id}` | 详情/资料、营业时间、状态 | 门店详情/更新结果 | 多门店通用 |
-| API-ORG-006 | `GET/POST /positions` | 查询/职务、代码、默认提成 | 列表/id | 系统管理-10 |
-| API-ORG-007 | `PUT /positions/{id}` | 职务资料、version | 更新结果 | 系统管理-10 |
+| API-ORG-006 | `GET/POST /positions`、`GET /positions/{id}` | `activeOnly`/职务编号、名称、等级、默认服务/销售提成比例 | 启用或全量列表、详情/id；编号不可修改；已实现 | 系统管理-10 |
+| API-ORG-007 | `PUT /positions/{id}` | 名称、等级、默认比例、`ACTIVE/DISABLED`、version | 更新结果；停用后不再进入员工和提成选择器，乐观锁；已实现 | 系统管理-10 |
 | API-ORG-008 | `GET/POST /employees` | 门店、关键词/员工号、姓名、手机号、职务、主门店、入职日期、服务/销售能力 | 脱敏列表/员工id；已实现 | 系统管理-09 |
 | API-ORG-009 | `GET/PUT /employees/{id}` | 详情/姓名、可选新手机号、职务、主门店、入离职日期、能力、状态、version | 脱敏员工详情/更新结果；员工号不可修改，手机号留空保留，乐观锁；已实现 | 系统管理-09 |
 | API-ORG-010 | `POST /employees/import` | 文件 id | 导入任务 id | 系统管理-09 |

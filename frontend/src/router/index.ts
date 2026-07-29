@@ -47,6 +47,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '员工管理', permission: 'org:employee:view' },
       },
       {
+        path: 'system/positions',
+        name: 'positions',
+        component: () => import('@/views/system/PositionListView.vue'),
+        meta: { title: '职务管理', permission: 'org:position:view' },
+      },
+      {
         path: 'system/workstations',
         name: 'workstations',
         component: () => import('@/views/system/WorkstationListView.vue'),

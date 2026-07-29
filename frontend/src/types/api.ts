@@ -605,7 +605,28 @@ export interface PositionOption {
   id: number
   code: string
   name: string
+  level: number
+  defaultServiceRate: number
+  defaultSalesRate: number
   status: string
+  version: string
+}
+
+export interface CreatePositionPayload {
+  code: string
+  name: string
+  level: number
+  defaultServiceRate: number
+  defaultSalesRate: number
+}
+
+export interface UpdatePositionPayload {
+  name: string
+  level: number
+  defaultServiceRate: number
+  defaultSalesRate: number
+  status: string
+  version: string
 }
 
 export interface CategoryOption {

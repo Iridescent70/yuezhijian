@@ -4,7 +4,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface MasterDataRepository {
-    List<PositionOption> positions();
+    List<PositionOption> positions(boolean activeOnly);
+
+    Optional<PositionOption> findPosition(long id);
 
     List<CategoryOption> categories(String type);
 
@@ -23,6 +25,10 @@ public interface MasterDataRepository {
     Optional<ServiceItemDetail> findService(long id);
 
     Optional<ServiceItemDetail> findServiceByCode(String code);
+
+    CreatedResource createPosition(NewPosition position);
+
+    PositionOption updatePosition(PositionUpdate update);
 
     CreatedResource createEmployee(NewEmployee employee);
 

@@ -15,10 +15,10 @@ import org.springframework.stereotype.Repository;
 @Repository
 @Profile("memory")
 public class MemoryMasterDataRepository implements MasterDataRepository {
-    private final List<PositionOption> positions = List.of(
-            new PositionOption(1L, "TECHNICIAN", "美甲技师", "ACTIVE"),
-            new PositionOption(2L, "STORE_MANAGER", "店长", "ACTIVE"),
-            new PositionOption(3L, "RECEPTION", "前台/收银", "ACTIVE"));
+    private final List<PositionOption> positions = new ArrayList<>(List.of(
+            new PositionOption(1L, "TECHNICIAN", "美甲技师", 10, BigDecimal.ZERO, BigDecimal.ZERO, "ACTIVE", "1"),
+            new PositionOption(2L, "STORE_MANAGER", "店长", 20, BigDecimal.ZERO, BigDecimal.ZERO, "ACTIVE", "1"),
+            new PositionOption(3L, "RECEPTION", "前台/收银", 5, BigDecimal.ZERO, BigDecimal.ZERO, "ACTIVE", "1")));
     private final List<CategoryOption> categories = List.of(
             new CategoryOption(1L, "NAIL_SERVICE", "美甲服务", "SERVICE", "ACTIVE"),
             new CategoryOption(2L, "RETAIL_PRODUCT", "零售产品", "PRODUCT", "ACTIVE"));
@@ -38,6 +38,7 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
             new WorkstationSummary(202L, 2L, "悦指间示范店", "W02", "二号美甲台", 1, 20, "ACTIVE", "1")));
     private final Map<Long, ServiceItemDetail> services = new LinkedHashMap<>();
     private final AtomicLong employeeIds = new AtomicLong(102);
+    private final AtomicLong positionIds = new AtomicLong(3);
     private final AtomicLong workstationIds = new AtomicLong(202);
     private final AtomicLong serviceIds = new AtomicLong(302);
 
@@ -55,8 +56,17 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
     }
 
     @Override
-    public List<PositionOption> positions() {
-        return positions;
+    public synchronized List<PositionOption> positions(boolean activeOnly) {
+        return positions.stream()
+                .filter(position -> !activeOnly || "ACTIVE".equals(position.status()))
+                .sorted(Comparator.comparingInt(PositionOption::level).reversed()
+                        .thenComparingLong(PositionOption::id))
+                .toList();
+    }
+
+    @Override
+    public synchronized Optional<PositionOption> findPosition(long id) {
+        return positions.stream().filter(position -> position.id() == id).findFirst();
     }
 
     @Override
@@ -121,6 +131,29 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
     @Override
     public synchronized Optional<ServiceItemDetail> findServiceByCode(String code) {
         return services.values().stream().filter(service -> service.code().equals(code)).findFirst();
+    }
+
+    @Override
+    public synchronized CreatedResource createPosition(NewPosition position) {
+        if (positions.stream().anyMatch(item -> item.code().equalsIgnoreCase(position.code()))) {
+            throw new com.yuezhijian.server.common.DuplicateResourceException("职务编号已存在");
+        }
+        long id = positionIds.incrementAndGet();
+        positions.add(new PositionOption(
+                id, position.code(), position.name(), position.level(), position.defaultServiceRate(),
+                position.defaultSalesRate(), "ACTIVE", "1"));
+        return new CreatedResource(id);
+    }
+
+    @Override
+    public synchronized PositionOption updatePosition(PositionUpdate update) {
+        PositionOption current = findPosition(update.id()).orElse(null);
+        if (current == null || !current.version().equals(update.version())) throw stale("职务");
+        PositionOption saved = new PositionOption(
+                current.id(), current.code(), update.name(), update.level(), update.defaultServiceRate(),
+                update.defaultSalesRate(), update.status(), nextVersion(current.version()));
+        positions.set(positions.indexOf(current), saved);
+        return saved;
     }
 
     @Override

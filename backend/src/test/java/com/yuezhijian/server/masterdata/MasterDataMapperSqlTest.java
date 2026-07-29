@@ -62,6 +62,21 @@ class MasterDataMapperSqlTest {
                 .contains("updated_by = #{updatedBy}");
     }
 
+    @Test
+    void positionQueriesFilterActiveAndUpdatesUseRowVersion() throws Exception {
+        BoundSql positions = parse(
+                MasterDataMapper.class.getMethod("findPositions", boolean.class),
+                Map.of("activeOnly", true));
+        assertThat(positions.getSql()).contains("WHERE status = 'ACTIVE'");
+
+        Update update = MasterDataMapper.class
+                .getMethod("updatePosition", PositionUpdate.class).getAnnotation(Update.class);
+        assertThat(String.join(" ", update.value()))
+                .contains("row_version = CONVERT(binary(8), #{version}, 1)")
+                .contains("default_service_rate = #{defaultServiceRate}")
+                .contains("updated_by = #{updatedBy}");
+    }
+
     private BoundSql parse(Method method, Map<String, Object> parameters) {
         Select select = method.getAnnotation(Select.class);
         String script = String.join(" ", select.value());

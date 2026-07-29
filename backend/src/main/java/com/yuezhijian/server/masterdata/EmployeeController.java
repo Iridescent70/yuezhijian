@@ -25,12 +25,6 @@ public class EmployeeController {
         this.service = service;
     }
 
-    @GetMapping("/positions")
-    @PreAuthorize("hasAuthority('org:employee:view')")
-    public ApiResponse<List<PositionOption>> positions() {
-        return ApiResponse.ok(service.positions());
-    }
-
     @GetMapping("/employees")
     @PreAuthorize("hasAuthority('org:employee:view')")
     public ApiResponse<List<EmployeeSummary>> employees(

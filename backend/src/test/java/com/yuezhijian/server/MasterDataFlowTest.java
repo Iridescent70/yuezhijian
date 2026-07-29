@@ -228,6 +228,48 @@ class MasterDataFlowTest {
                 .andExpect(status().isConflict());
     }
 
+    @Test
+    void positionCanBeCreatedEditedDisabledAndFiltered() throws Exception {
+        MockHttpSession session = login();
+        String created = mockMvc.perform(post("/api/v1/positions")
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code":"NAIL_ASSISTANT","name":"美甲助理","level":6,
+                                  "defaultServiceRate":0.050000,"defaultSalesRate":0.030000
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long id = objectMapper.readTree(created).path("data").path("id").asLong();
+        String detailJson = mockMvc.perform(get("/api/v1/positions/{id}", id).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.code").value("NAIL_ASSISTANT"))
+                .andExpect(jsonPath("$.data.defaultServiceRate").value(0.05))
+                .andReturn().getResponse().getContentAsString();
+        String version = objectMapper.readTree(detailJson).path("data").path("version").asText();
+        String update = """
+                {
+                  "name":"停用助理","level":7,"defaultServiceRate":0.060000,
+                  "defaultSalesRate":0.040000,"status":"DISABLED","version":"%s"
+                }
+                """.formatted(version);
+        mockMvc.perform(put("/api/v1/positions/{id}", id)
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON).content(update))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("停用助理"))
+                .andExpect(jsonPath("$.data.status").value("DISABLED"));
+        mockMvc.perform(get("/api/v1/positions").param("activeOnly", "true").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.id == %d)]".formatted(id), hasSize(0)));
+        mockMvc.perform(get("/api/v1/positions").param("activeOnly", "false").session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[?(@.id == %d)]".formatted(id), hasSize(1)));
+        mockMvc.perform(put("/api/v1/positions/{id}", id)
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON).content(update))
+                .andExpect(status().isConflict());
+    }
+
     private MockHttpSession login() throws Exception {
         return (MockHttpSession) mockMvc.perform(post("/api/v1/auth/login")
                         .with(csrf())

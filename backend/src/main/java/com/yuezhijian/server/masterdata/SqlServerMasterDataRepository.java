@@ -19,8 +19,13 @@ public class SqlServerMasterDataRepository implements MasterDataRepository {
     }
 
     @Override
-    public List<PositionOption> positions() {
-        return mapper.findPositions();
+    public List<PositionOption> positions(boolean activeOnly) {
+        return mapper.findPositions(activeOnly);
+    }
+
+    @Override
+    public Optional<PositionOption> findPosition(long id) {
+        return Optional.ofNullable(mapper.findPosition(id));
     }
 
     @Override
@@ -68,6 +73,20 @@ public class SqlServerMasterDataRepository implements MasterDataRepository {
     public Optional<ServiceItemDetail> findServiceByCode(String code) {
         ServiceItemRow row = mapper.findServiceByCode(code);
         return row == null ? Optional.empty() : Optional.of(detail(row));
+    }
+
+    @Override
+    public CreatedResource createPosition(NewPosition position) {
+        return new CreatedResource(mapper.insertPosition(position));
+    }
+
+    @Override
+    @Transactional
+    public PositionOption updatePosition(PositionUpdate update) {
+        if (mapper.updatePosition(update) == 0) throw stale("职务");
+        PositionOption saved = mapper.findPosition(update.id());
+        if (saved == null) throw new IllegalStateException("职务更新后不存在");
+        return saved;
     }
 
     @Override
