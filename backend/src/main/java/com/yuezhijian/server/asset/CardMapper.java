@@ -127,8 +127,38 @@ public interface CardMapper {
             """)
     CardSaleRow findSaleByIdempotencyKey(String key);
 
-    @Select("SELECT sale_employee_id FROM dbo.ast_member_card WHERE id = #{memberCardId}")
+    @Select("""
+            WITH card_lineage AS (
+                SELECT id, transfer_from_card_id, sale_employee_id, 0 AS depth
+                FROM dbo.ast_member_card WHERE id = #{memberCardId}
+                UNION ALL
+                SELECT parent.id, parent.transfer_from_card_id, parent.sale_employee_id, lineage.depth + 1
+                FROM dbo.ast_member_card parent
+                JOIN card_lineage lineage ON parent.id = lineage.transfer_from_card_id
+                WHERE lineage.depth < 31
+            )
+            SELECT TOP (1) sale_employee_id
+            FROM card_lineage
+            WHERE sale_employee_id IS NOT NULL
+            ORDER BY depth
+            OPTION (MAXRECURSION 32)
+            """)
     Long findCardSaleEmployeeId(long memberCardId);
+
+    @Select("""
+            WITH card_lineage AS (
+                SELECT id, transfer_from_card_id, 0 AS depth
+                FROM dbo.ast_member_card WHERE id = #{memberCardId}
+                UNION ALL
+                SELECT parent.id, parent.transfer_from_card_id, lineage.depth + 1
+                FROM dbo.ast_member_card parent
+                JOIN card_lineage lineage ON parent.id = lineage.transfer_from_card_id
+                WHERE lineage.depth < 31
+            )
+            SELECT id FROM card_lineage ORDER BY depth
+            OPTION (MAXRECURSION 32)
+            """)
+    List<Long> findCardLineage(long memberCardId);
 
     @Select(value = """
             INSERT INTO dbo.ast_card_sale_order (

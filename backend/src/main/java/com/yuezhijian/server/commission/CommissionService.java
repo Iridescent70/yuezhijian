@@ -156,9 +156,11 @@ public class CommissionService {
 
     @Transactional
     public List<CommissionLedgerItem> recordCardExchange(
-            CardExchangeResult exchange, long storeId, Long employeeId, long operatorId) {
+            CardExchangeResult exchange, List<Long> oldCardLineage,
+            long storeId, Long employeeId, long operatorId) {
         List<CommissionLedgerItem> result = new ArrayList<>(reverseCardSale(
-                exchange.oldCard().id(), "CARD_EXCHANGE", exchange.exchangeId(), exchange.exchangeNo(), operatorId));
+                oldCardLineage, exchange.oldCard().id(), "CARD_EXCHANGE",
+                exchange.exchangeId(), exchange.exchangeNo(), operatorId));
         if (employeeId != null && exchange.differenceAmount().signum() > 0) {
             EmployeeSummary employee = employee(employeeId, storeId);
             result.add(recordCardSaleFact(
@@ -172,9 +174,14 @@ public class CommissionService {
 
     @Transactional
     public List<CommissionLedgerItem> reverseCardSale(
-            long memberCardId, String sourceType, long sourceId, String sourceNo, long operatorId) {
+            List<Long> memberCardLineage, long affectedMemberCardId,
+            String sourceType, long sourceId, String sourceNo, long operatorId) {
         List<CommissionLedgerItem> result = new ArrayList<>();
-        for (CommissionLedgerItem original : repository.originalCardSaleLedgers(memberCardId)) {
+        List<CommissionLedgerItem> originals = memberCardLineage.stream()
+                .map(repository::originalCardSaleLedgers)
+                .filter(items -> !items.isEmpty())
+                .findFirst().orElse(List.of());
+        for (CommissionLedgerItem original : originals) {
             String correlation = sourceType.toLowerCase(Locale.ROOT) + ':' + sourceId
                     + ":commission:" + original.id();
             Optional<CommissionLedgerItem> existing = repository.findLedgerByCorrelation(correlation);
@@ -184,7 +191,7 @@ public class CommissionService {
             }
             result.add(repository.appendLedger(new CommissionLedgerDraft(
                     numbers.ledgerNo(), original.employeeId(), original.storeId(), original.commissionType(),
-                    sourceType, sourceId, sourceNo, memberCardId, original.sourceLineName(),
+                    sourceType, sourceId, sourceNo, affectedMemberCardId, original.sourceLineName(),
                     original.baseAmount().negate(), original.rate(), original.commissionAmount().negate(),
                     original.calculationStatus(), original.planId(), original.planName(),
                     original.planRuleVersion(), "冲回售卡提成流水 " + original.ledgerNo()

@@ -10,6 +10,7 @@ public interface CardRepository {
     CardTypeDetail createCardType(CardTypeDraft draft);
     List<MemberCardSummary> memberCards(long memberId, String status);
     Optional<MemberCardDetail> findMemberCard(long id);
+    List<Long> cardLineage(long memberCardId);
     Optional<Long> saleEmployeeId(long memberCardId);
     Optional<CardSaleResult> findSaleByIdempotencyKey(String idempotencyKey);
     CardSaleResult purchase(PurchaseMemberCardDraft draft);

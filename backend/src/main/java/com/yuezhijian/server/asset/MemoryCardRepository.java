@@ -19,6 +19,7 @@ import org.springframework.stereotype.Repository;
 public class MemoryCardRepository implements CardRepository {
     private final Map<Long, CardTypeDetail> cardTypes = new LinkedHashMap<>();
     private final Map<Long, MemberCardDetail> cards = new LinkedHashMap<>();
+    private final Map<Long, Long> transferParents = new LinkedHashMap<>();
     private final Map<Long, Long> saleEmployees = new LinkedHashMap<>();
     private final Map<String, CardSaleResult> sales = new LinkedHashMap<>();
     private final Map<String, CardExchangeQuote> exchangeQuotes = new LinkedHashMap<>();
@@ -106,8 +107,20 @@ public class MemoryCardRepository implements CardRepository {
     }
 
     @Override
+    public synchronized List<Long> cardLineage(long memberCardId) {
+        List<Long> lineage = new ArrayList<>();
+        Long current = cards.containsKey(memberCardId) ? memberCardId : null;
+        while (current != null && lineage.size() < 32 && !lineage.contains(current)) {
+            lineage.add(current);
+            current = transferParents.get(current);
+        }
+        return List.copyOf(lineage);
+    }
+
+    @Override
     public synchronized Optional<Long> saleEmployeeId(long memberCardId) {
-        return Optional.ofNullable(saleEmployees.get(memberCardId));
+        return cardLineage(memberCardId).stream()
+                .map(saleEmployees::get).filter(java.util.Objects::nonNull).findFirst();
     }
 
     @Override
@@ -437,6 +450,7 @@ public class MemoryCardRepository implements CardRepository {
                 command.remainingValue(), command.remainingTimes(), command.remainingTimes(),
                 BigDecimal.ZERO.setScale(4), command.executedAt(), command.newExpiresAt(), "ACTIVE", "1");
         cards.put(targetCardId, new MemberCardDetail(target, List.copyOf(targetBalances), List.copyOf(targetLedgers)));
+        transferParents.put(targetCardId, source.id());
         CardTransferResult result = new CardTransferResult(
                 transferId, command.transferNo(), transferredSource, target, source.memberId(),
                 command.recipientMemberId(), command.recipientMemberName(), command.remainingTimes(),

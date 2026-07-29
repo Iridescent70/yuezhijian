@@ -64,6 +64,11 @@ public class SqlServerCardRepository implements CardRepository {
     }
 
     @Override
+    public List<Long> cardLineage(long memberCardId) {
+        return mapper.findCardLineage(memberCardId);
+    }
+
+    @Override
     public Optional<Long> saleEmployeeId(long memberCardId) {
         return Optional.ofNullable(mapper.findCardSaleEmployeeId(memberCardId));
     }

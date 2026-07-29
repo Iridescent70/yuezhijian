@@ -206,12 +206,13 @@ public class CardService {
         if (paymentTotal.compareTo(quote.differenceAmount()) != 0) {
             throw new IllegalArgumentException("补差支付合计必须等于换卡补差金额");
         }
+        List<Long> oldCardLineage = repository.cardLineage(old.card().id());
         long operatorId = currentUserId(username);
         CardExchangeResult result = repository.exchange(new CardExchangeCommand(
                 numbers.cardExchangeNo(), quote, target, old.card().memberId(), request.storeId(),
                 storeName(request.storeId()), request.employeeId(), payments, LocalDateTime.now(),
                 request.idempotencyKey(), operatorId));
-        commissions.recordCardExchange(result, request.storeId(), request.employeeId(), operatorId);
+        commissions.recordCardExchange(result, oldCardLineage, request.storeId(), request.employeeId(), operatorId);
         return result;
     }
 
@@ -368,11 +369,12 @@ public class CardService {
             throw new IllegalArgumentException(current.request().refundMethodName() + "必须填写外部退款凭证号");
         }
         long operatorId = currentUserId(username);
+        List<Long> cardLineage = repository.cardLineage(current.request().memberCardId());
         Long saleEmployeeId = repository.saleEmployeeId(current.request().memberCardId()).orElse(null);
         CardRefundRequestDetail executed = repository.executeRefund(new CardRefundExecutionCommand(
                 current, request.version(), externalReference, request.idempotencyKey(), operatorId));
         List<CommissionLedgerItem> adjustments = commissions.reverseCardSale(
-                current.request().memberCardId(), "CARD_REFUND", current.request().id(),
+                cardLineage, current.request().memberCardId(), "CARD_REFUND", current.request().id(),
                 current.request().requestNo(), operatorId);
         String adjustmentStatus;
         if (saleEmployeeId == null) {

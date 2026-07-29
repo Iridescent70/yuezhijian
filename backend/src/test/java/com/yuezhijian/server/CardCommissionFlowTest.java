@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -137,6 +138,78 @@ class CardCommissionFlowTest {
                 .isEqualByComparingTo("3.3600");
     }
 
+    @Test
+    void refundAfterTwoTransfersReversesOriginalCardSaleCommission() throws Exception {
+        MockHttpSession session = login();
+        createCardSalePlan(session, "CARD_LINEAGE_" + System.nanoTime());
+        long sourceMemberId = createMember(session, "13600010004");
+        long middleMemberId = createMember(session, "13600010005");
+        long targetMemberId = createMember(session, "13600010006");
+        JsonNode sale = purchase(session, sourceMemberId, 1, "card-commission-lineage-sale");
+        long sourceCardId = sale.path("cards").get(0).path("id").asLong();
+        JsonNode original = ledgers(session, "CARD_SALE", sale.path("orderId").asLong()).getFirst();
+
+        long middleCardId = transfer(
+                session, sourceCardId, middleMemberId, "card-commission-lineage-transfer-1");
+        long targetCardId = transfer(
+                session, middleCardId, targetMemberId, "card-commission-lineage-transfer-2");
+        JsonNode executed = refund(
+                session, targetCardId, "card-commission-lineage-refund", "连续转赠后退卡");
+
+        long requestId = executed.path("request").path("id").asLong();
+        org.assertj.core.api.Assertions.assertThat(executed.path("request").path("commissionAdjustmentStatus").asText())
+                .isEqualTo("COMPLETED");
+        List<JsonNode> reversals = ledgers(session, "CARD_REFUND", requestId);
+        org.assertj.core.api.Assertions.assertThat(reversals).hasSize(1);
+        JsonNode reversal = reversals.getFirst();
+        org.assertj.core.api.Assertions.assertThat(reversal.path("sourceLineId").asLong()).isEqualTo(targetCardId);
+        org.assertj.core.api.Assertions.assertThat(reversal.path("reversedLedgerId").asLong())
+                .isEqualTo(original.path("id").asLong());
+        org.assertj.core.api.Assertions.assertThat(reversal.path("commissionAmount").decimalValue())
+                .isEqualByComparingTo("-64.0000");
+    }
+
+    @Test
+    void exchangeAfterTransferReversesOriginalSaleAndCalculatesSupplement() throws Exception {
+        MockHttpSession session = login();
+        createCardSalePlan(session, "CARD_TRANSFER_EXCHANGE_" + System.nanoTime());
+        long sourceMemberId = createMember(session, "13600010007");
+        long recipientMemberId = createMember(session, "13600010008");
+        JsonNode sale = purchase(session, sourceMemberId, 1, "card-commission-transfer-exchange-sale");
+        JsonNode original = ledgers(session, "CARD_SALE", sale.path("orderId").asLong()).getFirst();
+        long transferredCardId = transfer(
+                session, sale.path("cards").get(0).path("id").asLong(), recipientMemberId,
+                "card-commission-transfer-exchange-transfer");
+        long targetTypeId = createTargetCardType(session, "CARD_TRANSFER_TARGET_" + System.nanoTime());
+        JsonNode quote = json(postJson(
+                session, "/api/v1/member-cards/" + transferredCardId + "/exchange/quote", """
+                {"targetCardTypeId":%d}
+                """.formatted(targetTypeId), 200)).path("data");
+        JsonNode exchange = json(postJson(
+                session, "/api/v1/member-cards/" + transferredCardId + "/exchange", """
+                {"quoteNo":"%s","storeId":2,"employeeId":101,
+                 "payments":[{"paymentMethodId":1,"amount":1400}],
+                 "idempotencyKey":"card-commission-transfer-exchange-execute"}
+                """.formatted(quote.path("quoteNo").asText()), 200)).path("data");
+
+        List<JsonNode> facts = ledgers(session, "CARD_EXCHANGE", exchange.path("exchangeId").asLong());
+        org.assertj.core.api.Assertions.assertThat(facts).hasSize(2);
+        JsonNode negative = facts.stream().filter(item -> item.path("commissionAmount").decimalValue().signum() < 0)
+                .findFirst().orElseThrow();
+        JsonNode positive = facts.stream().filter(item -> item.path("commissionAmount").decimalValue().signum() > 0)
+                .findFirst().orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(negative.path("sourceLineId").asLong())
+                .isEqualTo(transferredCardId);
+        org.assertj.core.api.Assertions.assertThat(negative.path("reversedLedgerId").asLong())
+                .isEqualTo(original.path("id").asLong());
+        org.assertj.core.api.Assertions.assertThat(negative.path("commissionAmount").decimalValue())
+                .isEqualByComparingTo("-64.0000");
+        org.assertj.core.api.Assertions.assertThat(positive.path("sourceLineId").asLong())
+                .isEqualTo(exchange.path("newCard").path("id").asLong());
+        org.assertj.core.api.Assertions.assertThat(positive.path("commissionAmount").decimalValue())
+                .isEqualByComparingTo("70.0000");
+    }
+
     private void createCardSalePlan(MockHttpSession session, String code) throws Exception {
         createCommissionPlan(session, code, "示范店售卡提成", "CARD_SALE", "0.05");
     }
@@ -164,6 +237,34 @@ class CardCommissionFlowTest {
                    {"serviceId":302,"includedTimes":12,"deductTimes":1,"priority":10}
                  ]}
                 """.formatted(code), 201)).path("data").path("id").asLong();
+    }
+
+    private long transfer(MockHttpSession session, long cardId, long recipientMemberId, String key) throws Exception {
+        JsonNode card = json(mockMvc.perform(get("/api/v1/member-cards/" + cardId).session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString())
+                .path("data").path("card");
+        return json(postJson(session, "/api/v1/member-cards/" + cardId + "/transfer", """
+                {"recipientMemberId":%d,"expiresAt":"%s","storeId":2,"employeeId":101,
+                 "reason":"提成谱系测试","sourceCardVersion":"%s","idempotencyKey":"%s"}
+                """.formatted(recipientMemberId, LocalDateTime.now().plusDays(200).withNano(0),
+                card.path("version").asText(), key), 200)).path("data").path("targetCard").path("id").asLong();
+    }
+
+    private JsonNode refund(MockHttpSession session, long cardId, String key, String reason) throws Exception {
+        JsonNode quote = json(postJson(session, "/api/v1/member-cards/" + cardId + "/refund-requests/quote", """
+                {"feeAmount":0}
+                """, 200)).path("data");
+        JsonNode submitted = json(postJson(session, "/api/v1/member-cards/" + cardId + "/refund-requests", """
+                {"quoteNo":"%s","refundMethodId":1,"storeId":2,"employeeId":101,
+                 "reason":"%s","idempotencyKey":"%s-request"}
+                """.formatted(quote.path("quoteNo").asText(), reason, key), 201)).path("data");
+        long requestId = submitted.path("request").path("id").asLong();
+        JsonNode approved = json(postJson(session, "/api/v1/card-refund-requests/" + requestId + "/review", """
+                {"approved":true,"version":"%s"}
+                """.formatted(submitted.path("request").path("version").asText()), 200)).path("data");
+        return json(postJson(session, "/api/v1/card-refund-requests/" + requestId + "/execute", """
+                {"version":"%s","idempotencyKey":"%s-execute"}
+                """.formatted(approved.path("request").path("version").asText(), key), 200)).path("data");
     }
 
     private List<JsonNode> ledgers(MockHttpSession session, String sourceType, long sourceId) throws Exception {
