@@ -55,10 +55,11 @@
 | `40901` | 乐观锁冲突 | 409 |
 | `40902` | 状态不允许 | 409 |
 | `40903` | 重复请求或业务唯一键冲突 | 409 |
+| `41301` | 上传文件超过大小限制 | 413 |
 | `422xx` | 余额、库存、扣次、计算或对账不通过 | 422 |
 | `429xx` | 频率或第三方额度限制 | 429 |
 | `500xx` | 系统异常；必须返回 traceId | 500 |
-| `503xx` | 短信、支付、地图、大模型等外部服务不可用 | 503 |
+| `503xx` | 对象存储、短信、支付、地图、大模型等外部服务不可用 | 503 |
 
 ### 1.2 权限与审计
 
@@ -98,8 +99,8 @@
 | API-ORG-012 | `POST /employee-loans/{id}/approve`、`/reject` | 意见 | 审批结果 | 系统管理-37、薪酬-03 |
 | API-ORG-013 | `GET/POST /workstations` | 门店、状态/名称、容量 | 工位列表/id | 系统管理-14 |
 | API-ORG-014 | `GET/POST /terminals` | 门店/设备指纹、名称、状态 | 终端列表/id | 系统管理-15 |
-| API-COM-001 | `POST /files` | multipart 文件、用途 | fileId、受控下载地址 | 通用-导入导出 |
-| API-COM-002 | `GET /files/{id}` | fileId | 文件元数据/文件流 | 通用-导入导出 |
+| API-COM-001 | `POST /files` | multipart 文件、用途 | fileId和元数据；通用独立入口待任务中心，业务专用上传已落地 | 通用-导入导出 |
+| API-COM-002 | `GET /files/{id}` | fileId | 鉴权文件流；通用独立入口待任务中心，不提供公开URL | 通用-导入导出 |
 | API-COM-003 | `POST /exports` | exportType、filters、columns | 异步任务 id | 系统管理-01 |
 | API-COM-004 | `GET /jobs/{id}` | 任务 id | 进度、成功/失败数、文件 id | 系统管理-01 |
 | API-COM-005 | `GET /jobs` | 类型、状态、创建人、日期 | 下载中心分页 | 系统管理-01 |
@@ -268,6 +269,9 @@
 | API-VIS-005 | `GET/POST /satisfaction-rules`、`PUT /satisfaction-rules/{id}`、`POST /satisfaction-rules/test` | 状态/名称、字面关键词、1~5分、组件键值映射、优先级、状态、version；试算文本 | 规则列表/保存结果/首条命中结果；`visit:satisfaction:view/manage`；已实现 | 系统管理-19 |
 | API-VIS-006 | `GET /service-feedback`、`GET /service-feedback/{id}` | `storeId/handlerId/score/status/overdue/keyword`；详情 id | 反馈、会员、账单、负责人、`dueHours/dueAt/overdue/overdueMinutes`和处理历史；`visit:feedback:view`；已实现 | 系统管理-20 |
 | API-VIS-007 | `POST /service-feedback/{id}/handle` | `action/handlerId/content/result`；动作`ASSIGN/NOTE/RESOLVE/CLOSE/REOPEN` | 更新后的反馈和处理历史；重开按当前参数重置时限；`visit:feedback:manage`；已实现 | 系统管理-20 |
+| API-VIS-008 | `POST /service-feedback/{id}/attachments` | multipart `file`；JPG/PNG/WEBP/PDF，最大10 MiB，每单最多10个 | 附件元数据，不返回对象键；`visit:feedback:manage`；已实现 | 系统管理-20 |
+| API-VIS-009 | `GET /service-feedback/{id}/attachments/{attachmentId}/content` | 反馈id、附件id | 鉴权文件流、`no-store`、SHA-256 ETag；`visit:feedback:view`；已实现 | 系统管理-20 |
+| API-VIS-010 | `DELETE /service-feedback/{id}/attachments/{attachmentId}` | 反馈id、附件id | 软删除结果；`visit:feedback:manage`；已实现 | 系统管理-20 |
 | API-MKT-001 | `POST /sms-tasks` | 名称、号码/客群、内容、sendAt | taskId、预估条数 | 短信-01、05 |
 | API-MKT-002 | `POST /sms-tasks/import` | Excel fileId、模板 id、sendAt | 导入/发送任务 id | 短信-02 |
 | API-MKT-003 | `GET /sms-tasks` | 批次、状态、日期、创建人 | 任务分页 | 短信-03 |
@@ -289,7 +293,7 @@
 
 满意度规则按优先级从小到大执行字面包含匹配，同一规则内优先测试较长关键词；不执行正则或大模型推断，未命中时不生成分值。组件映射保存为甲方定义的字符串键值。样例试算只返回命中结果，不写会员、回访或短信数据；自动识别短信须等上行短信通道接入。
 
-`API-VIS-006~007`客诉闭环已落地。只有回访人员明确勾选客诉时才自动建反馈单，低评分不会擅自转客诉；一条回访记录最多一张反馈单。客诉未评分时不伪造分值。状态按`OPEN → PROCESSING → RESOLVED → CLOSED`流转，已解决或已关闭可以`REOPEN`回到处理中。分配、备注、解决、关闭和重开均追加`vis_feedback_action`，不覆盖原客诉内容。建单和重开分别保存处理时限快照，未完成反馈实时派生超时状态；当前只做接口及页面提示，站内消息接收人规则未确认，不声明为主动推送。附件和非回访渠道反馈仍待文件模块及甲方渠道口径确认。
+`API-VIS-006~010`客诉闭环已落地。只有回访人员明确勾选客诉时才自动建反馈单，低评分不会擅自转客诉；一条回访记录最多一张反馈单。客诉未评分时不伪造分值。状态按`OPEN → PROCESSING → RESOLVED → CLOSED`流转，已解决或已关闭可以`REOPEN`回到处理中。分配、备注、解决、关闭和重开均追加`vis_feedback_action`，不覆盖原客诉内容。建单和重开分别保存处理时限快照，未完成反馈实时派生超时状态。处理附件已接入私有文件服务，列表只返回元数据，文件流必须通过反馈权限接口下载；不提供公开URL。当前超时提醒只在页面展示，主动消息和非回访渠道反馈仍待甲方口径确认。
 
 ## 7. 薪酬、提成、目标和分润
 

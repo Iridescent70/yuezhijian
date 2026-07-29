@@ -1,14 +1,16 @@
 package com.yuezhijian.server.common;
 
+import com.yuezhijian.server.file.FileStorageException;
 import java.util.stream.Collectors;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -50,5 +52,17 @@ public class GlobalExceptionHandler {
                 : "数据已存在或与当前数据冲突";
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error("40901", message));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUploadTooLarge() {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(ApiResponse.error("41301", "附件大小不能超过10 MiB"));
+    }
+
+    @ExceptionHandler(FileStorageException.class)
+    public ResponseEntity<ApiResponse<Void>> handleFileStorage() {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error("50301", "附件存储暂时不可用，请稍后重试"));
     }
 }

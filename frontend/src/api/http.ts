@@ -15,6 +15,7 @@ const http = axios.create({
 
 http.interceptors.request.use((config) => {
   const method = config.method?.toUpperCase()
+  if (config.data instanceof FormData) config.headers.delete('Content-Type')
   if (csrfToken && method && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
     config.headers.set('X-XSRF-TOKEN', csrfToken)
   }
@@ -50,6 +51,26 @@ export async function apiRequest<T>(config: AxiosRequestConfig): Promise<T> {
       requestError.status = error.response?.status
       requestError.traceId = error.response?.data?.traceId
       throw requestError
+    }
+    throw error
+  }
+}
+
+export async function apiDownload(url: string): Promise<Blob> {
+  try {
+    const response = await http.get<Blob>(url, { responseType: 'blob' })
+    return response.data
+  } catch (error) {
+    if (axios.isAxiosError<Blob>(error)) {
+      let message = '附件下载失败'
+      const body = error.response?.data
+      if (body instanceof Blob && body.type.includes('json')) {
+        try {
+          const parsed = JSON.parse(await body.text()) as ApiResponse<unknown>
+          message = parsed.message || message
+        } catch { /* 保留默认提示 */ }
+      }
+      throw new Error(message)
     }
     throw error
   }

@@ -1,6 +1,9 @@
 package com.yuezhijian.server.feedback;
 
 import com.yuezhijian.server.common.ResourceNotFoundException;
+import com.yuezhijian.server.file.BusinessAttachmentItem;
+import com.yuezhijian.server.file.FileObjectService;
+import com.yuezhijian.server.file.StoredFileDownload;
 import com.yuezhijian.server.iam.AccessCatalogService;
 import com.yuezhijian.server.masterdata.MasterDataRepository;
 import com.yuezhijian.server.settings.SystemSettingsService;
@@ -12,6 +15,7 @@ import java.util.Locale;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class ServiceFeedbackService {
@@ -23,18 +27,21 @@ public class ServiceFeedbackService {
     private final AccessCatalogService accessCatalog;
     private final FeedbackNumberGenerator numbers;
     private final SystemSettingsService settings;
+    private final FileObjectService files;
 
     public ServiceFeedbackService(
             FeedbackRepository repository,
             MasterDataRepository masterData,
             AccessCatalogService accessCatalog,
             FeedbackNumberGenerator numbers,
-            SystemSettingsService settings) {
+            SystemSettingsService settings,
+            FileObjectService files) {
         this.repository = repository;
         this.masterData = masterData;
         this.accessCatalog = accessCatalog;
         this.numbers = numbers;
         this.settings = settings;
+        this.files = files;
     }
 
     public List<FeedbackSummary> feedback(
@@ -52,7 +59,28 @@ public class ServiceFeedbackService {
     }
 
     public FeedbackDetail detail(long id) {
-        return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("服务反馈不存在"));
+        return enrich(repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("服务反馈不存在")));
+    }
+
+    public BusinessAttachmentItem uploadAttachment(
+            long id, MultipartFile upload, String username) {
+        FeedbackSummary feedback = detail(id).feedback();
+        long operatorId = accessCatalog.userIdentity(username).id();
+        return files.upload(
+                "SERVICE_FEEDBACK", id, feedback.storeId(), "SERVICE_FEEDBACK_ATTACHMENT", "EVIDENCE",
+                upload, operatorId);
+    }
+
+    public StoredFileDownload downloadAttachment(long id, long attachmentId) {
+        detail(id);
+        return files.download("SERVICE_FEEDBACK", id, attachmentId);
+    }
+
+    public void removeAttachment(long id, long attachmentId, String username) {
+        detail(id);
+        files.remove(
+                "SERVICE_FEEDBACK", id, attachmentId, accessCatalog.userIdentity(username).id());
     }
 
     @Transactional
@@ -123,9 +151,14 @@ public class ServiceFeedbackService {
         }
         if (handlerId != null) validateHandler(handlerId, feedback.storeId());
         long operatorId = accessCatalog.userIdentity(username).id();
-        return repository.update(new FeedbackUpdate(
+        return enrich(repository.update(new FeedbackUpdate(
                 id, feedback.status(), nextStatus, handlerId, result, actionType, content,
-                dueHours, dueAt, operatorId));
+                dueHours, dueAt, operatorId)));
+    }
+
+    private FeedbackDetail enrich(FeedbackDetail detail) {
+        return new FeedbackDetail(
+                detail.feedback(), detail.actions(), files.attachments("SERVICE_FEEDBACK", detail.feedback().id()));
     }
 
     private int feedbackDueHours() {

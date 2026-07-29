@@ -47,6 +47,6 @@ public class SqlServerFeedbackRepository implements FeedbackRepository {
     }
 
     private FeedbackDetail detail(FeedbackSummary summary) {
-        return new FeedbackDetail(summary, mapper.findActions(summary.id()));
+        return new FeedbackDetail(summary, mapper.findActions(summary.id()), List.of());
     }
 }

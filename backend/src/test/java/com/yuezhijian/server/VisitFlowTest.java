@@ -2,6 +2,8 @@ package com.yuezhijian.server;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -14,6 +16,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(properties = {
@@ -88,6 +91,26 @@ class VisitFlowTest {
         org.assertj.core.api.Assertions.assertThat(feedback.path("overdue").asBoolean()).isFalse();
         long feedbackId = feedback.path("id").asLong();
 
+        byte[] evidence = new byte[] {
+                (byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4};
+        MockMultipartFile attachment = new MockMultipartFile(
+                "file", "修复前照片.png", "image/png", evidence);
+        JsonNode uploaded = json(mockMvc.perform(multipart(
+                                "/api/v1/service-feedback/" + feedbackId + "/attachments")
+                        .file(attachment).with(csrf()).session(session))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).path("data");
+        long attachmentId = uploaded.path("id").asLong();
+        org.assertj.core.api.Assertions.assertThat(uploaded.path("originalName").asText())
+                .isEqualTo("修复前照片.png");
+        JsonNode detailWithAttachment = json(getJson(
+                session, "/api/v1/service-feedback/" + feedbackId, 200)).path("data");
+        org.assertj.core.api.Assertions.assertThat(detailWithAttachment.path("attachments").size()).isEqualTo(1);
+        byte[] downloaded = mockMvc.perform(get(
+                                "/api/v1/service-feedback/" + feedbackId + "/attachments/"
+                                        + attachmentId + "/content").session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+        org.assertj.core.api.Assertions.assertThat(downloaded).isEqualTo(evidence);
+
         JsonNode assigned = json(postJson(session, "/api/v1/service-feedback/" + feedbackId + "/handle", """
                 {"action":"ASSIGN","handlerId":101,"content":"由店长安排安然负责跟进"}
                 """, 200)).path("data");
@@ -117,6 +140,13 @@ class VisitFlowTest {
         org.assertj.core.api.Assertions.assertThat(reopened.path("feedback").path("overdue").asBoolean())
                 .isFalse();
         org.assertj.core.api.Assertions.assertThat(reopened.path("actions").size()).isEqualTo(6);
+        mockMvc.perform(delete("/api/v1/service-feedback/" + feedbackId + "/attachments/" + attachmentId)
+                        .with(csrf()).session(session)).andExpect(status().isOk());
+        JsonNode detailWithoutAttachment = json(getJson(
+                session, "/api/v1/service-feedback/" + feedbackId, 200)).path("data");
+        org.assertj.core.api.Assertions.assertThat(detailWithoutAttachment.path("attachments")).isEmpty();
+        mockMvc.perform(get("/api/v1/service-feedback/" + feedbackId + "/attachments/"
+                        + attachmentId + "/content").session(session)).andExpect(status().isNotFound());
     }
 
     @Test

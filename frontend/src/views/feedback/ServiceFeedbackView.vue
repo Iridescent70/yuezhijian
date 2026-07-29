@@ -1,8 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { getServiceFeedback, getServiceFeedbackDetail, handleServiceFeedback } from '@/api/feedback'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  downloadServiceFeedbackAttachment,
+  getServiceFeedback,
+  getServiceFeedbackDetail,
+  handleServiceFeedback,
+  removeServiceFeedbackAttachment,
+  uploadServiceFeedbackAttachment,
+} from '@/api/feedback'
 import { getEmployees } from '@/api/masterData'
 import { getStores } from '@/api/platform'
 import { useAuthStore } from '@/stores/auth'
@@ -28,6 +35,9 @@ const detail = ref<FeedbackDetail>()
 const drawerVisible = ref(false)
 const actionVisible = ref(false)
 const actionTitle = ref('处理服务反馈')
+const attachmentInput = ref<HTMLInputElement>()
+const attachmentUploading = ref(false)
+const removingAttachmentId = ref<number>()
 const filters = reactive({
   storeId: undefined as number | undefined,
   handlerId: undefined as number | undefined,
@@ -126,6 +136,11 @@ async function submitAction() {
 }
 
 function dateTime(value?: string) { return value?.replace('T', ' ').slice(0, 16) ?? '—' }
+function fileSize(value: number) {
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`
+  return `${(value / 1024 / 1024).toFixed(1)} MiB`
+}
 function overdueText(minutes: number) {
   if (minutes < 60) return `${Math.max(1, minutes)}分钟`
   const hours = Math.floor(minutes / 60)
@@ -135,6 +150,58 @@ function overdueText(minutes: number) {
 function openMember() { if (detail.value) void router.push(`/app/members/${detail.value.feedback.memberId}`) }
 function openBill() { if (detail.value) void router.push(`/app/bills/${detail.value.feedback.billId}`) }
 function openVisit() { void router.push('/app/service/visits') }
+
+function chooseAttachment() { attachmentInput.value?.click() }
+
+async function uploadAttachment(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || !detail.value) return
+  if (file.size > 10 * 1024 * 1024) return ElMessage.warning('附件大小不能超过10 MiB')
+  attachmentUploading.value = true
+  try {
+    const uploaded = await uploadServiceFeedbackAttachment(detail.value.feedback.id, file)
+    detail.value.attachments.push(uploaded)
+    ElMessage.success('附件上传成功')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '附件上传失败')
+  } finally {
+    attachmentUploading.value = false
+  }
+}
+
+async function downloadAttachment(attachmentId: number, originalName: string) {
+  if (!detail.value) return
+  try {
+    const blob = await downloadServiceFeedbackAttachment(detail.value.feedback.id, attachmentId)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = originalName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '附件下载失败')
+  }
+}
+
+async function removeAttachment(attachmentId: number) {
+  if (!detail.value) return
+  try {
+    await ElMessageBox.confirm('删除后页面将不能再下载该附件，是否继续？', '删除附件', { type: 'warning' })
+    removingAttachmentId.value = attachmentId
+    await removeServiceFeedbackAttachment(detail.value.feedback.id, attachmentId)
+    detail.value.attachments = detail.value.attachments.filter(item => item.id !== attachmentId)
+    ElMessage.success('附件已删除')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') ElMessage.error(error instanceof Error ? error.message : '附件删除失败')
+  } finally {
+    removingAttachmentId.value = undefined
+  }
+}
 
 onMounted(async () => {
   try {
@@ -196,6 +263,22 @@ onMounted(async () => {
             <el-descriptions-item v-if="detail.feedback.handleResult" label="处理结果" :span="2">{{ detail.feedback.handleResult }}</el-descriptions-item>
           </el-descriptions>
 
+          <div class="attachment-title">
+            <h3>处理附件（{{ detail.attachments.length }}/10）</h3>
+            <template v-if="auth.hasPermission('visit:feedback:manage')">
+              <input ref="attachmentInput" class="file-input" type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" @change="uploadAttachment">
+              <el-button type="primary" plain :loading="attachmentUploading" :disabled="detail.attachments.length >= 10" @click="chooseAttachment">上传附件</el-button>
+            </template>
+          </div>
+          <p class="attachment-hint">支持JPG、PNG、WEBP、PDF，单个不超过10 MiB。附件为私有文件，需登录并具备服务反馈权限才能下载。</p>
+          <div v-if="detail.attachments.length" class="attachment-list">
+            <div v-for="item in detail.attachments" :key="item.id" class="attachment-item">
+              <div><strong>{{ item.originalName }}</strong><small>{{ fileSize(item.sizeBytes) }} · {{ item.createdByName }} · {{ dateTime(item.createdAt) }}</small></div>
+              <div><el-button link type="primary" @click="downloadAttachment(item.id, item.originalName)">下载</el-button><el-button v-if="auth.hasPermission('visit:feedback:manage')" link type="danger" :loading="removingAttachmentId === item.id" @click="removeAttachment(item.id)">删除</el-button></div>
+            </div>
+          </div>
+          <el-empty v-else :image-size="60" description="暂无处理附件" />
+
           <div v-if="auth.hasPermission('visit:feedback:manage')" class="drawer-actions">
             <el-button v-if="['OPEN', 'PROCESSING'].includes(detail.feedback.status)" @click="beginAction('ASSIGN')">{{ detail.feedback.handlerId ? '重新分配' : '分配负责人' }}</el-button>
             <el-button v-if="['PROCESSING', 'RESOLVED'].includes(detail.feedback.status)" @click="beginAction('NOTE')">添加备注</el-button>
@@ -236,4 +319,11 @@ onMounted(async () => {
 .overdue-alert { margin-bottom: 14px; }
 .due-overdue { color: var(--el-color-danger); font-weight: 600; }
 .overdue-tag { margin-left: 6px; }
+.attachment-title { display: flex; align-items: center; justify-content: space-between; margin-top: 20px; }
+.attachment-title h3 { margin: 0; }
+.attachment-hint { color: var(--el-text-color-secondary); font-size: 13px; }
+.attachment-list { display: grid; gap: 8px; }
+.attachment-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--el-border-color-lighter); border-radius: 6px; }
+.attachment-item small { display: block; margin-top: 4px; color: var(--el-text-color-secondary); }
+.file-input { display: none; }
 </style>

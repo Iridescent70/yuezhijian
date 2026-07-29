@@ -42,13 +42,13 @@ public class MemoryFeedbackRepository implements FeedbackRepository {
     @Override
     public synchronized Optional<FeedbackDetail> findById(long id) {
         return feedback.stream().filter(item -> item.feedback().id() == id).findFirst()
-                .map(item -> new FeedbackDetail(withTiming(item.feedback()), item.actions()));
+                .map(item -> new FeedbackDetail(withTiming(item.feedback()), item.actions(), item.attachments()));
     }
 
     @Override
     public synchronized Optional<FeedbackDetail> findByVisitRecordId(long visitRecordId) {
         return feedback.stream().filter(item -> item.feedback().visitRecordId() == visitRecordId).findFirst()
-                .map(item -> new FeedbackDetail(withTiming(item.feedback()), item.actions()));
+                .map(item -> new FeedbackDetail(withTiming(item.feedback()), item.actions(), item.attachments()));
     }
 
     @Override
@@ -68,7 +68,7 @@ public class MemoryFeedbackRepository implements FeedbackRepository {
         FeedbackActionItem created = new FeedbackActionItem(
                 actionIds.incrementAndGet(), "CREATED", null, "OPEN", null, null,
                 "回访标记客诉后自动建单", now, draft.createdBy(), "本地管理员");
-        FeedbackDetail detail = new FeedbackDetail(summary, List.of(created));
+        FeedbackDetail detail = new FeedbackDetail(summary, List.of(created), List.of());
         feedback.add(detail);
         return detail;
     }
@@ -109,7 +109,7 @@ public class MemoryFeedbackRepository implements FeedbackRepository {
                 update.dueHours() == null ? item.dueHours() : update.dueHours(),
                 update.dueAt() == null ? item.dueAt() : update.dueAt(), false, 0,
                 actions.size(), item.createdAt(), now);
-        FeedbackDetail updated = new FeedbackDetail(summary, actions);
+        FeedbackDetail updated = new FeedbackDetail(summary, actions, current.attachments());
         feedback.removeIf(entry -> entry.feedback().id() == update.id());
         feedback.add(updated);
         return updated;

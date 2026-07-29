@@ -1257,6 +1257,21 @@ export interface FeedbackActionItem {
 export interface FeedbackDetail {
   feedback: FeedbackSummary
   actions: FeedbackActionItem[]
+  attachments: BusinessAttachmentItem[]
+}
+
+export interface BusinessAttachmentItem {
+  id: number
+  fileId: number
+  originalName: string
+  contentType: 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf'
+  sizeBytes: number
+  sha256: string
+  purpose: string
+  category: string
+  createdAt: string
+  createdBy: number
+  createdByName: string
 }
 
 export interface HandleFeedbackPayload {
