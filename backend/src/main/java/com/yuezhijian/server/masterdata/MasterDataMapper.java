@@ -41,7 +41,9 @@ public interface MasterDataMapper {
                         ELSE CONCAT('*******', RTRIM(e.mobile_last4)) END AS maskedMobile,
                    e.position_id AS positionId, p.position_name AS positionName,
                    e.primary_store_id AS storeId, s.store_name AS storeName,
-                   e.can_service AS canService, e.can_sell AS canSell, e.status
+                   e.hire_date AS hireDate, e.leave_date AS leaveDate,
+                   e.can_service AS canService, e.can_sell AS canSell, e.status,
+                   CONVERT(varchar(18), e.row_version, 1) AS version
             FROM dbo.org_employee e
             LEFT JOIN dbo.org_position p ON p.id = e.position_id
             LEFT JOIN dbo.org_store s ON s.id = e.primary_store_id
@@ -59,9 +61,26 @@ public interface MasterDataMapper {
     List<EmployeeSummary> findEmployees(@Param("storeId") Long storeId, @Param("keyword") String keyword);
 
     @Select("""
+            SELECT e.id, e.employee_no AS employeeNo, e.name,
+                   CASE WHEN e.mobile_last4 IS NULL THEN NULL
+                        ELSE CONCAT('*******', RTRIM(e.mobile_last4)) END AS maskedMobile,
+                   e.position_id AS positionId, p.position_name AS positionName,
+                   e.primary_store_id AS storeId, s.store_name AS storeName,
+                   e.hire_date AS hireDate, e.leave_date AS leaveDate,
+                   e.can_service AS canService, e.can_sell AS canSell, e.status,
+                   CONVERT(varchar(18), e.row_version, 1) AS version
+            FROM dbo.org_employee e
+            LEFT JOIN dbo.org_position p ON p.id = e.position_id
+            LEFT JOIN dbo.org_store s ON s.id = e.primary_store_id
+            WHERE e.id = #{id}
+            """)
+    EmployeeSummary findEmployee(long id);
+
+    @Select("""
             <script>
             SELECT w.id, w.store_id AS storeId, s.store_name AS storeName,
-                   w.workstation_code AS code, w.name, w.capacity, w.sort_no AS sortNo, w.status
+                   w.workstation_code AS code, w.name, w.capacity, w.sort_no AS sortNo, w.status,
+                   CONVERT(varchar(18), w.row_version, 1) AS version
             FROM dbo.org_workstation w
             JOIN dbo.org_store s ON s.id = w.store_id
             WHERE 1 = 1
@@ -72,6 +91,16 @@ public interface MasterDataMapper {
             </script>
             """)
     List<WorkstationSummary> findWorkstations(@Param("storeId") Long storeId);
+
+    @Select("""
+            SELECT w.id, w.store_id AS storeId, s.store_name AS storeName,
+                   w.workstation_code AS code, w.name, w.capacity, w.sort_no AS sortNo, w.status,
+                   CONVERT(varchar(18), w.row_version, 1) AS version
+            FROM dbo.org_workstation w
+            JOIN dbo.org_store s ON s.id = w.store_id
+            WHERE w.id = #{id}
+            """)
+    WorkstationSummary findWorkstation(long id);
 
     @Select("""
             <script>
@@ -143,15 +172,31 @@ public interface MasterDataMapper {
     @Select(value = """
             INSERT INTO dbo.org_employee (
                 employee_no, name, mobile_ciphertext, mobile_hash, mobile_last4,
-                position_id, primary_store_id, can_service, can_sell, created_by, updated_by
+                position_id, primary_store_id, hire_date, can_service, can_sell, created_by, updated_by
             )
             OUTPUT INSERTED.id
             VALUES (
                 #{employeeNo}, #{name}, #{mobileCiphertext}, #{mobileHash}, #{mobileLast4},
-                #{positionId}, #{primaryStoreId}, #{canService}, #{canSell}, #{createdBy}, #{createdBy}
+                #{positionId}, #{primaryStoreId}, #{hireDate}, #{canService}, #{canSell}, #{createdBy}, #{createdBy}
             )
             """, affectData = true)
     long insertEmployee(ProtectedEmployeeRow employee);
+
+    @Update("""
+            <script>
+            UPDATE dbo.org_employee
+            SET name = #{name},
+                <if test="mobileChanged">
+                mobile_ciphertext = #{mobileCiphertext}, mobile_hash = #{mobileHash}, mobile_last4 = #{mobileLast4},
+                </if>
+                position_id = #{positionId}, primary_store_id = #{primaryStoreId},
+                hire_date = #{hireDate}, leave_date = #{leaveDate},
+                can_service = #{canService}, can_sell = #{canSell}, status = #{status},
+                updated_at = sysdatetime(), updated_by = #{updatedBy}
+            WHERE id = #{id} AND row_version = CONVERT(binary(8), #{version}, 1)
+            </script>
+            """)
+    int updateEmployee(ProtectedEmployeeUpdate update);
 
     @Select(value = """
             INSERT INTO dbo.org_workstation (
@@ -161,6 +206,14 @@ public interface MasterDataMapper {
             VALUES (#{storeId}, #{code}, #{name}, #{capacity}, #{sortNo}, #{createdBy}, #{createdBy})
             """, affectData = true)
     long insertWorkstation(NewWorkstation workstation);
+
+    @Update("""
+            UPDATE dbo.org_workstation
+            SET name = #{name}, capacity = #{capacity}, sort_no = #{sortNo}, status = #{status},
+                updated_at = sysdatetime(), updated_by = #{updatedBy}
+            WHERE id = #{id} AND row_version = CONVERT(binary(8), #{version}, 1)
+            """)
+    int updateWorkstation(WorkstationUpdate update);
 
     @Select(value = """
             INSERT INTO dbo.cat_service (

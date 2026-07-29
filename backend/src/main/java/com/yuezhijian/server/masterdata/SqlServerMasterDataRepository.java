@@ -39,8 +39,18 @@ public class SqlServerMasterDataRepository implements MasterDataRepository {
     }
 
     @Override
+    public Optional<EmployeeSummary> findEmployee(long id) {
+        return Optional.ofNullable(mapper.findEmployee(id));
+    }
+
+    @Override
     public List<WorkstationSummary> workstations(Long storeId) {
         return mapper.findWorkstations(storeId);
+    }
+
+    @Override
+    public Optional<WorkstationSummary> findWorkstation(long id) {
+        return Optional.ofNullable(mapper.findWorkstation(id));
     }
 
     @Override
@@ -68,14 +78,41 @@ public class SqlServerMasterDataRepository implements MasterDataRepository {
                 : employee.mobile().substring(employee.mobile().length() - 4);
         long id = mapper.insertEmployee(new ProtectedEmployeeRow(
                 employee.employeeNo(), employee.name(), ciphertext, hash, last4,
-                employee.positionId(), employee.primaryStoreId(), employee.canService(), employee.canSell(),
+                employee.positionId(), employee.primaryStoreId(), employee.hireDate(),
+                employee.canService(), employee.canSell(),
                 employee.createdBy()));
         return new CreatedResource(id);
     }
 
     @Override
+    @Transactional
+    public EmployeeSummary updateEmployee(EmployeeUpdate update) {
+        boolean mobileChanged = update.mobile() != null;
+        String ciphertext = mobileChanged ? codec.encrypt(update.mobile()) : null;
+        String hash = mobileChanged ? codec.searchableHash(update.mobile()) : null;
+        String last4 = mobileChanged ? update.mobile().substring(update.mobile().length() - 4) : null;
+        int updated = mapper.updateEmployee(new ProtectedEmployeeUpdate(
+                update.id(), update.name(), mobileChanged, ciphertext, hash, last4,
+                update.positionId(), update.primaryStoreId(), update.hireDate(), update.leaveDate(),
+                update.canService(), update.canSell(), update.status(), update.version(), update.updatedBy()));
+        if (updated == 0) throw stale("员工");
+        EmployeeSummary saved = mapper.findEmployee(update.id());
+        if (saved == null) throw new IllegalStateException("员工更新后不存在");
+        return saved;
+    }
+
+    @Override
     public CreatedResource createWorkstation(NewWorkstation workstation) {
         return new CreatedResource(mapper.insertWorkstation(workstation));
+    }
+
+    @Override
+    @Transactional
+    public WorkstationSummary updateWorkstation(WorkstationUpdate update) {
+        if (mapper.updateWorkstation(update) == 0) throw stale("工位");
+        WorkstationSummary saved = mapper.findWorkstation(update.id());
+        if (saved == null) throw new IllegalStateException("工位更新后不存在");
+        return saved;
     }
 
     @Override
@@ -107,5 +144,10 @@ public class SqlServerMasterDataRepository implements MasterDataRepository {
                 row.id(), row.code(), row.name(), row.categoryId(), row.categoryName(), row.durationMinutes(),
                 row.costAmount(), row.listPrice(), row.description(), row.status(),
                 mapper.findServiceStores(row.id()), row.version());
+    }
+
+    private com.yuezhijian.server.common.DuplicateResourceException stale(String resource) {
+        return new com.yuezhijian.server.common.DuplicateResourceException(
+                resource + "资料已被他人修改，请刷新后重试");
     }
 }

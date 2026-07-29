@@ -1,13 +1,11 @@
 package com.yuezhijian.server.masterdata;
 
-public record WorkstationSummary(
+public record WorkstationUpdate(
         long id,
-        long storeId,
-        String storeName,
-        String code,
         String name,
         int capacity,
         int sortNo,
         String status,
-        String version) {
+        String version,
+        long updatedBy) {
 }

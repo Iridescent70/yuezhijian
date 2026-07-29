@@ -12,7 +12,11 @@ public interface MasterDataRepository {
 
     List<EmployeeSummary> employees(Long storeId, String keyword);
 
+    Optional<EmployeeSummary> findEmployee(long id);
+
     List<WorkstationSummary> workstations(Long storeId);
+
+    Optional<WorkstationSummary> findWorkstation(long id);
 
     List<ServiceItemSummary> services(Long storeId, String keyword);
 
@@ -22,7 +26,11 @@ public interface MasterDataRepository {
 
     CreatedResource createEmployee(NewEmployee employee);
 
+    EmployeeSummary updateEmployee(EmployeeUpdate update);
+
     CreatedResource createWorkstation(NewWorkstation workstation);
+
+    WorkstationSummary updateWorkstation(WorkstationUpdate update);
 
     CreatedResource createService(NewServiceItem service);
 

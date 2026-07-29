@@ -7,7 +7,9 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -37,6 +39,12 @@ public class EmployeeController {
         return ApiResponse.ok(service.employees(storeId, keyword));
     }
 
+    @GetMapping("/employees/{id}")
+    @PreAuthorize("hasAuthority('org:employee:view')")
+    public ApiResponse<EmployeeSummary> employee(@PathVariable long id) {
+        return ApiResponse.ok(service.employee(id));
+    }
+
     @PostMapping("/employees")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAuthority('org:employee:manage')")
@@ -44,5 +52,14 @@ public class EmployeeController {
             @Valid @RequestBody CreateEmployeeRequest request,
             Principal principal) {
         return ApiResponse.ok(service.createEmployee(request, principal.getName()));
+    }
+
+    @PutMapping("/employees/{id}")
+    @PreAuthorize("hasAuthority('org:employee:manage')")
+    public ApiResponse<EmployeeSummary> updateEmployee(
+            @PathVariable long id,
+            @Valid @RequestBody UpdateEmployeeRequest request,
+            Principal principal) {
+        return ApiResponse.ok(service.updateEmployee(id, request, principal.getName()));
     }
 }

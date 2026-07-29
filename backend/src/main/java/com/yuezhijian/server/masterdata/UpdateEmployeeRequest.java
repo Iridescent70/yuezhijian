@@ -5,13 +5,15 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 
-public record CreateEmployeeRequest(
-        @NotBlank @Size(max = 64) String employeeNo,
+public record UpdateEmployeeRequest(
         @NotBlank @Size(max = 100) String name,
         String mobile,
         @NotNull Long positionId,
         @NotNull Long primaryStoreId,
         LocalDate hireDate,
+        LocalDate leaveDate,
         boolean canService,
-        boolean canSell) {
+        boolean canSell,
+        @NotBlank String status,
+        @NotBlank String version) {
 }

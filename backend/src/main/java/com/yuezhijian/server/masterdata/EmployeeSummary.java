@@ -1,5 +1,7 @@
 package com.yuezhijian.server.masterdata;
 
+import java.time.LocalDate;
+
 public record EmployeeSummary(
         long id,
         String employeeNo,
@@ -9,7 +11,10 @@ public record EmployeeSummary(
         String positionName,
         Long storeId,
         String storeName,
+        LocalDate hireDate,
+        LocalDate leaveDate,
         boolean canService,
         boolean canSell,
-        String status) {
+        String status,
+        String version) {
 }

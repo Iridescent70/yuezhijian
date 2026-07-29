@@ -46,8 +46,22 @@ public class MasterDataService {
         return repository.employees(storeDataScope.constrainNullable(storeId), blankToNull(keyword));
     }
 
+    public EmployeeSummary employee(long id) {
+        EmployeeSummary employee = repository.findEmployee(id)
+                .orElseThrow(() -> new ResourceNotFoundException("员工不存在"));
+        storeDataScope.require(employee.storeId());
+        return employee;
+    }
+
     public List<WorkstationSummary> workstations(Long storeId) {
         return repository.workstations(storeDataScope.constrainNullable(storeId));
+    }
+
+    public WorkstationSummary workstation(long id) {
+        WorkstationSummary workstation = repository.findWorkstation(id)
+                .orElseThrow(() -> new ResourceNotFoundException("工位不存在"));
+        storeDataScope.require(workstation.storeId());
+        return workstation;
     }
 
     public List<ServiceItemSummary> services(Long storeId, String keyword) {
@@ -62,20 +76,33 @@ public class MasterDataService {
 
     public CreatedResource createEmployee(CreateEmployeeRequest request, String username) {
         storeDataScope.require(request.primaryStoreId());
-        boolean positionExists = repository.positions().stream()
-                .anyMatch(position -> position.id() == request.positionId() && "ACTIVE".equals(position.status()));
-        if (!positionExists) {
-            throw new IllegalArgumentException("所选职务不存在或已停用");
-        }
+        requireActivePosition(request.positionId());
         return repository.createEmployee(new NewEmployee(
                 request.employeeNo().trim().toUpperCase(Locale.ROOT),
                 request.name().trim(),
                 normalizeOptionalMobile(request.mobile()),
                 request.positionId(),
                 request.primaryStoreId(),
+                request.hireDate(),
                 request.canService(),
                 request.canSell(),
                 currentUserId(username)));
+    }
+
+    public EmployeeSummary updateEmployee(long id, UpdateEmployeeRequest request, String username) {
+        EmployeeSummary current = employee(id);
+        storeDataScope.require(request.primaryStoreId());
+        requireActivePosition(request.positionId());
+        String status = normalize(request.status(), Set.of("ACTIVE", "DISABLED", "LEFT"), "员工状态无效");
+        validateEmploymentDates(request.hireDate(), request.leaveDate(), status);
+        String mobile = request.mobile() == null || request.mobile().isBlank()
+                ? null : normalizeOptionalMobile(request.mobile());
+        EmployeeSummary saved = repository.updateEmployee(new EmployeeUpdate(
+                current.id(), request.name().trim(), mobile, request.positionId(), request.primaryStoreId(),
+                request.hireDate(), request.leaveDate(), request.canService(), request.canSell(), status,
+                request.version(), currentUserId(username)));
+        storeDataScope.require(saved.storeId());
+        return saved;
     }
 
     public CreatedResource createWorkstation(CreateWorkstationRequest request, String username) {
@@ -87,6 +114,15 @@ public class MasterDataService {
                 request.capacity(),
                 request.sortNo(),
                 currentUserId(username)));
+    }
+
+    public WorkstationSummary updateWorkstation(
+            long id, UpdateWorkstationRequest request, String username) {
+        WorkstationSummary current = workstation(id);
+        String status = normalize(request.status(), Set.of("ACTIVE", "DISABLED"), "工位状态无效");
+        return repository.updateWorkstation(new WorkstationUpdate(
+                current.id(), request.name().trim(), request.capacity(), request.sortNo(), status,
+                request.version(), currentUserId(username)));
     }
 
     public CreatedResource createService(CreateServiceItemRequest request, String username) {
@@ -232,6 +268,25 @@ public class MasterDataService {
 
     private long currentUserId(String username) {
         return accessCatalog.userIdentity(username).id();
+    }
+
+    private void requireActivePosition(long positionId) {
+        boolean positionExists = repository.positions().stream()
+                .anyMatch(position -> position.id() == positionId && "ACTIVE".equals(position.status()));
+        if (!positionExists) throw new IllegalArgumentException("所选职务不存在或已停用");
+    }
+
+    private void validateEmploymentDates(
+            java.time.LocalDate hireDate, java.time.LocalDate leaveDate, String status) {
+        if (hireDate != null && leaveDate != null && leaveDate.isBefore(hireDate)) {
+            throw new IllegalArgumentException("离职日期不能早于入职日期");
+        }
+        if ("LEFT".equals(status) && leaveDate == null) {
+            throw new IllegalArgumentException("离职员工必须填写离职日期");
+        }
+        if (!"LEFT".equals(status) && leaveDate != null) {
+            throw new IllegalArgumentException("填写离职日期时员工状态必须为离职");
+        }
     }
 
     private String normalizeOptionalMobile(String mobile) {

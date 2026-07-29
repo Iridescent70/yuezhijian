@@ -722,9 +722,12 @@ export interface EmployeeSummary {
   positionName: string
   storeId: number
   storeName: string
+  hireDate?: string
+  leaveDate?: string
   canService: boolean
   canSell: boolean
   status: string
+  version: string
 }
 
 export interface WorkstationSummary {
@@ -736,6 +739,7 @@ export interface WorkstationSummary {
   capacity: number
   sortNo: number
   status: string
+  version: string
 }
 
 export interface ServiceItemSummary {
@@ -780,8 +784,22 @@ export interface CreateEmployeePayload {
   mobile?: string
   positionId: number
   primaryStoreId: number
+  hireDate?: string
   canService: boolean
   canSell: boolean
+}
+
+export interface UpdateEmployeePayload {
+  name: string
+  mobile?: string
+  positionId: number
+  primaryStoreId: number
+  hireDate?: string
+  leaveDate?: string
+  canService: boolean
+  canSell: boolean
+  status: string
+  version: string
 }
 
 export interface CreateWorkstationPayload {
@@ -790,6 +808,14 @@ export interface CreateWorkstationPayload {
   name: string
   capacity: number
   sortNo: number
+}
+
+export interface UpdateWorkstationPayload {
+  name: string
+  capacity: number
+  sortNo: number
+  status: string
+  version: string
 }
 
 export interface CreateServiceItemPayload {

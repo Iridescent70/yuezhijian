@@ -94,12 +94,12 @@
 | API-ORG-005 | `GET/PUT /stores/{id}` | 详情/资料、营业时间、状态 | 门店详情/更新结果 | 多门店通用 |
 | API-ORG-006 | `GET/POST /positions` | 查询/职务、代码、默认提成 | 列表/id | 系统管理-10 |
 | API-ORG-007 | `PUT /positions/{id}` | 职务资料、version | 更新结果 | 系统管理-10 |
-| API-ORG-008 | `GET/POST /employees` | 查询/人员、职务、主门店、入职信息 | 分页/id | 系统管理-09 |
-| API-ORG-009 | `GET/PUT /employees/{id}` | 详情/资料、状态、version | 员工详情/更新结果 | 系统管理-09 |
+| API-ORG-008 | `GET/POST /employees` | 门店、关键词/员工号、姓名、手机号、职务、主门店、入职日期、服务/销售能力 | 脱敏列表/员工id；已实现 | 系统管理-09 |
+| API-ORG-009 | `GET/PUT /employees/{id}` | 详情/姓名、可选新手机号、职务、主门店、入离职日期、能力、状态、version | 脱敏员工详情/更新结果；员工号不可修改，手机号留空保留，乐观锁；已实现 | 系统管理-09 |
 | API-ORG-010 | `POST /employees/import` | 文件 id | 导入任务 id | 系统管理-09 |
 | API-ORG-011 | `GET/POST /employee-loans` | 查询/员工、原店、借调店、期间、比例 | 分页/id | 系统管理-37、薪酬-03 |
 | API-ORG-012 | `POST /employee-loans/{id}/approve`、`/reject` | 意见 | 审批结果 | 系统管理-37、薪酬-03 |
-| API-ORG-013 | `GET/POST /workstations` | 门店、状态/名称、容量 | 工位列表/id | 系统管理-14 |
+| API-ORG-013 | `GET/POST /workstations`、`GET/PUT /workstations/{id}` | 门店/编号、名称、容量、排序、状态、version | 工位列表、详情及更新；编号和门店不可修改，乐观锁；已实现 | 系统管理-14 |
 | API-ORG-014 | `GET/POST /terminals` | 门店/设备指纹、名称、状态 | 终端列表/id | 系统管理-15 |
 | API-COM-001 | `POST /files` | multipart 文件、用途 | 通用独立入口尚未开放；服务反馈和任务结果已使用业务专用入口 | 通用-导入导出 |
 | API-COM-002 | `GET /files/{id}` | fileId | 通用独立入口尚未开放；文件只能从已授权业务或本人任务下载，不提供公开URL | 通用-导入导出 |

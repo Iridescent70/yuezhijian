@@ -159,6 +159,75 @@ class MasterDataFlowTest {
                 .andExpect(status().isConflict());
     }
 
+    @Test
+    void employeeAndWorkstationCanBeEditedAndRejectStaleVersions() throws Exception {
+        MockHttpSession session = login();
+        String employeeCreated = mockMvc.perform(post("/api/v1/employees")
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "employeeNo":"E-EDIT-903","name":"待编辑员工","mobile":"13912349003",
+                                  "positionId":1,"primaryStoreId":2,"hireDate":"2026-07-01",
+                                  "canService":true,"canSell":false
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long employeeId = objectMapper.readTree(employeeCreated).path("data").path("id").asLong();
+        String employeeDetail = mockMvc.perform(get("/api/v1/employees/{id}", employeeId).session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.maskedMobile").value("*******9003"))
+                .andReturn().getResponse().getContentAsString();
+        String employeeVersion = objectMapper.readTree(employeeDetail).path("data").path("version").asText();
+        String employeeUpdate = """
+                {
+                  "name":"已离职员工","positionId":1,"primaryStoreId":2,
+                  "hireDate":"2026-07-01","leaveDate":"2026-07-30",
+                  "canService":false,"canSell":false,"status":"LEFT","version":"%s"
+                }
+                """.formatted(employeeVersion);
+        mockMvc.perform(put("/api/v1/employees/{id}", employeeId)
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content(employeeUpdate))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("已离职员工"))
+                .andExpect(jsonPath("$.data.status").value("LEFT"))
+                .andExpect(jsonPath("$.data.leaveDate").value("2026-07-30"))
+                .andExpect(jsonPath("$.data.maskedMobile").value("*******9003"));
+        mockMvc.perform(put("/api/v1/employees/{id}", employeeId)
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content(employeeUpdate))
+                .andExpect(status().isConflict());
+
+        String workstationCreated = mockMvc.perform(post("/api/v1/workstations")
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"storeId":2,"code":"W-EDIT-903","name":"待编辑工位","capacity":1,"sortNo":93}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long workstationId = objectMapper.readTree(workstationCreated).path("data").path("id").asLong();
+        String workstationDetail = mockMvc.perform(get("/api/v1/workstations/{id}", workstationId)
+                        .session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String workstationVersion = objectMapper.readTree(workstationDetail).path("data").path("version").asText();
+        String workstationUpdate = """
+                {"name":"已停用工位","capacity":2,"sortNo":94,"status":"DISABLED","version":"%s"}
+                """.formatted(workstationVersion);
+        mockMvc.perform(put("/api/v1/workstations/{id}", workstationId)
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content(workstationUpdate))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("已停用工位"))
+                .andExpect(jsonPath("$.data.capacity").value(2))
+                .andExpect(jsonPath("$.data.status").value("DISABLED"));
+        mockMvc.perform(put("/api/v1/workstations/{id}", workstationId)
+                        .with(csrf()).session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content(workstationUpdate))
+                .andExpect(status().isConflict());
+    }
+
     private MockHttpSession login() throws Exception {
         return (MockHttpSession) mockMvc.perform(post("/api/v1/auth/login")
                         .with(csrf())

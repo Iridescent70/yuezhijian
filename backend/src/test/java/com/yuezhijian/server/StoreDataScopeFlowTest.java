@@ -97,7 +97,9 @@ class StoreDataScopeFlowTest {
     @Test
     void storeRoleIsRestrictedAcrossOperationsAndConfiguration() throws Exception {
         assertForbidden(get("/api/v1/employees").param("storeId", "2"));
+        assertForbidden(get("/api/v1/employees/101"));
         assertForbidden(get("/api/v1/workstations").param("storeId", "2"));
+        assertForbidden(get("/api/v1/workstations/201"));
         assertForbidden(get("/api/v1/services").param("storeId", "2"));
         assertForbidden(get("/api/v1/services/301"));
         assertForbidden(get("/api/v1/products").param("storeId", "2"));

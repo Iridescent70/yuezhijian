@@ -11,6 +11,8 @@ import type {
   ServiceItemSummary,
   ServiceItemDetail,
   UpdateServiceItemPayload,
+  UpdateEmployeePayload,
+  UpdateWorkstationPayload,
   WorkstationSummary,
 } from '@/types/api'
 
@@ -26,12 +28,28 @@ export function createEmployee(payload: CreateEmployeePayload): Promise<CreatedR
   return apiRequest<CreatedResource>({ method: 'POST', url: '/employees', data: payload })
 }
 
+export function getEmployee(id: number): Promise<EmployeeSummary> {
+  return apiRequest<EmployeeSummary>({ method: 'GET', url: `/employees/${id}` })
+}
+
+export function updateEmployee(id: number, payload: UpdateEmployeePayload): Promise<EmployeeSummary> {
+  return apiRequest<EmployeeSummary>({ method: 'PUT', url: `/employees/${id}`, data: payload })
+}
+
 export function getWorkstations(storeId?: number): Promise<WorkstationSummary[]> {
   return apiRequest<WorkstationSummary[]>({ method: 'GET', url: '/workstations', params: { storeId } })
 }
 
 export function createWorkstation(payload: CreateWorkstationPayload): Promise<CreatedResource> {
   return apiRequest<CreatedResource>({ method: 'POST', url: '/workstations', data: payload })
+}
+
+export function getWorkstation(id: number): Promise<WorkstationSummary> {
+  return apiRequest<WorkstationSummary>({ method: 'GET', url: `/workstations/${id}` })
+}
+
+export function updateWorkstation(id: number, payload: UpdateWorkstationPayload): Promise<WorkstationSummary> {
+  return apiRequest<WorkstationSummary>({ method: 'PUT', url: `/workstations/${id}`, data: payload })
 }
 
 export function getServiceCategories(): Promise<CategoryOption[]> {

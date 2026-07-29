@@ -45,6 +45,23 @@ class MasterDataMapperSqlTest {
                 .contains("store_id = #{update.storeId}");
     }
 
+    @Test
+    void employeeAndWorkstationUpdatesUseRowVersion() throws Exception {
+        Update employee = MasterDataMapper.class
+                .getMethod("updateEmployee", ProtectedEmployeeUpdate.class).getAnnotation(Update.class);
+        assertThat(String.join(" ", employee.value()))
+                .contains("row_version = CONVERT(binary(8), #{version}, 1)")
+                .contains("mobile_ciphertext = #{mobileCiphertext}")
+                .contains("updated_by = #{updatedBy}");
+
+        Update workstation = MasterDataMapper.class
+                .getMethod("updateWorkstation", WorkstationUpdate.class).getAnnotation(Update.class);
+        assertThat(String.join(" ", workstation.value()))
+                .contains("row_version = CONVERT(binary(8), #{version}, 1)")
+                .contains("status = #{status}")
+                .contains("updated_by = #{updatedBy}");
+    }
+
     private BoundSql parse(Method method, Map<String, Object> parameters) {
         Select select = method.getAnnotation(Select.class);
         String script = String.join(" ", select.value());

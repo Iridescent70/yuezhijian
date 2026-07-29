@@ -2,16 +2,17 @@ package com.yuezhijian.server.masterdata;
 
 import java.time.LocalDate;
 
-public record ProtectedEmployeeRow(
-        String employeeNo,
+public record EmployeeUpdate(
+        long id,
         String name,
-        String mobileCiphertext,
-        String mobileHash,
-        String mobileLast4,
+        String mobile,
         long positionId,
         long primaryStoreId,
         LocalDate hireDate,
+        LocalDate leaveDate,
         boolean canService,
         boolean canSell,
-        long createdBy) {
+        String status,
+        String version,
+        long updatedBy) {
 }

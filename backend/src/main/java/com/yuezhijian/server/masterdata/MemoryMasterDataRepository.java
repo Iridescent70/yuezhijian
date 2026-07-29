@@ -28,12 +28,14 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
             new UnitOption(3L, "BOTTLE", "瓶", 2, "ACTIVE"));
     private final List<EmployeeSummary> employees = new ArrayList<>(List.of(
             new EmployeeSummary(101L, "E001", "安然", "*******2101", 1L, "美甲技师", 2L,
-                    "悦指间示范店", true, true, "ACTIVE"),
+                    "悦指间示范店", java.time.LocalDate.of(2025, 1, 1), null,
+                    true, true, "ACTIVE", "1"),
             new EmployeeSummary(102L, "E002", "若溪", "*******2102", 1L, "美甲技师", 2L,
-                    "悦指间示范店", true, true, "ACTIVE")));
+                    "悦指间示范店", java.time.LocalDate.of(2025, 2, 1), null,
+                    true, true, "ACTIVE", "1")));
     private final List<WorkstationSummary> workstations = new ArrayList<>(List.of(
-            new WorkstationSummary(201L, 2L, "悦指间示范店", "W01", "一号美甲台", 1, 10, "ACTIVE"),
-            new WorkstationSummary(202L, 2L, "悦指间示范店", "W02", "二号美甲台", 1, 20, "ACTIVE")));
+            new WorkstationSummary(201L, 2L, "悦指间示范店", "W01", "一号美甲台", 1, 10, "ACTIVE", "1"),
+            new WorkstationSummary(202L, 2L, "悦指间示范店", "W02", "二号美甲台", 1, 20, "ACTIVE", "1")));
     private final Map<Long, ServiceItemDetail> services = new LinkedHashMap<>();
     private final AtomicLong employeeIds = new AtomicLong(102);
     private final AtomicLong workstationIds = new AtomicLong(202);
@@ -80,11 +82,21 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
     }
 
     @Override
+    public synchronized Optional<EmployeeSummary> findEmployee(long id) {
+        return employees.stream().filter(employee -> employee.id() == id).findFirst();
+    }
+
+    @Override
     public synchronized List<WorkstationSummary> workstations(Long storeId) {
         return workstations.stream()
                 .filter(workstation -> storeId == null || workstation.storeId() == storeId)
                 .sorted(Comparator.comparingInt(WorkstationSummary::sortNo))
                 .toList();
+    }
+
+    @Override
+    public synchronized Optional<WorkstationSummary> findWorkstation(long id) {
+        return workstations.stream().filter(workstation -> workstation.id() == id).findFirst();
     }
 
     @Override
@@ -119,8 +131,26 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
         employees.add(new EmployeeSummary(
                 id, employee.employeeNo(), employee.name(), mask(employee.mobile()), employee.positionId(),
                 positionName, employee.primaryStoreId(), storeName(employee.primaryStoreId()),
-                employee.canService(), employee.canSell(), "ACTIVE"));
+                employee.hireDate(), null, employee.canService(), employee.canSell(), "ACTIVE", "1"));
         return new CreatedResource(id);
+    }
+
+    @Override
+    public synchronized EmployeeSummary updateEmployee(EmployeeUpdate update) {
+        EmployeeSummary current = findEmployee(update.id()).orElse(null);
+        if (current == null || !current.version().equals(update.version())) {
+            throw stale("员工");
+        }
+        String positionName = positions.stream().filter(position -> position.id() == update.positionId())
+                .findFirst().map(PositionOption::name).orElse("未知职务");
+        EmployeeSummary saved = new EmployeeSummary(
+                current.id(), current.employeeNo(), update.name(),
+                update.mobile() == null ? current.maskedMobile() : mask(update.mobile()),
+                update.positionId(), positionName, update.primaryStoreId(), storeName(update.primaryStoreId()),
+                update.hireDate(), update.leaveDate(), update.canService(), update.canSell(), update.status(),
+                nextVersion(current.version()));
+        employees.set(employees.indexOf(current), saved);
+        return saved;
     }
 
     @Override
@@ -128,8 +158,21 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
         long id = workstationIds.incrementAndGet();
         workstations.add(new WorkstationSummary(
                 id, workstation.storeId(), storeName(workstation.storeId()), workstation.code(), workstation.name(),
-                workstation.capacity(), workstation.sortNo(), "ACTIVE"));
+                workstation.capacity(), workstation.sortNo(), "ACTIVE", "1"));
         return new CreatedResource(id);
+    }
+
+    @Override
+    public synchronized WorkstationSummary updateWorkstation(WorkstationUpdate update) {
+        WorkstationSummary current = findWorkstation(update.id()).orElse(null);
+        if (current == null || !current.version().equals(update.version())) {
+            throw stale("工位");
+        }
+        WorkstationSummary saved = new WorkstationSummary(
+                current.id(), current.storeId(), current.storeName(), current.code(), update.name(),
+                update.capacity(), update.sortNo(), update.status(), nextVersion(current.version()));
+        workstations.set(workstations.indexOf(current), saved);
+        return saved;
     }
 
     @Override
@@ -191,6 +234,11 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
 
     private String mask(String mobile) {
         return mobile == null ? null : "*******" + mobile.substring(mobile.length() - 4);
+    }
+
+    private com.yuezhijian.server.common.DuplicateResourceException stale(String resource) {
+        return new com.yuezhijian.server.common.DuplicateResourceException(
+                resource + "资料已被他人修改，请刷新后重试");
     }
 
     private String storeName(long storeId) {
