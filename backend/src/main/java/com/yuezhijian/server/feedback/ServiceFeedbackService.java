@@ -3,6 +3,7 @@ package com.yuezhijian.server.feedback;
 import com.yuezhijian.server.common.ResourceNotFoundException;
 import com.yuezhijian.server.iam.AccessCatalogService;
 import com.yuezhijian.server.masterdata.MasterDataRepository;
+import com.yuezhijian.server.settings.SystemSettingsService;
 import com.yuezhijian.server.visit.VisitRecordItem;
 import com.yuezhijian.server.visit.VisitTaskDetail;
 import java.time.LocalDateTime;
@@ -21,20 +22,23 @@ public class ServiceFeedbackService {
     private final MasterDataRepository masterData;
     private final AccessCatalogService accessCatalog;
     private final FeedbackNumberGenerator numbers;
+    private final SystemSettingsService settings;
 
     public ServiceFeedbackService(
             FeedbackRepository repository,
             MasterDataRepository masterData,
             AccessCatalogService accessCatalog,
-            FeedbackNumberGenerator numbers) {
+            FeedbackNumberGenerator numbers,
+            SystemSettingsService settings) {
         this.repository = repository;
         this.masterData = masterData;
         this.accessCatalog = accessCatalog;
         this.numbers = numbers;
+        this.settings = settings;
     }
 
     public List<FeedbackSummary> feedback(
-            Long storeId, Long handlerId, Integer score, String status, String keyword) {
+            Long storeId, Long handlerId, Integer score, String status, Boolean overdue, String keyword) {
         if (storeId != null && accessCatalog.stores().stream().noneMatch(store -> store.id() == storeId)) {
             throw new IllegalArgumentException("无权查看所选门店的服务反馈");
         }
@@ -44,7 +48,7 @@ public class ServiceFeedbackService {
             throw new IllegalArgumentException("服务反馈状态无效");
         }
         return repository.feedback(new FeedbackQuery(
-                storeId, handlerId, score, normalizedStatus, trimToNull(keyword)));
+                storeId, handlerId, score, normalizedStatus, overdue, trimToNull(keyword)));
     }
 
     public FeedbackDetail detail(long id) {
@@ -57,11 +61,13 @@ public class ServiceFeedbackService {
         if (!record.complaintFlag()) return null;
         var existing = repository.findByVisitRecordId(record.id());
         if (existing.isPresent()) return existing.get();
+        LocalDateTime createdAt = record.createdAt() == null ? LocalDateTime.now() : record.createdAt();
+        int dueHours = feedbackDueHours();
         return repository.create(new FeedbackDraft(
                 numbers.feedbackNo(), task.task().id(), record.id(), task.task().memberId(),
                 task.task().customerName(), task.task().maskedMobile(), task.task().billId(), task.task().billNo(),
                 task.task().storeId(), task.task().storeName(), record.satisfactionScore(),
-                record.content(), record.createdAt(), operatorId));
+                record.content(), createdAt, dueHours, createdAt.plusHours(dueHours), operatorId));
     }
 
     @Transactional
@@ -75,6 +81,8 @@ public class ServiceFeedbackService {
         Long handlerId = request.handlerId() == null ? feedback.handlerId() : request.handlerId();
         String nextStatus;
         String actionType;
+        Integer dueHours = null;
+        LocalDateTime dueAt = null;
         switch (action) {
             case "ASSIGN" -> {
                 requireStatus(feedback.status(), Set.of("OPEN", "PROCESSING"), "只有待处理或处理中的反馈可以分配");
@@ -108,13 +116,20 @@ public class ServiceFeedbackService {
                 nextStatus = "PROCESSING";
                 actionType = "REOPENED";
                 result = null;
+                dueHours = feedbackDueHours();
+                dueAt = LocalDateTime.now().plusHours(dueHours);
             }
             default -> throw new IllegalArgumentException("服务反馈处理动作无效");
         }
         if (handlerId != null) validateHandler(handlerId, feedback.storeId());
         long operatorId = accessCatalog.userIdentity(username).id();
         return repository.update(new FeedbackUpdate(
-                id, feedback.status(), nextStatus, handlerId, result, actionType, content, operatorId));
+                id, feedback.status(), nextStatus, handlerId, result, actionType, content,
+                dueHours, dueAt, operatorId));
+    }
+
+    private int feedbackDueHours() {
+        return settings.integerValue("VISIT", "SERVICE_FEEDBACK_DUE_HOURS", 24, 1, 720);
     }
 
     private void validateHandler(long handlerId, long storeId) {

@@ -140,6 +140,9 @@ public class SystemSettingsService {
         if ("VISIT".equals(parameter.paramGroup()) && "AFTER_SALE_DUE_HOURS".equals(parameter.paramKey())) {
             requireIntegerRange(value, 1, 720, "回访到期小时必须在1至720之间");
         }
+        if ("VISIT".equals(parameter.paramGroup()) && "SERVICE_FEEDBACK_DUE_HOURS".equals(parameter.paramKey())) {
+            requireIntegerRange(value, 1, 720, "服务反馈处理时限必须在1至720小时之间");
+        }
     }
 
     private RuleFields normalizeRule(

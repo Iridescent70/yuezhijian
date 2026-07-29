@@ -5,5 +5,6 @@ public record FeedbackQuery(
         Long handlerId,
         Integer score,
         String status,
+        Boolean overdue,
         String keyword) {
 }

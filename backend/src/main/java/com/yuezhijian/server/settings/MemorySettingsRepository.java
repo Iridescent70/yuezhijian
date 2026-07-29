@@ -27,6 +27,9 @@ public class MemorySettingsRepository implements SettingsRepository {
         parameters.add(new SystemParameterItem(
                 2, "VISIT", "AFTER_SALE_DUE_HOURS", "24", "INTEGER",
                 "账单结算后多少小时生成到期回访", "ACTIVE", now, "1"));
+        parameters.add(new SystemParameterItem(
+                3, "VISIT", "SERVICE_FEEDBACK_DUE_HOURS", "24", "INTEGER",
+                "服务反馈创建或重新打开后多少小时应完成处理", "ACTIVE", now, "1"));
     }
 
     @Override

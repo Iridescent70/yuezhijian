@@ -1232,6 +1232,10 @@ export interface FeedbackSummary {
   handledAt?: string
   resolvedAt?: string
   closedAt?: string
+  dueHours: number
+  dueAt: string
+  overdue: boolean
+  overdueMinutes: number
   actionCount: number
   createdAt: string
   updatedAt: string

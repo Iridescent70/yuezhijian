@@ -25,6 +25,10 @@ public record FeedbackSummary(
         LocalDateTime handledAt,
         LocalDateTime resolvedAt,
         LocalDateTime closedAt,
+        int dueHours,
+        LocalDateTime dueAt,
+        boolean overdue,
+        long overdueMinutes,
         int actionCount,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {

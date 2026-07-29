@@ -83,6 +83,9 @@ class VisitFlowTest {
         org.assertj.core.api.Assertions.assertThat(feedback).isNotNull();
         org.assertj.core.api.Assertions.assertThat(feedback.path("score").asInt()).isEqualTo(2);
         org.assertj.core.api.Assertions.assertThat(feedback.path("status").asText()).isEqualTo("OPEN");
+        org.assertj.core.api.Assertions.assertThat(feedback.path("dueHours").asInt()).isEqualTo(24);
+        org.assertj.core.api.Assertions.assertThat(feedback.path("dueAt").asText()).isNotBlank();
+        org.assertj.core.api.Assertions.assertThat(feedback.path("overdue").asBoolean()).isFalse();
         long feedbackId = feedback.path("id").asLong();
 
         JsonNode assigned = json(postJson(session, "/api/v1/service-feedback/" + feedbackId + "/handle", """
@@ -104,6 +107,16 @@ class VisitFlowTest {
         org.assertj.core.api.Assertions.assertThat(closed.path("feedback").path("status").asText())
                 .isEqualTo("CLOSED");
         org.assertj.core.api.Assertions.assertThat(closed.path("actions").size()).isEqualTo(5);
+        JsonNode reopened = json(postJson(session, "/api/v1/service-feedback/" + feedbackId + "/handle", """
+                {"action":"REOPEN","handlerId":101,"content":"会员补充反馈，需要再次跟进"}
+                """, 200)).path("data");
+        org.assertj.core.api.Assertions.assertThat(reopened.path("feedback").path("status").asText())
+                .isEqualTo("PROCESSING");
+        org.assertj.core.api.Assertions.assertThat(reopened.path("feedback").path("dueHours").asInt())
+                .isEqualTo(24);
+        org.assertj.core.api.Assertions.assertThat(reopened.path("feedback").path("overdue").asBoolean())
+                .isFalse();
+        org.assertj.core.api.Assertions.assertThat(reopened.path("actions").size()).isEqualTo(6);
     }
 
     @Test

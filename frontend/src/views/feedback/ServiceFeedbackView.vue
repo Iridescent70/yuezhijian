@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getServiceFeedback, getServiceFeedbackDetail, handleServiceFeedback } from '@/api/feedback'
@@ -33,6 +33,7 @@ const filters = reactive({
   handlerId: undefined as number | undefined,
   score: undefined as number | undefined,
   status: '' as '' | FeedbackStatus,
+  overdue: undefined as boolean | undefined,
   keyword: '',
 })
 const actionForm = reactive<HandleFeedbackPayload>({ action: 'ASSIGN', handlerId: undefined, content: '', result: '' })
@@ -47,6 +48,7 @@ const actionName: Record<FeedbackActionType, string> = {
   CREATED: '创建反馈', ASSIGNED: '分配负责人', NOTE: '处理备注',
   RESOLVED: '标记解决', CLOSED: '关闭反馈', REOPENED: '重新打开',
 }
+const overdueCount = computed(() => rows.value.filter(item => item.overdue).length)
 
 async function loadEmployees() {
   employees.value = await getEmployees({ storeId: filters.storeId })
@@ -61,6 +63,7 @@ async function load() {
       handlerId: filters.handlerId,
       score: filters.score,
       status: filters.status || undefined,
+      overdue: filters.overdue,
       keyword: filters.keyword || undefined,
     })
   } catch (error) {
@@ -123,6 +126,12 @@ async function submitAction() {
 }
 
 function dateTime(value?: string) { return value?.replace('T', ' ').slice(0, 16) ?? '—' }
+function overdueText(minutes: number) {
+  if (minutes < 60) return `${Math.max(1, minutes)}分钟`
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest ? `${hours}小时${rest}分钟` : `${hours}小时`
+}
 function openMember() { if (detail.value) void router.push(`/app/members/${detail.value.feedback.memberId}`) }
 function openBill() { if (detail.value) void router.push(`/app/bills/${detail.value.feedback.billId}`) }
 function openVisit() { void router.push('/app/service/visits') }
@@ -142,7 +151,7 @@ onMounted(async () => {
 <template>
   <section class="page-content">
     <div class="section-title-row">
-      <div><h1>服务反馈</h1><p>回访中标记的客诉自动进入这里；处理过程逐条保留，解决后复核关闭。</p></div>
+      <div><h1>服务反馈</h1><p>回访客诉自动建单；按处理时限突出超时记录，解决后复核关闭。</p></div>
     </div>
     <el-card class="filter-card" shadow="never">
       <el-form inline @submit.prevent="load">
@@ -151,11 +160,13 @@ onMounted(async () => {
         <el-form-item label="负责人"><el-select v-model="filters.handlerId" clearable filterable placeholder="全部" style="width: 140px"><el-option v-for="item in employees" :key="item.id" :label="item.name" :value="item.id" /></el-select></el-form-item>
         <el-form-item label="评分"><el-select v-model="filters.score" clearable placeholder="全部" style="width: 100px"><el-option v-for="score in 5" :key="score" :label="`${score}分`" :value="score" /></el-select></el-form-item>
         <el-form-item label="状态"><el-select v-model="filters.status" clearable placeholder="全部" style="width: 120px"><el-option v-for="(item, code) in statusMap" :key="code" :label="item.label" :value="code" /></el-select></el-form-item>
+        <el-form-item label="处理时限"><el-select v-model="filters.overdue" clearable placeholder="全部" style="width: 130px"><el-option label="仅看超时" :value="true" /><el-option label="仅看未超时" :value="false" /></el-select></el-form-item>
         <el-form-item><el-button type="primary" native-type="submit">查询</el-button></el-form-item>
       </el-form>
     </el-card>
 
     <el-card class="data-card" shadow="never">
+      <el-alert v-if="overdueCount" class="overdue-alert" type="error" :closable="false" show-icon :title="`当前查询结果有 ${overdueCount} 条反馈超过处理时限`" />
       <el-table v-loading="loading" :data="rows" stripe row-key="id" @row-click="openRow">
         <el-table-column label="反馈单" min-width="200"><template #default="scope"><button class="member-link" type="button" @click.stop="openRow(scope.row)"><strong>{{ scope.row.feedbackNo }}</strong><small>{{ dateTime(scope.row.createdAt) }}</small></button></template></el-table-column>
         <el-table-column label="会员" min-width="150"><template #default="scope"><strong>{{ scope.row.memberName }}</strong><br><small class="muted-text">{{ scope.row.maskedMobile }}</small></template></el-table-column>
@@ -163,7 +174,8 @@ onMounted(async () => {
         <el-table-column prop="billNo" label="关联账单" min-width="170" />
         <el-table-column label="满意度" width="110"><template #default="scope"><el-rate v-if="scope.row.score" :model-value="scope.row.score" disabled /><span v-else class="muted-text">未评分</span></template></el-table-column>
         <el-table-column prop="handlerName" label="负责人" width="110"><template #default="scope">{{ scope.row.handlerName || '待分配' }}</template></el-table-column>
-        <el-table-column label="状态" width="100"><template #default="scope"><el-tag :type="statusMap[scope.row.status as FeedbackStatus].type">{{ statusMap[scope.row.status as FeedbackStatus].label }}</el-tag></template></el-table-column>
+        <el-table-column label="处理时限" width="170"><template #default="scope"><span :class="{ 'due-overdue': scope.row.overdue }">{{ dateTime(scope.row.dueAt) }}</span><br><small v-if="scope.row.overdue" class="due-overdue">已超时 {{ overdueText(scope.row.overdueMinutes) }}</small><small v-else class="muted-text">{{ scope.row.dueHours }}小时内处理</small></template></el-table-column>
+        <el-table-column label="状态" width="170"><template #default="scope"><el-tag :type="statusMap[scope.row.status as FeedbackStatus].type">{{ statusMap[scope.row.status as FeedbackStatus].label }}</el-tag><el-tag v-if="scope.row.overdue" class="overdue-tag" type="danger" effect="dark">已超时</el-tag></template></el-table-column>
       </el-table>
       <el-empty v-if="!loading && rows.length === 0" description="当前没有服务反馈" />
     </el-card>
@@ -173,11 +185,13 @@ onMounted(async () => {
         <template v-if="detail">
           <el-descriptions :column="2" border>
             <el-descriptions-item label="反馈单号">{{ detail.feedback.feedbackNo }}</el-descriptions-item>
-            <el-descriptions-item label="状态"><el-tag :type="statusMap[detail.feedback.status].type">{{ statusMap[detail.feedback.status].label }}</el-tag></el-descriptions-item>
+            <el-descriptions-item label="状态"><el-tag :type="statusMap[detail.feedback.status].type">{{ statusMap[detail.feedback.status].label }}</el-tag><el-tag v-if="detail.feedback.overdue" class="overdue-tag" type="danger" effect="dark">已超时</el-tag></el-descriptions-item>
             <el-descriptions-item label="会员"><el-button link type="primary" @click="openMember">{{ detail.feedback.memberName }} {{ detail.feedback.maskedMobile }}</el-button></el-descriptions-item>
             <el-descriptions-item label="账单"><el-button link type="primary" @click="openBill">{{ detail.feedback.billNo }}</el-button></el-descriptions-item>
             <el-descriptions-item label="满意度"><el-rate v-if="detail.feedback.score" :model-value="detail.feedback.score" disabled /><span v-else class="muted-text">未评分</span></el-descriptions-item>
             <el-descriptions-item label="负责人">{{ detail.feedback.handlerName || '待分配' }}</el-descriptions-item>
+            <el-descriptions-item label="处理时限">{{ dateTime(detail.feedback.dueAt) }}（{{ detail.feedback.dueHours }}小时）</el-descriptions-item>
+            <el-descriptions-item label="时限状态"><span v-if="detail.feedback.overdue" class="due-overdue">已超时 {{ overdueText(detail.feedback.overdueMinutes) }}</span><span v-else>未超时</span></el-descriptions-item>
             <el-descriptions-item label="客诉内容" :span="2">{{ detail.feedback.content }}</el-descriptions-item>
             <el-descriptions-item v-if="detail.feedback.handleResult" label="处理结果" :span="2">{{ detail.feedback.handleResult }}</el-descriptions-item>
           </el-descriptions>
@@ -219,4 +233,7 @@ onMounted(async () => {
 .feedback-detail h3 { margin: 24px 0 12px; }
 .feedback-detail p { margin: 8px 0; line-height: 1.6; }
 .feedback-detail :deep(.el-rate) { height: 20px; }
+.overdue-alert { margin-bottom: 14px; }
+.due-overdue { color: var(--el-color-danger); font-weight: 600; }
+.overdue-tag { margin-left: 6px; }
 </style>

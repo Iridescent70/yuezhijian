@@ -16,5 +16,7 @@ public record FeedbackDraft(
         Integer score,
         String content,
         LocalDateTime createdAt,
+        int dueHours,
+        LocalDateTime dueAt,
         long createdBy) {
 }

@@ -266,8 +266,8 @@
 | API-VIS-003 | `POST /visit-tasks/{id}/records` | `employeeId/resultCode/satisfactionScore/complaintFlag/content/nextFollowAt` | 更新后的完整任务；`visit:task:manage`；已实现 | 结算管理-05 |
 | API-VIS-004 | `POST /visit-tasks/{id}/complete` | `conclusion`；仅所有参与技师完成后允许 | 完成状态和总结；`visit:task:manage`；已实现 | 结算管理-05 |
 | API-VIS-005 | `GET/POST /satisfaction-rules`、`PUT /satisfaction-rules/{id}`、`POST /satisfaction-rules/test` | 状态/名称、字面关键词、1~5分、组件键值映射、优先级、状态、version；试算文本 | 规则列表/保存结果/首条命中结果；`visit:satisfaction:view/manage`；已实现 | 系统管理-19 |
-| API-VIS-006 | `GET /service-feedback`、`GET /service-feedback/{id}` | `storeId/handlerId/score/status/keyword`；详情 id | 反馈列表/反馈、会员、账单、负责人和处理历史；`visit:feedback:view`；已实现 | 系统管理-20 |
-| API-VIS-007 | `POST /service-feedback/{id}/handle` | `action/handlerId/content/result`；动作`ASSIGN/NOTE/RESOLVE/CLOSE/REOPEN` | 更新后的反馈和处理历史；`visit:feedback:manage`；已实现 | 系统管理-20 |
+| API-VIS-006 | `GET /service-feedback`、`GET /service-feedback/{id}` | `storeId/handlerId/score/status/overdue/keyword`；详情 id | 反馈、会员、账单、负责人、`dueHours/dueAt/overdue/overdueMinutes`和处理历史；`visit:feedback:view`；已实现 | 系统管理-20 |
+| API-VIS-007 | `POST /service-feedback/{id}/handle` | `action/handlerId/content/result`；动作`ASSIGN/NOTE/RESOLVE/CLOSE/REOPEN` | 更新后的反馈和处理历史；重开按当前参数重置时限；`visit:feedback:manage`；已实现 | 系统管理-20 |
 | API-MKT-001 | `POST /sms-tasks` | 名称、号码/客群、内容、sendAt | taskId、预估条数 | 短信-01、05 |
 | API-MKT-002 | `POST /sms-tasks/import` | Excel fileId、模板 id、sendAt | 导入/发送任务 id | 短信-02 |
 | API-MKT-003 | `GET /sms-tasks` | 批次、状态、日期、创建人 | 任务分页 | 短信-03 |
@@ -289,7 +289,7 @@
 
 满意度规则按优先级从小到大执行字面包含匹配，同一规则内优先测试较长关键词；不执行正则或大模型推断，未命中时不生成分值。组件映射保存为甲方定义的字符串键值。样例试算只返回命中结果，不写会员、回访或短信数据；自动识别短信须等上行短信通道接入。
 
-`API-VIS-006~007`客诉闭环已落地。只有回访人员明确勾选客诉时才自动建反馈单，低评分不会擅自转客诉；一条回访记录最多一张反馈单。客诉未评分时不伪造分值。状态按`OPEN → PROCESSING → RESOLVED → CLOSED`流转，已解决或已关闭可以`REOPEN`回到处理中。分配、备注、解决、关闭和重开均追加`vis_feedback_action`，不覆盖原客诉内容。附件和非回访渠道反馈仍待文件模块及甲方渠道口径确认。
+`API-VIS-006~007`客诉闭环已落地。只有回访人员明确勾选客诉时才自动建反馈单，低评分不会擅自转客诉；一条回访记录最多一张反馈单。客诉未评分时不伪造分值。状态按`OPEN → PROCESSING → RESOLVED → CLOSED`流转，已解决或已关闭可以`REOPEN`回到处理中。分配、备注、解决、关闭和重开均追加`vis_feedback_action`，不覆盖原客诉内容。建单和重开分别保存处理时限快照，未完成反馈实时派生超时状态；当前只做接口及页面提示，站内消息接收人规则未确认，不声明为主动推送。附件和非回访渠道反馈仍待文件模块及甲方渠道口径确认。
 
 ## 7. 薪酬、提成、目标和分润
 

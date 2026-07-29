@@ -27,8 +27,9 @@ public class ServiceFeedbackController {
             @RequestParam(required = false) Long handlerId,
             @RequestParam(required = false) Integer score,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) Boolean overdue,
             @RequestParam(required = false) String keyword) {
-        return ApiResponse.ok(service.feedback(storeId, handlerId, score, status, keyword));
+        return ApiResponse.ok(service.feedback(storeId, handlerId, score, status, overdue, keyword));
     }
 
     @GetMapping("/{id}")

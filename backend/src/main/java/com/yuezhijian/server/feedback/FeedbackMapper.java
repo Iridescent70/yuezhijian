@@ -21,6 +21,11 @@ public interface FeedbackMapper {
                    feedback.handler_id AS handlerId, handler.name AS handlerName,
                    feedback.handle_result AS handleResult, feedback.handled_at AS handledAt,
                    feedback.resolved_at AS resolvedAt, feedback.closed_at AS closedAt,
+                   feedback.due_hours AS dueHours, feedback.due_at AS dueAt,
+                   CAST(CASE WHEN feedback.status IN ('OPEN', 'PROCESSING')
+                                  AND sysdatetime() > feedback.due_at THEN 1 ELSE 0 END AS bit) AS overdue,
+                   CASE WHEN feedback.status IN ('OPEN', 'PROCESSING') AND sysdatetime() > feedback.due_at
+                        THEN DATEDIFF(MINUTE, feedback.due_at, sysdatetime()) ELSE 0 END AS overdueMinutes,
                    (SELECT COUNT(1) FROM dbo.vis_feedback_action action
                      WHERE action.feedback_id = feedback.id) AS actionCount,
                    feedback.created_at AS createdAt, feedback.updated_at AS updatedAt
@@ -39,10 +44,17 @@ public interface FeedbackMapper {
               AND (#{query.handlerId} IS NULL OR feedback.handler_id = #{query.handlerId})
               AND (#{query.score} IS NULL OR feedback.score = #{query.score})
               AND (#{query.status} IS NULL OR feedback.status = #{query.status})
+              AND (#{query.overdue} IS NULL
+                   OR (#{query.overdue} = 1 AND feedback.status IN ('OPEN', 'PROCESSING')
+                       AND sysdatetime() > feedback.due_at)
+                   OR (#{query.overdue} = 0 AND NOT (
+                       feedback.status IN ('OPEN', 'PROCESSING') AND sysdatetime() > feedback.due_at)))
               AND (#{query.keyword} IS NULL OR feedback.feedback_no LIKE #{pattern}
                    OR bill.bill_no LIKE #{pattern} OR member.full_name LIKE #{pattern}
                    OR member.mobile_last4 LIKE #{pattern})
-            ORDER BY CASE feedback.status
+            ORDER BY CASE WHEN feedback.status IN ('OPEN', 'PROCESSING')
+                                AND sysdatetime() > feedback.due_at THEN 0 ELSE 1 END,
+                     CASE feedback.status
                          WHEN 'OPEN' THEN 0 WHEN 'PROCESSING' THEN 1 WHEN 'RESOLVED' THEN 2 ELSE 3 END,
                      feedback.updated_at DESC, feedback.id DESC
             </script>
@@ -71,10 +83,12 @@ public interface FeedbackMapper {
     @Insert("""
             INSERT INTO dbo.vis_feedback (
                 feedback_no, visit_task_id, visit_record_id, member_id, bill_id, store_id,
-                channel, score, content, complaint_type, status, created_at, created_by, updated_at, updated_by
+                channel, score, content, complaint_type, status, due_hours, due_at,
+                created_at, created_by, updated_at, updated_by
             ) VALUES (
                 #{feedbackNo}, #{visitTaskId}, #{visitRecordId}, #{memberId}, #{billId}, #{storeId},
-                'VISIT', #{score}, #{content}, 'SERVICE', 'OPEN', #{createdAt}, #{createdBy}, #{createdAt}, #{createdBy}
+                'VISIT', #{score}, #{content}, 'SERVICE', 'OPEN', #{dueHours}, #{dueAt},
+                #{createdAt}, #{createdBy}, #{createdAt}, #{createdBy}
             )
             """)
     int insertFeedback(FeedbackDraft draft);
@@ -110,6 +124,10 @@ public interface FeedbackMapper {
                     WHEN #{update.actionType} = 'REOPENED' THEN NULL
                     WHEN #{update.actionType} = 'CLOSED' THEN sysdatetime()
                     ELSE closed_at END,
+                due_hours = CASE WHEN #{update.actionType} = 'REOPENED'
+                                 THEN #{update.dueHours} ELSE due_hours END,
+                due_at = CASE WHEN #{update.actionType} = 'REOPENED'
+                              THEN #{update.dueAt} ELSE due_at END,
                 updated_at = sysdatetime(), updated_by = #{update.operatorId}
             WHERE id = #{update.id} AND status = #{update.expectedStatus}
             """)
