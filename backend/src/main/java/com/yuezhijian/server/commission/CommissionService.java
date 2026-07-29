@@ -6,6 +6,7 @@ import com.yuezhijian.server.asset.MemberCardSummary;
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
 import com.yuezhijian.server.iam.AccessCatalogService;
+import com.yuezhijian.server.iam.StoreDataScope;
 import com.yuezhijian.server.masterdata.EmployeeSummary;
 import com.yuezhijian.server.masterdata.MasterDataRepository;
 import com.yuezhijian.server.trade.BillDetail;
@@ -35,30 +36,37 @@ public class CommissionService {
     private final CommissionRepository repository;
     private final MasterDataRepository masterData;
     private final AccessCatalogService accessCatalog;
+    private final StoreDataScope storeDataScope;
     private final CommissionNumberGenerator numbers;
 
     public CommissionService(
             CommissionRepository repository,
             MasterDataRepository masterData,
             AccessCatalogService accessCatalog,
+            StoreDataScope storeDataScope,
             CommissionNumberGenerator numbers) {
         this.repository = repository;
         this.masterData = masterData;
         this.accessCatalog = accessCatalog;
+        this.storeDataScope = storeDataScope;
         this.numbers = numbers;
     }
 
     public List<CommissionPlan> plans(String keyword, String status) {
-        return repository.plans(trimToNull(keyword), normalize(status, STATUSES, "提成方案状态无效"));
+        return repository.plans(trimToNull(keyword), normalize(status, STATUSES, "提成方案状态无效"))
+                .stream().filter(this::canViewPlan).toList();
     }
 
     public CommissionPlan plan(long id) {
-        return repository.findPlan(id).orElseThrow(() -> new ResourceNotFoundException("提成方案不存在"));
+        CommissionPlan plan = repository.findPlan(id)
+                .orElseThrow(() -> new ResourceNotFoundException("提成方案不存在"));
+        if (plan.storeId() != null) storeDataScope.require(plan.storeId());
+        return plan;
     }
 
     public CommissionSimulationResult simulate(long planId, SimulateCommissionPlanRequest request) {
         CommissionPlan plan = plan(planId);
-        validateStore(request.storeId());
+        storeDataScope.require(request.storeId());
         EmployeeSummary employee = masterData.employees(request.storeId(), null).stream()
                 .filter(item -> item.id() == request.employeeId())
                 .findFirst().orElseThrow(() -> new ResourceNotFoundException("员工不存在或不属于所选门店"));
@@ -103,6 +111,7 @@ public class CommissionService {
 
     @Transactional
     public CommissionPlan createPlan(CreateCommissionPlanRequest request, String username) {
+        requireWritableStore(request.storeId());
         String code = request.code().trim().toUpperCase(Locale.ROOT);
         if (repository.existsPlanCode(code)) throw new DuplicateResourceException("提成方案编码已存在");
         CommissionPlan plan = normalizedPlan(
@@ -118,6 +127,8 @@ public class CommissionService {
     @Transactional
     public CommissionPlan updatePlan(long id, UpdateCommissionPlanRequest request, String username) {
         CommissionPlan current = plan(id);
+        requireWritableStore(current.storeId());
+        requireWritableStore(request.storeId());
         if (!current.version().equals(request.version())) {
             throw new DuplicateResourceException("提成方案已被他人修改，请刷新后重试");
         }
@@ -140,8 +151,9 @@ public class CommissionService {
         }
         String normalizedDirection = normalize(direction, Set.of("POSITIVE", "NEGATIVE"), "提成方向无效");
         String normalizedStatus = normalize(calculationStatus, CALCULATION_STATUSES, "计算状态无效");
+        Long scopedStoreId = storeDataScope.constrainNullable(storeId);
         return repository.ledgers(new CommissionLedgerQuery(
-                employeeId, storeId, startDate, endDate, normalizedDirection, normalizedStatus));
+                employeeId, scopedStoreId, startDate, endDate, normalizedDirection, normalizedStatus));
     }
 
     @Transactional
@@ -348,10 +360,13 @@ public class CommissionService {
                 .orElseThrow(() -> new ResourceNotFoundException("账单技师不存在"));
     }
 
-    private void validateStore(long storeId) {
-        if (accessCatalog.stores().stream().noneMatch(store -> store.id() == storeId)) {
-            throw new ResourceNotFoundException("门店不存在");
-        }
+    private boolean canViewPlan(CommissionPlan plan) {
+        return plan.storeId() == null || storeDataScope.canAccess(plan.storeId());
+    }
+
+    private void requireWritableStore(Long storeId) {
+        if (storeId == null) storeDataScope.requireAllStoreAccess();
+        else storeDataScope.require(storeId);
     }
 
     private String storeName(long storeId) {

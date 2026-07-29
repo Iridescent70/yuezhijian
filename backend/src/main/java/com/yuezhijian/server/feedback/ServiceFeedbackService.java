@@ -5,6 +5,7 @@ import com.yuezhijian.server.file.BusinessAttachmentItem;
 import com.yuezhijian.server.file.FileObjectService;
 import com.yuezhijian.server.file.StoredFileDownload;
 import com.yuezhijian.server.iam.AccessCatalogService;
+import com.yuezhijian.server.iam.StoreDataScope;
 import com.yuezhijian.server.masterdata.MasterDataRepository;
 import com.yuezhijian.server.settings.SystemSettingsService;
 import com.yuezhijian.server.visit.VisitRecordItem;
@@ -25,6 +26,7 @@ public class ServiceFeedbackService {
     private final FeedbackRepository repository;
     private final MasterDataRepository masterData;
     private final AccessCatalogService accessCatalog;
+    private final StoreDataScope storeDataScope;
     private final FeedbackNumberGenerator numbers;
     private final SystemSettingsService settings;
     private final FileObjectService files;
@@ -33,12 +35,14 @@ public class ServiceFeedbackService {
             FeedbackRepository repository,
             MasterDataRepository masterData,
             AccessCatalogService accessCatalog,
+            StoreDataScope storeDataScope,
             FeedbackNumberGenerator numbers,
             SystemSettingsService settings,
             FileObjectService files) {
         this.repository = repository;
         this.masterData = masterData;
         this.accessCatalog = accessCatalog;
+        this.storeDataScope = storeDataScope;
         this.numbers = numbers;
         this.settings = settings;
         this.files = files;
@@ -46,21 +50,21 @@ public class ServiceFeedbackService {
 
     public List<FeedbackSummary> feedback(
             Long storeId, Long handlerId, Integer score, String status, Boolean overdue, String keyword) {
-        if (storeId != null && accessCatalog.stores().stream().noneMatch(store -> store.id() == storeId)) {
-            throw new IllegalArgumentException("无权查看所选门店的服务反馈");
-        }
+        Long scopedStoreId = storeDataScope.constrainNullable(storeId);
         if (score != null && (score < 1 || score > 5)) throw new IllegalArgumentException("满意度必须为1至5分");
         String normalizedStatus = trimToNull(status) == null ? null : status.trim().toUpperCase(Locale.ROOT);
         if (normalizedStatus != null && !STATUSES.contains(normalizedStatus)) {
             throw new IllegalArgumentException("服务反馈状态无效");
         }
         return repository.feedback(new FeedbackQuery(
-                storeId, handlerId, score, normalizedStatus, overdue, trimToNull(keyword)));
+                scopedStoreId, handlerId, score, normalizedStatus, overdue, trimToNull(keyword)));
     }
 
     public FeedbackDetail detail(long id) {
-        return enrich(repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("服务反馈不存在")));
+        FeedbackDetail detail = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("服务反馈不存在"));
+        storeDataScope.require(detail.feedback().storeId());
+        return enrich(detail);
     }
 
     public BusinessAttachmentItem uploadAttachment(

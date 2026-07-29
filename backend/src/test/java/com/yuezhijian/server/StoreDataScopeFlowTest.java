@@ -94,6 +94,53 @@ class StoreDataScopeFlowTest {
                 .andExpect(jsonPath("$.data", hasSize(0)));
     }
 
+    @Test
+    void storeRoleIsRestrictedAcrossOperationsAndConfiguration() throws Exception {
+        assertForbidden(get("/api/v1/employees").param("storeId", "2"));
+        assertForbidden(get("/api/v1/workstations").param("storeId", "2"));
+        assertForbidden(get("/api/v1/services").param("storeId", "2"));
+        assertForbidden(get("/api/v1/commission-ledgers").param("storeId", "2"));
+        assertForbidden(get("/api/v1/visit-tasks").param("storeId", "2"));
+        assertForbidden(get("/api/v1/service-feedback").param("storeId", "2"));
+        assertForbidden(get("/api/v1/ownership-adjustments").param("memberId", "1001"));
+
+        mockMvc.perform(post("/api/v1/employees")
+                        .with(storeManager()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "employeeNo":"SCOPE-E-001","name":"越权员工","positionId":1,
+                                  "primaryStoreId":2,"canService":true,"canSell":true
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("40301"));
+
+        mockMvc.perform(post("/api/v1/commission-plans")
+                        .with(storeManager()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code":"SCOPE_GLOBAL","name":"越权全局方案","scene":"SERVICE",
+                                  "calculationMode":"RATE","rate":0.1,"effectiveFrom":"2026-07-30"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("40301"));
+
+        mockMvc.perform(post("/api/v1/members/1003/ownership-adjustments")
+                        .with(storeManager()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "newStoreId":2,"effectiveDate":"2026-08-01","shareRule":{},
+                                  "reason":"越权归属测试","memberVersion":"1"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("40301"));
+    }
+
     private void assertForbidden(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request)
             throws Exception {
         mockMvc.perform(request.with(storeManager()))
@@ -117,6 +164,17 @@ class StoreDataScopeFlowTest {
                 new SimpleGrantedAuthority("catalog:card:view"),
                 new SimpleGrantedAuthority("benefit:voucher:view"),
                 new SimpleGrantedAuthority("trade:reversal:view"),
-                new SimpleGrantedAuthority("trade:reversal:manage"));
+                new SimpleGrantedAuthority("trade:reversal:manage"),
+                new SimpleGrantedAuthority("org:employee:view"),
+                new SimpleGrantedAuthority("org:employee:manage"),
+                new SimpleGrantedAuthority("org:workstation:view"),
+                new SimpleGrantedAuthority("catalog:service:view"),
+                new SimpleGrantedAuthority("commission:plan:view"),
+                new SimpleGrantedAuthority("commission:plan:manage"),
+                new SimpleGrantedAuthority("commission:ledger:view"),
+                new SimpleGrantedAuthority("visit:task:view"),
+                new SimpleGrantedAuthority("visit:feedback:view"),
+                new SimpleGrantedAuthority("member:ownership:view"),
+                new SimpleGrantedAuthority("member:ownership:manage"));
     }
 }

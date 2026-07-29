@@ -1,6 +1,7 @@
 package com.yuezhijian.server.masterdata;
 
 import com.yuezhijian.server.iam.AccessCatalogService;
+import com.yuezhijian.server.iam.StoreDataScope;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -10,10 +11,15 @@ import org.springframework.stereotype.Service;
 public class MasterDataService {
     private final MasterDataRepository repository;
     private final AccessCatalogService accessCatalog;
+    private final StoreDataScope storeDataScope;
 
-    public MasterDataService(MasterDataRepository repository, AccessCatalogService accessCatalog) {
+    public MasterDataService(
+            MasterDataRepository repository,
+            AccessCatalogService accessCatalog,
+            StoreDataScope storeDataScope) {
         this.repository = repository;
         this.accessCatalog = accessCatalog;
+        this.storeDataScope = storeDataScope;
     }
 
     public List<PositionOption> positions() {
@@ -25,19 +31,19 @@ public class MasterDataService {
     }
 
     public List<EmployeeSummary> employees(Long storeId, String keyword) {
-        return repository.employees(storeId, blankToNull(keyword));
+        return repository.employees(storeDataScope.constrainNullable(storeId), blankToNull(keyword));
     }
 
     public List<WorkstationSummary> workstations(Long storeId) {
-        return repository.workstations(storeId);
+        return repository.workstations(storeDataScope.constrainNullable(storeId));
     }
 
     public List<ServiceItemSummary> services(Long storeId, String keyword) {
-        return repository.services(storeId, blankToNull(keyword));
+        return repository.services(storeDataScope.constrainNullable(storeId), blankToNull(keyword));
     }
 
     public CreatedResource createEmployee(CreateEmployeeRequest request, String username) {
-        validateStore(request.primaryStoreId());
+        storeDataScope.require(request.primaryStoreId());
         boolean positionExists = repository.positions().stream()
                 .anyMatch(position -> position.id() == request.positionId() && "ACTIVE".equals(position.status()));
         if (!positionExists) {
@@ -55,7 +61,7 @@ public class MasterDataService {
     }
 
     public CreatedResource createWorkstation(CreateWorkstationRequest request, String username) {
-        validateStore(request.storeId());
+        storeDataScope.require(request.storeId());
         return repository.createWorkstation(new NewWorkstation(
                 request.storeId(),
                 request.code().trim().toUpperCase(Locale.ROOT),
@@ -72,7 +78,7 @@ public class MasterDataService {
             throw new IllegalArgumentException("所选服务分类不存在或已停用");
         }
         List<Long> storeIds = new LinkedHashSet<>(request.storeIds()).stream().toList();
-        storeIds.forEach(this::validateStore);
+        storeIds.forEach(storeDataScope::require);
         if (request.costAmount().compareTo(request.listPrice()) > 0) {
             throw new IllegalArgumentException("服务成本不能高于标准售价");
         }
@@ -91,14 +97,6 @@ public class MasterDataService {
 
     private long currentUserId(String username) {
         return accessCatalog.userIdentity(username).id();
-    }
-
-    private void validateStore(long storeId) {
-        boolean valid = accessCatalog.stores().stream()
-                .anyMatch(store -> store.id() == storeId && "ACTIVE".equals(store.status()));
-        if (!valid) {
-            throw new IllegalArgumentException("所选门店不存在或已停用");
-        }
     }
 
     private String normalizeOptionalMobile(String mobile) {

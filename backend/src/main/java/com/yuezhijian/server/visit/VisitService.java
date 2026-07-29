@@ -3,6 +3,7 @@ package com.yuezhijian.server.visit;
 import com.yuezhijian.server.common.ResourceNotFoundException;
 import com.yuezhijian.server.feedback.ServiceFeedbackService;
 import com.yuezhijian.server.iam.AccessCatalogService;
+import com.yuezhijian.server.iam.StoreDataScope;
 import com.yuezhijian.server.masterdata.EmployeeSummary;
 import com.yuezhijian.server.masterdata.MasterDataRepository;
 import com.yuezhijian.server.settings.SystemSettingsService;
@@ -27,6 +28,7 @@ public class VisitService {
     private final VisitRepository repository;
     private final MasterDataRepository masterData;
     private final AccessCatalogService accessCatalog;
+    private final StoreDataScope storeDataScope;
     private final VisitNumberGenerator numbers;
     private final ServiceFeedbackService feedback;
     private final SystemSettingsService settings;
@@ -35,12 +37,14 @@ public class VisitService {
             VisitRepository repository,
             MasterDataRepository masterData,
             AccessCatalogService accessCatalog,
+            StoreDataScope storeDataScope,
             VisitNumberGenerator numbers,
             ServiceFeedbackService feedback,
             SystemSettingsService settings) {
         this.repository = repository;
         this.masterData = masterData;
         this.accessCatalog = accessCatalog;
+        this.storeDataScope = storeDataScope;
         this.numbers = numbers;
         this.feedback = feedback;
         this.settings = settings;
@@ -48,19 +52,20 @@ public class VisitService {
 
     public List<VisitTaskSummary> tasks(
             Long storeId, Long employeeId, String status, LocalDate dueDate, String keyword) {
-        if (storeId != null && accessCatalog.stores().stream().noneMatch(store -> store.id() == storeId)) {
-            throw new IllegalArgumentException("无权查看所选门店的回访任务");
-        }
+        Long scopedStoreId = storeDataScope.constrainNullable(storeId);
         String normalizedStatus = trimToNull(status) == null ? null : status.trim().toUpperCase(Locale.ROOT);
         if (normalizedStatus != null && !STATUSES.contains(normalizedStatus)) {
             throw new IllegalArgumentException("回访任务状态无效");
         }
         return repository.tasks(new VisitTaskQuery(
-                storeId, employeeId, normalizedStatus, dueDate, trimToNull(keyword)));
+                scopedStoreId, employeeId, normalizedStatus, dueDate, trimToNull(keyword)));
     }
 
     public VisitTaskDetail detail(long id) {
-        return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("回访任务不存在"));
+        VisitTaskDetail detail = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("回访任务不存在"));
+        storeDataScope.require(detail.task().storeId());
+        return detail;
     }
 
     @Transactional

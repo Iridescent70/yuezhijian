@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
 import com.yuezhijian.server.iam.AccessCatalogService;
+import com.yuezhijian.server.iam.StoreDataScope;
 import com.yuezhijian.server.iam.StoreSummary;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
@@ -28,6 +29,7 @@ public class OwnershipAdjustmentService {
     private final MemberService memberService;
     private final BusinessNumberGenerator numbers;
     private final AccessCatalogService accessCatalog;
+    private final StoreDataScope storeDataScope;
     private final ObjectMapper objectMapper;
 
     public OwnershipAdjustmentService(
@@ -36,24 +38,31 @@ public class OwnershipAdjustmentService {
             MemberService memberService,
             BusinessNumberGenerator numbers,
             AccessCatalogService accessCatalog,
+            StoreDataScope storeDataScope,
             ObjectMapper objectMapper) {
         this.repository = repository;
         this.members = members;
         this.memberService = memberService;
         this.numbers = numbers;
         this.accessCatalog = accessCatalog;
+        this.storeDataScope = storeDataScope;
         this.objectMapper = objectMapper;
     }
 
     public List<OwnershipAdjustment> search(Long memberId, String approvalStatus, String executionStatus) {
+        if (memberId != null) memberService.detail(memberId);
         String approval = normalizeStatus(approvalStatus, APPROVAL_STATUSES, "审批状态不正确");
         String execution = normalizeStatus(executionStatus, EXECUTION_STATUSES, "执行状态不正确");
         return repository.search(new OwnershipAdjustmentQuery(memberId, approval, execution)).stream()
+                .filter(row -> storeDataScope.canAccess(row.oldStoreId())
+                        || storeDataScope.canAccess(row.newStoreId()))
                 .map(this::toAdjustment).toList();
     }
 
     public OwnershipAdjustment detail(long id) {
-        return toAdjustment(requireRow(id));
+        OwnershipAdjustmentRow row = requireRow(id);
+        storeDataScope.requireAny(List.of(row.oldStoreId(), row.newStoreId()));
+        return toAdjustment(row);
     }
 
     @Transactional
@@ -64,6 +73,7 @@ public class OwnershipAdjustmentService {
             throw new DuplicateResourceException("会员档案已被他人修改，请刷新后重试");
         }
         StoreSummary newStore = requireActiveStore(request.newStoreId());
+        storeDataScope.require(newStore.id());
         if (member.ownerStoreId() == newStore.id()) {
             throw new IllegalArgumentException("新归属门店不能与当前归属门店相同");
         }
@@ -85,6 +95,8 @@ public class OwnershipAdjustmentService {
     public OwnershipAdjustment review(
             long id, boolean approved, ReviewOwnershipAdjustmentRequest request, String username) {
         OwnershipAdjustmentRow current = requireRow(id);
+        storeDataScope.require(current.oldStoreId());
+        storeDataScope.require(current.newStoreId());
         if (!"PENDING".equals(current.approvalStatus()) || !"WAITING".equals(current.executionStatus())) {
             throw new IllegalArgumentException("当前归属调整不可重复审批");
         }

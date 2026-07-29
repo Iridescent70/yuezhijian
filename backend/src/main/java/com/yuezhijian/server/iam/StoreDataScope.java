@@ -56,6 +56,12 @@ public class StoreDataScope {
                 .anyMatch(store -> Objects.equals(store.id(), storeId));
     }
 
+    public void requireAllStoreAccess() {
+        if (!currentStoreContext.hasAllStoreAccess(authentication())) {
+            throw new StoreAccessDeniedException("该操作需要全部门店的数据权限");
+        }
+    }
+
     private void require(Authentication authentication, long storeId) {
         if (!currentStoreContext.isActiveStore(storeId)) {
             throw new IllegalArgumentException("所选门店不存在或已停用");
