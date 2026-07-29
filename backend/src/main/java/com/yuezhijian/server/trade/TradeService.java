@@ -417,6 +417,9 @@ public class TradeService {
         for (SettlementPaymentRequest item : request.payments()) {
             PaymentMethodOption method = methods.get(item.paymentMethodId());
             if (method == null) throw new IllegalArgumentException("支付方式未在当前门店启用");
+            if ("STORED_VALUE".equals(method.type())) {
+                throw new IllegalArgumentException("储值支付请使用会员资产抵扣，不能作为外部支付重复提交");
+            }
             BigDecimal amount = money(item.amount());
             String externalReference = trimToNull(item.externalReference());
             if (method.needsExternalReference() && externalReference == null) {

@@ -134,8 +134,8 @@
 | API-CAT-016 | `GET/PUT /card-types/{id}/service-rules` | 无/服务 id、可扣次数、换算规则 | 规则 | 结算管理-01 |
 | API-CAT-017 | `GET/PUT /card-types/{id}/commission-rules` | 无/售卡与消耗提成规则 | 规则 | 次卡管理-01 |
 | API-CAT-018 | `GET /card-types/{id}/preview` | 门店 | 购买页预览 | 次卡管理-05 |
-| API-CAT-019 | `GET/POST /payment-methods` | 门店、类型/代码、名称、统计标志 | 列表/id | 系统管理-29、优化系统管理-02 |
-| API-CAT-020 | `PUT /payment-methods/{id}`、`PUT /payment-methods/sort` | 配置/version、排序 | 更新结果 | 系统管理-29、优化系统管理-02 |
+| API-CAT-019 | `GET /payment-methods`、`GET /payment-methods/management`、`GET /payment-methods/{id}`、`POST /payment-methods` | 营业端按门店读取启用项；管理端按门店/关键词/类型/状态查询；新建编号、名称、类型、电子/营业额/外部凭证标志、初始门店 | 营业选项/完整配置；查看`catalog:payment:view`、新建`catalog:payment:manage`；已实现 | 系统管理-29、优化系统管理-02 |
+| API-CAT-020 | `PUT /payment-methods/{id}`、`PUT /payment-methods/{id}/stores/{storeId}`、`PUT /payment-methods/sort` | 全局定义/version；门店适用、启用、顺序、门店配置version；全量排序项 | 更新结果；全局维护仅总部，门店配置强制数据范围和rowversion；已实现 | 系统管理-29、优化系统管理-02 |
 | API-CAT-021 | `GET/POST /vouchers` | 关键词和状态查询；编码、名称、金额/折扣、门槛、有效天数和提成口径 | 定义列表/详情；`benefit:voucher:view/manage` | 系统管理-16 |
 | API-CAT-022 | `GET/PUT /vouchers/{id}` | 详情；规则、状态和`version` | 详情/并发安全更新结果；`benefit:voucher:view/manage` | 系统管理-16 |
 | API-CAT-023 | `GET/POST /gifts` | 查询/编码、名称、积分价、状态 | 分页/id | 系统管理-23~26 |

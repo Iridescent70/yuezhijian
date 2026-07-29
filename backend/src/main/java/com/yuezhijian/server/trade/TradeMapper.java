@@ -30,18 +30,6 @@ public interface TradeMapper {
             """;
 
     @Select("""
-            SELECT method.id, method.method_code AS code, method.method_name AS name,
-                   method.method_type AS type, method.is_electronic AS electronic,
-                   method.included_in_revenue AS includedInRevenue,
-                   method.needs_external_ref AS needsExternalReference, config.sort_no AS sortNo
-            FROM dbo.cat_payment_method_store config
-            JOIN dbo.cat_payment_method method ON method.id = config.payment_method_id
-            WHERE config.store_id = #{storeId} AND config.enabled = 1 AND method.status = 'ACTIVE'
-            ORDER BY config.sort_no, method.id
-            """)
-    List<PaymentMethodOption> findPaymentMethods(long storeId);
-
-    @Select("""
             <script>
             """ + SUMMARY_SELECT + """
             WHERE bill.store_id = #{query.storeId}

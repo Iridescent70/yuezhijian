@@ -3,6 +3,8 @@ package com.yuezhijian.server.trade;
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.iam.AccessCatalogService;
 import com.yuezhijian.server.member.MemberRepository;
+import com.yuezhijian.server.payment.PaymentMethodConfiguration;
+import com.yuezhijian.server.payment.PaymentMethodRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -18,13 +20,6 @@ import org.springframework.stereotype.Repository;
 @Repository
 @Profile("memory")
 public class MemoryTradeRepository implements TradeRepository {
-    private static final List<PaymentMethodOption> METHODS = List.of(
-            new PaymentMethodOption(1L, "CASH", "现金", "CASH", false, true, false, 10),
-            new PaymentMethodOption(2L, "BANK_CARD", "银行卡", "BANK_CARD", true, true, false, 20),
-            new PaymentMethodOption(3L, "WECHAT", "微信支付", "WECHAT", true, true, true, 30),
-            new PaymentMethodOption(4L, "ALIPAY", "支付宝", "ALIPAY", true, true, true, 40),
-            new PaymentMethodOption(5L, "MEITUAN", "美团核销", "MEITUAN", true, true, true, 50));
-
     private final Map<Long, BillDetail> bills = new LinkedHashMap<>();
     private final Map<String, Long> billIdempotency = new LinkedHashMap<>();
     private final Map<String, SettlementQuote> quotes = new LinkedHashMap<>();
@@ -42,17 +37,22 @@ public class MemoryTradeRepository implements TradeRepository {
     private final MemberRepository members;
     private final AccessCatalogService accessCatalog;
     private final TradeNumberGenerator numbers;
+    private final PaymentMethodRepository paymentMethodRepository;
 
     public MemoryTradeRepository(
-            MemberRepository members, AccessCatalogService accessCatalog, TradeNumberGenerator numbers) {
+            MemberRepository members,
+            AccessCatalogService accessCatalog,
+            TradeNumberGenerator numbers,
+            PaymentMethodRepository paymentMethodRepository) {
         this.members = members;
         this.accessCatalog = accessCatalog;
         this.numbers = numbers;
+        this.paymentMethodRepository = paymentMethodRepository;
     }
 
     @Override
     public List<PaymentMethodOption> paymentMethods(long storeId) {
-        return METHODS;
+        return paymentMethodRepository.options(storeId);
     }
 
     @Override
@@ -458,8 +458,8 @@ public class MemoryTradeRepository implements TradeRepository {
         BigDecimal remainingChange = bill.bill().changeAmount();
         List<ReversalPaymentImpact> result = new ArrayList<>();
         for (BillPayment payment : bill.payments()) {
-            PaymentMethodOption method = METHODS.stream()
-                    .filter(item -> item.id() == payment.paymentMethodId()).findFirst()
+            PaymentMethodConfiguration method = paymentMethodRepository
+                    .find(payment.paymentMethodId(), bill.bill().storeId())
                     .orElseThrow(() -> new IllegalArgumentException("支付方式不存在"));
             BigDecimal amount = payment.amount();
             if ("CASH".equals(method.type()) && remainingChange.signum() > 0) {

@@ -7,6 +7,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -108,6 +109,13 @@ class StoreDataScopeFlowTest {
         assertForbidden(get("/api/v1/visit-tasks").param("storeId", "2"));
         assertForbidden(get("/api/v1/service-feedback").param("storeId", "2"));
         assertForbidden(get("/api/v1/ownership-adjustments").param("memberId", "1001"));
+        mockMvc.perform(get("/api/v1/payment-methods/management").with(storeManager()).param("storeId", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].stores[0].storeId").value(1));
+        assertForbidden(get("/api/v1/payment-methods/management").param("storeId", "2"));
+        assertForbidden(put("/api/v1/payment-methods/1/stores/2").with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"applicable\":true,\"enabled\":true,\"sortNo\":10,\"version\":\"1\"}"));
 
         mockMvc.perform(post("/api/v1/employees")
                         .with(storeManager()).with(csrf())
@@ -175,6 +183,8 @@ class StoreDataScopeFlowTest {
                 new SimpleGrantedAuthority("org:workstation:view"),
                 new SimpleGrantedAuthority("catalog:service:view"),
                 new SimpleGrantedAuthority("catalog:product:view"),
+                new SimpleGrantedAuthority("catalog:payment:view"),
+                new SimpleGrantedAuthority("catalog:payment:store-manage"),
                 new SimpleGrantedAuthority("commission:plan:view"),
                 new SimpleGrantedAuthority("commission:plan:manage"),
                 new SimpleGrantedAuthority("commission:ledger:view"),

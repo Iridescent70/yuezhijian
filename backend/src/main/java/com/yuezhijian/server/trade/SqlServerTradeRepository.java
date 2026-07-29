@@ -2,6 +2,7 @@ package com.yuezhijian.server.trade;
 
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.SensitiveDataCodec;
+import com.yuezhijian.server.payment.PaymentMethodRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -18,21 +19,24 @@ public class SqlServerTradeRepository implements TradeRepository {
     private final ReversalMapper reversals;
     private final SensitiveDataCodec codec;
     private final TradeNumberGenerator numbers;
+    private final PaymentMethodRepository paymentMethodRepository;
 
     public SqlServerTradeRepository(
             TradeMapper mapper,
             ReversalMapper reversals,
             SensitiveDataCodec codec,
-            TradeNumberGenerator numbers) {
+            TradeNumberGenerator numbers,
+            PaymentMethodRepository paymentMethodRepository) {
         this.mapper = mapper;
         this.reversals = reversals;
         this.codec = codec;
         this.numbers = numbers;
+        this.paymentMethodRepository = paymentMethodRepository;
     }
 
     @Override
     public List<PaymentMethodOption> paymentMethods(long storeId) {
-        return mapper.findPaymentMethods(storeId);
+        return paymentMethodRepository.options(storeId);
     }
 
     @Override

@@ -1212,6 +1212,47 @@ export interface PaymentMethodOption {
   sortNo: number
 }
 
+export type PaymentMethodType = 'CASH' | 'BANK_CARD' | 'WECHAT' | 'ALIPAY' | 'MEITUAN' | 'STORED_VALUE' | 'OTHER'
+
+export interface PaymentMethodStoreConfiguration {
+  storeId: number
+  storeCode: string
+  storeName: string
+  applicable: boolean
+  enabled: boolean
+  sortNo: number
+  version?: string
+}
+
+export interface PaymentMethodConfiguration {
+  id: number
+  code: string
+  name: string
+  type: PaymentMethodType
+  electronic: boolean
+  includedInRevenue: boolean
+  needsExternalReference: boolean
+  status: 'ACTIVE' | 'DISABLED'
+  updatedAt: string
+  version: string
+  stores: PaymentMethodStoreConfiguration[]
+}
+
+export interface CreatePaymentMethodPayload {
+  code: string
+  name: string
+  type: PaymentMethodType
+  electronic: boolean
+  includedInRevenue: boolean
+  needsExternalReference: boolean
+  status: 'ACTIVE' | 'DISABLED'
+  storeIds: number[]
+}
+
+export interface UpdatePaymentMethodPayload extends Omit<CreatePaymentMethodPayload, 'code' | 'storeIds'> {
+  version: string
+}
+
 export interface QuotePayment {
   paymentMethodId: number
   paymentMethodCode: string

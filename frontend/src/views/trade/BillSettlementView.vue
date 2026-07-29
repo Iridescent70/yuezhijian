@@ -321,7 +321,7 @@ onMounted(load)
           </template>
           <div v-for="(payment, index) in payments" :key="index" class="payment-row">
             <el-select v-model="payment.paymentMethodId" placeholder="支付方式" @change="quote = null">
-              <el-option v-for="item in methods" :key="item.id" :label="item.name" :value="item.id" />
+              <el-option v-for="item in methods.filter(method => method.type !== 'STORED_VALUE')" :key="item.id" :label="item.name" :value="item.id" />
             </el-select>
             <el-input-number v-model="payment.amount" :min="0" :precision="2" @change="quote = null" />
             <el-input

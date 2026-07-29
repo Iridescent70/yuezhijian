@@ -20,6 +20,8 @@ const fieldLabels: Record<string, string> = {
   costPrice: '成本', costAmount: '成本', salePrice: '标准售价', listPrice: '标准售价',
   durationMinutes: '时长（分钟）', trackStock: '跟踪库存', description: '说明', status: '资料状态',
   storeName: '门店', storePrice: '门店售价', saleStatus: '销售状态',
+  type: '类型', electronic: '电子支付', includedInRevenue: '计入营业额',
+  needsExternalReference: '需外部凭证', applicable: '适用门店', enabled: '门店启用', sortNo: '显示顺序',
 }
 
 const detailChanges = computed(() => {

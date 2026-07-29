@@ -58,7 +58,7 @@ public class AuditService {
         String traceId = TraceIds.current();
         if (traceId.isBlank()) traceId = TraceIds.next();
         repository.append(new NewAuditEvent(
-                traceId, operatorId, storeId, module, action, normalizeType(objectType),
+                traceId, operatorId, storeId, module, action, normalizeRecordType(objectType),
                 String.valueOf(objectId), json(before), json(after)));
     }
 
@@ -140,8 +140,17 @@ public class AuditService {
     }
 
     private String normalizeType(String objectType) {
-        String normalized = objectType.trim().toUpperCase(Locale.ROOT);
+        String normalized = normalizeRecordType(objectType);
         if (!OBJECT_TYPES.contains(normalized)) throw new IllegalArgumentException("不支持的操作历史对象类型");
+        return normalized;
+    }
+
+    private String normalizeRecordType(String objectType) {
+        if (objectType == null) throw new IllegalArgumentException("审计对象类型不能为空");
+        String normalized = objectType.trim().toUpperCase(Locale.ROOT);
+        if (!normalized.matches("[A-Z][A-Z0-9_]{0,63}")) {
+            throw new IllegalArgumentException("审计对象类型无效");
+        }
         return normalized;
     }
 

@@ -65,6 +65,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '操作日志', permission: 'system:audit:view' },
       },
       {
+        path: 'system/payment-methods',
+        name: 'payment-methods',
+        component: () => import('@/views/system/PaymentMethodView.vue'),
+        meta: { title: '支付方式', permission: 'catalog:payment:view' },
+      },
+      {
         path: 'catalog/products',
         name: 'products',
         component: () => import('@/views/catalog/ProductListView.vue'),
