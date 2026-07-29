@@ -6,5 +6,7 @@ public record AsyncJobTask(
         String jobType,
         String requestJson,
         long storeId,
-        long createdBy) {
+        long createdBy,
+        String leaseToken,
+        int attemptCount) {
 }

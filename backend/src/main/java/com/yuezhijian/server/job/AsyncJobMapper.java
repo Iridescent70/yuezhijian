@@ -1,5 +1,6 @@
 package com.yuezhijian.server.job;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -72,28 +73,49 @@ public interface AsyncJobMapper {
             ;WITH next_job AS (
                 SELECT TOP (1) *
                 FROM dbo.sys_async_job WITH (UPDLOCK, READPAST, ROWLOCK)
-                WHERE status = 'PENDING'
+                WHERE attempt_count < #{maxAttempts}
+                  AND (status = 'PENDING' OR (
+                    status = 'RUNNING' AND (lease_expires_at IS NULL OR lease_expires_at <= sysdatetime())
+                  ))
                 ORDER BY created_at, id
             )
             UPDATE next_job
             SET status = 'RUNNING', progress = 1, started_at = sysdatetime(),
-                updated_at = sysdatetime(), updated_by = created_by
+                lease_token = #{leaseToken}, lease_expires_at = #{leaseExpiresAt},
+                attempt_count = attempt_count + 1, error_message = NULL,
+                finished_at = NULL, updated_at = sysdatetime(), updated_by = created_by
             OUTPUT INSERTED.id, INSERTED.job_no AS jobNo, INSERTED.job_type AS jobType,
                    INSERTED.request_json AS requestJson, INSERTED.store_id AS storeId,
-                   INSERTED.created_by AS createdBy;
+                   INSERTED.created_by AS createdBy, INSERTED.lease_token AS leaseToken,
+                   INSERTED.attempt_count AS attemptCount;
             """, affectData = true)
-    AsyncJobTask claimNext();
+    AsyncJobTask claimNext(
+            @Param("leaseToken") String leaseToken,
+            @Param("leaseExpiresAt") LocalDateTime leaseExpiresAt,
+            @Param("maxAttempts") int maxAttempts);
+
+    @Update("""
+            UPDATE dbo.sys_async_job
+            SET lease_expires_at = #{leaseExpiresAt}, updated_at = sysdatetime()
+            WHERE id = #{id} AND status = 'RUNNING' AND lease_token = #{leaseToken}
+            """)
+    int renewLease(
+            @Param("id") long id,
+            @Param("leaseToken") String leaseToken,
+            @Param("leaseExpiresAt") LocalDateTime leaseExpiresAt);
 
     @Update("""
             UPDATE dbo.sys_async_job
             SET status = #{status}, progress = 100,
                 success_count = #{successCount}, failure_count = #{failureCount},
                 result_file_id = #{resultFileId}, finished_at = sysdatetime(),
+                lease_token = NULL, lease_expires_at = NULL,
                 updated_at = sysdatetime(), updated_by = created_by
-            WHERE id = #{id} AND status = 'RUNNING'
+            WHERE id = #{id} AND status = 'RUNNING' AND lease_token = #{leaseToken}
             """)
     int complete(
             @Param("id") long id,
+            @Param("leaseToken") String leaseToken,
             @Param("status") String status,
             @Param("successCount") int successCount,
             @Param("failureCount") int failureCount,
@@ -103,10 +125,27 @@ public interface AsyncJobMapper {
             UPDATE dbo.sys_async_job
             SET status = 'FAILED', progress = 100, failure_count = CASE WHEN failure_count = 0 THEN 1 ELSE failure_count END,
                 error_message = #{errorMessage}, finished_at = sysdatetime(),
+                lease_token = NULL, lease_expires_at = NULL,
                 updated_at = sysdatetime(), updated_by = created_by
-            WHERE id = #{id} AND status = 'RUNNING'
+            WHERE id = #{id} AND status = 'RUNNING' AND lease_token = #{leaseToken}
             """)
-    int fail(@Param("id") long id, @Param("errorMessage") String errorMessage);
+    int fail(
+            @Param("id") long id,
+            @Param("leaseToken") String leaseToken,
+            @Param("errorMessage") String errorMessage);
+
+    @Update("""
+            UPDATE dbo.sys_async_job
+            SET status = 'FAILED', progress = 100,
+                failure_count = CASE WHEN failure_count = 0 THEN 1 ELSE failure_count END,
+                error_message = N'任务执行节点失联，已达到最大重试次数',
+                finished_at = sysdatetime(), lease_token = NULL, lease_expires_at = NULL,
+                updated_at = sysdatetime(), updated_by = created_by
+            WHERE status = 'RUNNING'
+              AND (lease_expires_at IS NULL OR lease_expires_at <= sysdatetime())
+              AND attempt_count >= #{maxAttempts}
+            """)
+    int failExhausted(@Param("maxAttempts") int maxAttempts);
 
     @Update("""
             UPDATE dbo.sys_async_job

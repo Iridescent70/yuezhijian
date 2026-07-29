@@ -9,13 +9,19 @@ import org.junit.jupiter.api.Test;
 
 class AsyncJobMapperSqlTest {
     @Test
-    void claimUsesLocksAndTransitionsOnlyPendingJobs() throws Exception {
-        Method method = AsyncJobMapper.class.getMethod("claimNext");
+    void claimUsesLocksAndCanSafelyReclaimExpiredJobs() throws Exception {
+        Method method = AsyncJobMapper.class.getMethod(
+                "claimNext", String.class, java.time.LocalDateTime.class, int.class);
         String sql = String.join(" ", method.getAnnotation(Select.class).value());
 
         assertThat(sql).contains(
                 "UPDLOCK", "READPAST", "ROWLOCK", "status = 'PENDING'",
-                "status = 'RUNNING'", "OUTPUT INSERTED.id");
+                "status = 'RUNNING'", "lease_expires_at", "lease_token = #{leaseToken}",
+                "attempt_count = attempt_count + 1", "OUTPUT INSERTED.id");
+        Method complete = AsyncJobMapper.class.getMethod(
+                "complete", long.class, String.class, String.class, int.class, int.class, long.class);
+        String completeSql = String.join(" ", complete.getAnnotation(Update.class).value());
+        assertThat(completeSql).contains("lease_token = #{leaseToken}");
     }
 
     @Test

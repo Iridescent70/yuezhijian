@@ -30,7 +30,7 @@ class AsyncJobServiceTest {
                 new FileStorageProperties(1024, 10, ".data/test-uploads", null, null, null, "test"));
         AsyncJobService service = new AsyncJobService(
                 new MemoryAsyncJobRepository(), new MemoryAccessCatalogService(), files,
-                new ObjectMapper(), new AsyncJobNumberGenerator(), List.of(handler));
+                new ObjectMapper(), new AsyncJobNumberGenerator(), new AsyncJobProperties(30, 3), List.of(handler));
         CreateExportRequest request = new CreateExportRequest("SERVICE_FEEDBACK", null, null, null);
         for (int index = 0; index < 3; index++) service.createExport(request, "admin");
 

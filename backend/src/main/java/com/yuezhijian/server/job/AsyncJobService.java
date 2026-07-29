@@ -11,11 +11,19 @@ import com.yuezhijian.server.file.FileStorageException;
 import com.yuezhijian.server.file.StoredFileDownload;
 import com.yuezhijian.server.iam.AccessCatalogService;
 import com.yuezhijian.server.iam.UserIdentity;
+import jakarta.annotation.PreDestroy;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -35,7 +43,10 @@ public class AsyncJobService {
     private final FileObjectService files;
     private final ObjectMapper objectMapper;
     private final AsyncJobNumberGenerator numbers;
+    private final AsyncJobProperties properties;
     private final Map<String, AsyncJobHandler> handlers;
+    private final ScheduledExecutorService leaseHeartbeat = Executors.newSingleThreadScheduledExecutor(
+            Thread.ofPlatform().daemon().name("async-job-lease-heartbeat").factory());
 
     public AsyncJobService(
             AsyncJobRepository repository,
@@ -43,12 +54,14 @@ public class AsyncJobService {
             FileObjectService files,
             ObjectMapper objectMapper,
             AsyncJobNumberGenerator numbers,
+            AsyncJobProperties properties,
             List<AsyncJobHandler> handlers) {
         this.repository = repository;
         this.accessCatalog = accessCatalog;
         this.files = files;
         this.objectMapper = objectMapper;
         this.numbers = numbers;
+        this.properties = properties;
         this.handlers = handlers.stream().collect(Collectors.toUnmodifiableMap(
                 AsyncJobHandler::jobType, Function.identity()));
     }
@@ -117,21 +130,53 @@ public class AsyncJobService {
     }
 
     public boolean processNext() {
-        return repository.claimNext().map(task -> {
+        int exhausted = repository.failExhausted(properties.maxAttempts());
+        if (exhausted > 0) LOG.warn("Marked {} exhausted async jobs as failed", exhausted);
+        String leaseToken = UUID.randomUUID().toString();
+        LocalDateTime leaseExpiresAt = LocalDateTime.now().plusMinutes(properties.leaseMinutes());
+        return repository.claimNext(leaseToken, leaseExpiresAt, properties.maxAttempts()).map(task -> {
+            AtomicBoolean leaseLost = new AtomicBoolean();
+            ScheduledFuture<?> heartbeat = startHeartbeat(task, leaseLost);
             try {
                 AsyncJobHandler handler = handlers.get(task.jobType());
                 if (handler == null) throw new IllegalArgumentException("没有可执行的任务处理器");
                 AsyncJobExecutionResult result = handler.execute(task);
+                if (leaseLost.get() || !repository.renewLease(task.id(), task.leaseToken(),
+                        LocalDateTime.now().plusMinutes(properties.leaseMinutes()))) {
+                    throw new DuplicateResourceException("任务执行租约已失效");
+                }
                 FileObjectItem resultFile = files.storeGenerated(
                         "ASYNC_JOB_RESULT", result.fileName(), result.contentType(), result.content(), task.createdBy());
-                repository.complete(task.id(), resultFile, result.successCount(), result.failureCount());
+                repository.complete(
+                        task.id(), task.leaseToken(), resultFile, result.successCount(), result.failureCount());
             } catch (RuntimeException exception) {
                 String message = safeError(exception);
-                repository.fail(task.id(), message);
-                LOG.error("Async job {} failed: {}", task.jobNo(), message, exception);
+                repository.fail(task.id(), task.leaseToken(), message);
+                LOG.error("Async job {} attempt {} failed: {}", task.jobNo(), task.attemptCount(), message, exception);
+            } finally {
+                heartbeat.cancel(false);
             }
             return true;
         }).orElse(false);
+    }
+
+    @PreDestroy
+    void shutdownLeaseHeartbeat() {
+        leaseHeartbeat.shutdownNow();
+    }
+
+    private ScheduledFuture<?> startHeartbeat(AsyncJobTask task, AtomicBoolean leaseLost) {
+        Duration lease = Duration.ofMinutes(properties.leaseMinutes());
+        long interval = Math.max(1_000, lease.toMillis() / 3);
+        return leaseHeartbeat.scheduleAtFixedRate(() -> {
+            try {
+                boolean renewed = repository.renewLease(
+                        task.id(), task.leaseToken(), LocalDateTime.now().plus(lease));
+                if (!renewed) leaseLost.set(true);
+            } catch (RuntimeException exception) {
+                LOG.warn("Could not renew async job {} lease: {}", task.jobNo(), safeError(exception));
+            }
+        }, interval, interval, TimeUnit.MILLISECONDS);
     }
 
     private AsyncJobItem owned(long id, String username) {

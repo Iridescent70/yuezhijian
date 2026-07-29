@@ -3,6 +3,7 @@ package com.yuezhijian.server.job;
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.PageResult;
 import com.yuezhijian.server.file.FileObjectItem;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
@@ -38,21 +39,32 @@ public class SqlServerAsyncJobRepository implements AsyncJobRepository {
     }
 
     @Override
-    public Optional<AsyncJobTask> claimNext() {
-        return Optional.ofNullable(mapper.claimNext());
+    public Optional<AsyncJobTask> claimNext(String leaseToken, LocalDateTime leaseExpiresAt, int maxAttempts) {
+        return Optional.ofNullable(mapper.claimNext(leaseToken, leaseExpiresAt, maxAttempts));
     }
 
     @Override
-    public void complete(long id, FileObjectItem resultFile, int successCount, int failureCount) {
+    public boolean renewLease(long id, String leaseToken, LocalDateTime leaseExpiresAt) {
+        return mapper.renewLease(id, leaseToken, leaseExpiresAt) == 1;
+    }
+
+    @Override
+    public void complete(
+            long id, String leaseToken, FileObjectItem resultFile, int successCount, int failureCount) {
         String status = failureCount == 0 ? "SUCCEEDED" : "PARTIAL";
-        if (mapper.complete(id, status, successCount, failureCount, resultFile.id()) != 1) {
+        if (mapper.complete(id, leaseToken, status, successCount, failureCount, resultFile.id()) != 1) {
             throw new DuplicateResourceException("任务状态已发生变化");
         }
     }
 
     @Override
-    public void fail(long id, String errorMessage) {
-        mapper.fail(id, errorMessage);
+    public void fail(long id, String leaseToken, String errorMessage) {
+        mapper.fail(id, leaseToken, errorMessage);
+    }
+
+    @Override
+    public int failExhausted(int maxAttempts) {
+        return mapper.failExhausted(maxAttempts);
     }
 
     @Override

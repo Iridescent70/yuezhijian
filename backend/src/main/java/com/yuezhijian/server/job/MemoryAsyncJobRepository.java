@@ -56,38 +56,81 @@ public class MemoryAsyncJobRepository implements AsyncJobRepository {
     }
 
     @Override
-    public synchronized Optional<AsyncJobTask> claimNext() {
-        return entries.values().stream().filter(item -> "PENDING".equals(item.status))
+    public synchronized Optional<AsyncJobTask> claimNext(
+            String leaseToken, LocalDateTime leaseExpiresAt, int maxAttempts) {
+        LocalDateTime now = LocalDateTime.now();
+        return entries.values().stream()
+                .filter(item -> item.attemptCount < maxAttempts)
+                .filter(item -> "PENDING".equals(item.status)
+                        || ("RUNNING".equals(item.status)
+                        && (item.leaseExpiresAt == null || !item.leaseExpiresAt.isAfter(now))))
                 .min(Comparator.comparing((Entry item) -> item.createdAt).thenComparingLong(item -> item.id))
                 .map(item -> {
                     item.status = "RUNNING";
                     item.progress = 1;
                     item.startedAt = LocalDateTime.now();
+                    item.finishedAt = null;
+                    item.errorMessage = null;
+                    item.leaseToken = leaseToken;
+                    item.leaseExpiresAt = leaseExpiresAt;
+                    item.attemptCount++;
                     return item.task();
                 });
     }
 
     @Override
+    public synchronized boolean renewLease(long id, String leaseToken, LocalDateTime leaseExpiresAt) {
+        Entry entry = entries.get(id);
+        if (!ownsLease(entry, leaseToken)) return false;
+        entry.leaseExpiresAt = leaseExpiresAt;
+        return true;
+    }
+
+    @Override
     public synchronized void complete(
-            long id, FileObjectItem resultFile, int successCount, int failureCount) {
-        Entry entry = requireRunning(id);
+            long id, String leaseToken, FileObjectItem resultFile, int successCount, int failureCount) {
+        Entry entry = requireLease(id, leaseToken);
         entry.status = failureCount == 0 ? "SUCCEEDED" : "PARTIAL";
         entry.progress = 100;
         entry.successCount = successCount;
         entry.failureCount = failureCount;
         entry.resultFile = resultFile;
         entry.finishedAt = LocalDateTime.now();
+        entry.leaseToken = null;
+        entry.leaseExpiresAt = null;
     }
 
     @Override
-    public synchronized void fail(long id, String errorMessage) {
+    public synchronized void fail(long id, String leaseToken, String errorMessage) {
         Entry entry = entries.get(id);
-        if (entry == null || !"RUNNING".equals(entry.status)) return;
+        if (!ownsLease(entry, leaseToken)) return;
         entry.status = "FAILED";
         entry.progress = 100;
         entry.failureCount = Math.max(1, entry.failureCount);
         entry.errorMessage = errorMessage;
         entry.finishedAt = LocalDateTime.now();
+        entry.leaseToken = null;
+        entry.leaseExpiresAt = null;
+    }
+
+    @Override
+    public synchronized int failExhausted(int maxAttempts) {
+        LocalDateTime now = LocalDateTime.now();
+        int changed = 0;
+        for (Entry entry : entries.values()) {
+            if ("RUNNING".equals(entry.status) && entry.attemptCount >= maxAttempts
+                    && (entry.leaseExpiresAt == null || !entry.leaseExpiresAt.isAfter(now))) {
+                entry.status = "FAILED";
+                entry.progress = 100;
+                entry.failureCount = Math.max(1, entry.failureCount);
+                entry.errorMessage = "任务执行节点失联，已达到最大重试次数";
+                entry.finishedAt = now;
+                entry.leaseToken = null;
+                entry.leaseExpiresAt = null;
+                changed++;
+            }
+        }
+        return changed;
     }
 
     @Override
@@ -99,12 +142,17 @@ public class MemoryAsyncJobRepository implements AsyncJobRepository {
         return true;
     }
 
-    private Entry requireRunning(long id) {
+    private Entry requireLease(long id, String leaseToken) {
         Entry entry = entries.get(id);
-        if (entry == null || !"RUNNING".equals(entry.status)) {
+        if (!ownsLease(entry, leaseToken)) {
             throw new DuplicateResourceException("任务状态已发生变化");
         }
         return entry;
+    }
+
+    private static boolean ownsLease(Entry entry, String leaseToken) {
+        return entry != null && "RUNNING".equals(entry.status) && leaseToken != null
+                && leaseToken.equals(entry.leaseToken);
     }
 
     private static class Entry {
@@ -119,6 +167,9 @@ public class MemoryAsyncJobRepository implements AsyncJobRepository {
         private String errorMessage;
         private LocalDateTime startedAt;
         private LocalDateTime finishedAt;
+        private String leaseToken;
+        private LocalDateTime leaseExpiresAt;
+        private int attemptCount;
 
         private Entry(long id, AsyncJobDraft draft) {
             this.id = id;
@@ -127,7 +178,8 @@ public class MemoryAsyncJobRepository implements AsyncJobRepository {
 
         private AsyncJobTask task() {
             return new AsyncJobTask(
-                    id, draft.jobNo(), draft.jobType(), draft.requestJson(), draft.storeId(), draft.operatorId());
+                    id, draft.jobNo(), draft.jobType(), draft.requestJson(), draft.storeId(), draft.operatorId(),
+                    leaseToken, attemptCount);
         }
 
         private AsyncJobItem item() {

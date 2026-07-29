@@ -64,3 +64,5 @@ app:
   jobs:
     initial-delay-ms: ${JOB_INITIAL_DELAY_MS:3000}
     poll-delay-ms: ${JOB_POLL_DELAY_MS:2000}
+    lease-minutes: ${JOB_LEASE_MINUTES:30}
+    max-attempts: ${JOB_MAX_ATTEMPTS:3}

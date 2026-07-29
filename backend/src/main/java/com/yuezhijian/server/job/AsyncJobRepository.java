@@ -2,6 +2,7 @@ package com.yuezhijian.server.job;
 
 import com.yuezhijian.server.common.PageResult;
 import com.yuezhijian.server.file.FileObjectItem;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 public interface AsyncJobRepository {
@@ -13,11 +14,15 @@ public interface AsyncJobRepository {
 
     Optional<AsyncJobItem> findOwned(long id, long createdBy);
 
-    Optional<AsyncJobTask> claimNext();
+    Optional<AsyncJobTask> claimNext(String leaseToken, LocalDateTime leaseExpiresAt, int maxAttempts);
 
-    void complete(long id, FileObjectItem resultFile, int successCount, int failureCount);
+    boolean renewLease(long id, String leaseToken, LocalDateTime leaseExpiresAt);
 
-    void fail(long id, String errorMessage);
+    void complete(long id, String leaseToken, FileObjectItem resultFile, int successCount, int failureCount);
+
+    void fail(long id, String leaseToken, String errorMessage);
+
+    int failExhausted(int maxAttempts);
 
     boolean cancel(long id, long createdBy);
 }
