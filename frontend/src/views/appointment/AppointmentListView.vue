@@ -9,6 +9,7 @@ import {
   transitionAppointment,
 } from '@/api/appointment'
 import { useAuthStore } from '@/stores/auth'
+import { createBillFromAppointment } from '@/api/trade'
 import type {
   AppointmentDetail,
   AppointmentStatus,
@@ -47,8 +48,9 @@ const nextActions = computed(() => {
   const status = detail.value?.appointment.status
   if (status === 'PENDING_CONFIRM') return [{ action: 'confirm', label: '确认预约', type: 'primary' as const }, { action: 'cancel', label: '取消', type: 'default' as const }]
   if (status === 'CONFIRMED') return [{ action: 'arrive', label: '确认到店', type: 'primary' as const }, { action: 'no-show', label: '记为爽约', type: 'danger' as const }, { action: 'cancel', label: '取消', type: 'default' as const }]
-  if (status === 'ARRIVED') return [{ action: 'start', label: '开始服务', type: 'primary' as const }, { action: 'cancel', label: '取消', type: 'default' as const }]
-  if (status === 'SERVING') return [{ action: 'complete', label: '完成服务', type: 'primary' as const }]
+  if (status === 'ARRIVED') return [{ action: 'create-bill', label: '转为账单', type: 'success' as const }, { action: 'start', label: '开始服务', type: 'primary' as const }, { action: 'cancel', label: '取消', type: 'default' as const }]
+  if (status === 'SERVING') return [{ action: 'create-bill', label: '转为账单', type: 'success' as const }, { action: 'complete', label: '完成服务', type: 'primary' as const }]
+  if (status === 'COMPLETED') return [{ action: 'create-bill', label: '查看账单', type: 'success' as const }]
   return []
 })
 
@@ -76,6 +78,15 @@ async function openDetail(id: number) {
 
 async function runAction(action: string) {
   if (!detail.value) return
+  if (action === 'create-bill') {
+    actionLoading.value = true
+    try {
+      const bill = await createBillFromAppointment(detail.value.appointment.id)
+      await router.push(`/app/bills/${bill.id}`)
+    } catch (error) { ElMessage.error(error instanceof Error ? error.message : '预约转账单失败') }
+    finally { actionLoading.value = false }
+    return
+  }
   if (action === 'cancel' || action === 'no-show') {
     cancelForm.action = action
     cancelForm.reasonCode = action === 'no-show' ? 'CUSTOMER_NO_SHOW' : ''
@@ -164,7 +175,7 @@ onMounted(async () => {
           <el-table :data="detail.services" size="small"><el-table-column prop="serviceName" label="项目" /><el-table-column prop="durationMinutes" label="时长" width="80" /><el-table-column label="价格" width="110" align="right"><template #default="scope">{{ formatMoney(scope.row.price) }}</template></el-table-column></el-table>
           <h3>状态记录</h3>
           <el-timeline><el-timeline-item v-for="item in [...detail.history].reverse()" :key="item.id" :timestamp="formatDateTime(item.occurredAt)" placement="top"><strong>{{ statusMap[item.toStatus].label }}</strong><p v-if="item.reasonCode || item.note" class="muted-text">{{ item.reasonCode }} {{ item.note }}</p></el-timeline-item></el-timeline>
-          <div v-if="auth.hasPermission('appointment:appointment:manage') && nextActions.length" class="drawer-actions"><el-button v-for="item in nextActions" :key="item.action" :type="item.type" :loading="actionLoading" @click="runAction(item.action)">{{ item.label }}</el-button></div>
+          <div v-if="nextActions.length" class="drawer-actions"><el-button v-for="item in nextActions" v-show="item.action === 'create-bill' ? auth.hasPermission('trade:bill:create') : auth.hasPermission('appointment:appointment:manage')" :key="item.action" :type="item.type" :loading="actionLoading" @click="runAction(item.action)">{{ item.label }}</el-button></div>
         </template>
       </div>
     </el-drawer>

@@ -1,0 +1,27 @@
+<script setup lang="ts">
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { getBill, getPaymentMethods, quoteSettlement, settleBill } from '@/api/trade'
+import type { BillDetail, PaymentMethodOption, SettlementQuote } from '@/types/api'
+import { formatMoney } from '@/utils/formatMoney'
+
+const route = useRoute(); const router = useRouter(); const billId = Number(route.params.billId)
+const loading = ref(true); const quoting = ref(false); const settling = ref(false)
+const detail = ref<BillDetail | null>(null); const methods = ref<PaymentMethodOption[]>([]); const quote = ref<SettlementQuote | null>(null)
+const payments = reactive<Array<{ paymentMethodId?: number; amount: number; externalReference: string }>>([])
+const paymentTotal = computed(() => payments.reduce((sum, item) => sum + Number(item.amount || 0), 0))
+const difference = computed(() => Math.max(Number(detail.value?.bill.receivableAmount ?? 0) - paymentTotal.value, 0))
+
+async function load() { loading.value = true; try { detail.value = await getBill(billId); if (!['DRAFT','PENDING_PAYMENT'].includes(detail.value.bill.status)) { ElMessage.warning('当前账单不可结算'); await router.replace(`/app/bills/${billId}`); return } methods.value = await getPaymentMethods(detail.value.bill.storeId); payments.splice(0, payments.length, { paymentMethodId: methods.value[0]?.id, amount: Number(detail.value.bill.receivableAmount), externalReference: '' }) } catch (error) { ElMessage.error(error instanceof Error ? error.message : '结算数据加载失败') } finally { loading.value = false } }
+function addPayment() { payments.push({ paymentMethodId: undefined, amount: 0, externalReference: '' }); quote.value = null }
+function removePayment(index: number) { payments.splice(index, 1); quote.value = null }
+function methodFor(id?: number) { return methods.value.find((item) => item.id === id) }
+async function createQuote() { if (payments.some((item) => !item.paymentMethodId || item.amount <= 0)) { ElMessage.warning('请完整填写支付方式和金额'); return } quoting.value = true; try { quote.value = await quoteSettlement(billId, payments.map((item) => ({ paymentMethodId: item.paymentMethodId!, amount: item.amount, externalReference: item.externalReference || undefined }))); ElMessage.success('试算完成，请核对金额') } catch (error) { ElMessage.error(error instanceof Error ? error.message : '试算失败') } finally { quoting.value = false } }
+async function settle() { if (!quote.value || quote.value.differenceAmount > 0) { ElMessage.warning('请先完成有效试算'); return } await ElMessageBox.confirm(`确认收款 ${formatMoney(quote.value.receivableAmount)} 吗？`, '确认结算', { type: 'warning' }); settling.value = true; try { await settleBill(billId, quote.value.quoteNo, crypto.randomUUID()); ElMessage.success('账单结算完成'); await router.replace(`/app/bills/${billId}`) } catch (error) { ElMessage.error(error instanceof Error ? error.message : '结算失败') } finally { settling.value = false } }
+onMounted(load)
+</script>
+
+<template>
+  <section v-loading="loading" class="page-content settlement-page"><template v-if="detail"><div class="section-title-row"><div><h1>收银结算</h1><p>{{ detail.bill.billNo }} · {{ detail.bill.customerName }} · {{ detail.bill.storeName }}</p></div><el-button @click="router.push(`/app/bills/${billId}`)">返回账单</el-button></div><div class="settlement-layout"><el-card shadow="never"><template #header><strong>消费明细</strong></template><el-table :data="detail.lines" size="small"><el-table-column prop="itemName" label="项目" /><el-table-column prop="employeeName" label="技师" width="110" /><el-table-column prop="quantity" label="数量" width="70" /><el-table-column label="金额" width="110" align="right"><template #default="scope">{{ formatMoney(scope.row.receivableAmount) }}</template></el-table-column></el-table></el-card><el-card shadow="never" class="payment-panel"><template #header><div class="payment-panel-title"><strong>组合支付</strong><el-button link type="primary" @click="addPayment">+ 添加支付方式</el-button></div></template><div v-for="(payment, index) in payments" :key="index" class="payment-row"><el-select v-model="payment.paymentMethodId" placeholder="支付方式" @change="quote = null"><el-option v-for="item in methods" :key="item.id" :label="item.name" :value="item.id" /></el-select><el-input-number v-model="payment.amount" :min="0.01" :precision="2" @change="quote = null" /><el-input v-if="methodFor(payment.paymentMethodId)?.needsExternalReference" v-model="payment.externalReference" placeholder="外部凭证号" @input="quote = null" /><span v-else class="payment-reference-placeholder">无需凭证</span><el-button link type="danger" :disabled="payments.length === 1" @click="removePayment(index)">删除</el-button></div><el-divider /><div class="settlement-summary"><div><span>账单应收</span><strong>{{ formatMoney(detail.bill.receivableAmount) }}</strong></div><div><span>支付合计</span><strong>{{ formatMoney(paymentTotal) }}</strong></div><div><span>未付差额</span><strong :class="{ danger: difference > 0 }">{{ formatMoney(quote?.differenceAmount ?? difference) }}</strong></div><div><span>现金找零</span><strong>{{ formatMoney(quote?.changeAmount ?? 0) }}</strong></div></div><div class="settlement-actions"><el-button :loading="quoting" @click="createQuote">重新试算</el-button><el-button type="primary" :loading="settling" :disabled="!quote || quote.differenceAmount > 0" @click="settle">确认收款</el-button></div></el-card></div></template></section>
+</template>

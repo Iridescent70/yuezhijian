@@ -5,6 +5,9 @@ import com.yuezhijian.server.appointment.AppointmentQuery;
 import com.yuezhijian.server.appointment.AppointmentRepository;
 import com.yuezhijian.server.appointment.AppointmentSummary;
 import com.yuezhijian.server.iam.AccessCatalogService;
+import com.yuezhijian.server.trade.BillQuery;
+import com.yuezhijian.server.trade.BillSummary;
+import com.yuezhijian.server.trade.TradeRepository;
 import java.security.Principal;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -19,10 +22,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class WorkbenchController {
     private final AppointmentRepository appointments;
     private final AccessCatalogService accessCatalog;
+    private final TradeRepository trade;
 
-    public WorkbenchController(AppointmentRepository appointments, AccessCatalogService accessCatalog) {
+    public WorkbenchController(
+            AppointmentRepository appointments, AccessCatalogService accessCatalog, TradeRepository trade) {
         this.appointments = appointments;
         this.accessCatalog = accessCatalog;
+        this.trade = trade;
     }
 
     @GetMapping("/overview")
@@ -36,11 +42,13 @@ public class WorkbenchController {
                 .filter(item -> List.of("ARRIVED", "SERVING", "COMPLETED").contains(item.status()))
                 .mapToInt(AppointmentSummary::personCount).sum();
         int pending = (int) today.stream().filter(item -> "PENDING_CONFIRM".equals(item.status())).count();
+        BigDecimal revenue = trade.search(new BillQuery(storeId, businessDate, businessDate, "SETTLED", null))
+                .stream().map(BillSummary::receivedAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         return ApiResponse.ok(new WorkbenchOverview(
                 businessDate,
                 today.size(),
                 customerTraffic,
-                BigDecimal.ZERO,
+                revenue,
                 pending,
                 List.of(
                         new Shortcut("member-new", "新建会员", "/app/members/new", "member:member:create"),

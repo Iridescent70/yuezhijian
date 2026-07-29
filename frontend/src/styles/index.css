@@ -556,6 +556,102 @@ button {
   cursor: not-allowed;
 }
 
+.bill-amount-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.bill-amount-grid article {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 24px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.bill-amount-grid span {
+  color: var(--muted);
+}
+
+.bill-amount-grid strong {
+  font-size: 24px;
+}
+
+.bill-amount-grid article.accent {
+  color: #fff;
+  background: linear-gradient(145deg, #a26379, #754357);
+}
+
+.bill-amount-grid article.accent span {
+  color: rgb(255 255 255 / 75%);
+}
+
+.bill-secondary-card {
+  margin-top: 18px;
+}
+
+.settlement-layout {
+  display: grid;
+  grid-template-columns: minmax(520px, 1.2fr) minmax(520px, 1fr);
+  gap: 18px;
+}
+
+.settlement-layout > .el-card {
+  border-color: var(--border);
+  border-radius: 14px;
+}
+
+.payment-panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.payment-row {
+  display: grid;
+  grid-template-columns: 130px 150px 1fr 48px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.payment-reference-placeholder {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.settlement-summary {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.settlement-summary div {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+}
+
+.settlement-summary span {
+  color: var(--muted);
+}
+
+.settlement-summary .danger {
+  color: #c0363f;
+}
+
+.settlement-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+
 .member-link {
   display: inline-flex;
   flex-direction: column;

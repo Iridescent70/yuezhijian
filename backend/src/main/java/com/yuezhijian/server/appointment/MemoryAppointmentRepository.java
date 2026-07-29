@@ -147,6 +147,11 @@ public class MemoryAppointmentRepository implements AppointmentRepository {
         return result;
     }
 
+    @Override
+    public void linkBill(long appointmentId, long billId, long operatorId) {
+        if (!appointments.containsKey(appointmentId)) throw new IllegalArgumentException("预约不存在");
+    }
+
     private AppointmentDetail requireVersion(long id, String version) {
         AppointmentDetail current = appointments.get(id);
         if (current == null) throw new IllegalArgumentException("预约不存在");

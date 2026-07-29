@@ -107,6 +107,13 @@ public class SqlServerAppointmentRepository implements AppointmentRepository {
         return findById(id).orElseThrow(() -> new IllegalArgumentException("预约不存在"));
     }
 
+    @Override
+    public void linkBill(long appointmentId, long billId, long operatorId) {
+        if (mapper.linkBill(appointmentId, billId, operatorId) != 1) {
+            throw new DuplicateResourceException("预约已关联其他账单，请刷新后重试");
+        }
+    }
+
     private void assertNoConflict(
             long storeId, long employeeId, Long workstationId,
             LocalDateTime startAt, LocalDateTime endAt, Long excludeId) {

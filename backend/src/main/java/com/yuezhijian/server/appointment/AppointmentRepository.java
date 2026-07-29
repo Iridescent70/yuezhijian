@@ -20,4 +20,6 @@ public interface AppointmentRepository {
     AppointmentDetail update(AppointmentUpdate update);
 
     AppointmentDetail transition(AppointmentStatusChange change);
+
+    void linkBill(long appointmentId, long billId, long operatorId);
 }

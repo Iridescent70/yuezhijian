@@ -14,7 +14,7 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             "org:workstation:view", "org:workstation:manage",
             "catalog:service:view", "catalog:service:manage",
             "appointment:appointment:view", "appointment:appointment:create", "appointment:appointment:manage",
-            "trade:bill:view", "trade:bill:create");
+            "trade:bill:view", "trade:bill:create", "trade:bill:manage", "trade:bill:settle");
 
     private static final List<StoreSummary> STORES = List.of(
             new StoreSummary(1L, "HQ", "悦指间总部", "HEADQUARTERS", "ACTIVE"),

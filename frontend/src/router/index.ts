@@ -102,11 +102,28 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '新建预约', permission: 'appointment:appointment:create' },
       },
       {
-        path: 'bills/:pathMatch(.*)*',
-        name: 'bills-placeholder',
-        component: () => import('@/views/ModulePlaceholderView.vue'),
-        props: { moduleName: '账单管理', nextMilestone: 'T2 开单与混合支付结算' },
+        path: 'bills',
+        name: 'bills',
+        component: () => import('@/views/trade/BillListView.vue'),
         meta: { title: '账单管理', permission: 'trade:bill:view' },
+      },
+      {
+        path: 'bills/new',
+        name: 'bill-create',
+        component: () => import('@/views/trade/BillCreateView.vue'),
+        meta: { title: '新建账单', permission: 'trade:bill:create' },
+      },
+      {
+        path: 'bills/:billId(\\d+)/settle',
+        name: 'bill-settle',
+        component: () => import('@/views/trade/BillSettlementView.vue'),
+        meta: { title: '收银结算', permission: 'trade:bill:settle' },
+      },
+      {
+        path: 'bills/:billId(\\d+)',
+        name: 'bill-detail',
+        component: () => import('@/views/trade/BillDetailView.vue'),
+        meta: { title: '账单详情', permission: 'trade:bill:view' },
       },
       {
         path: 'forbidden',

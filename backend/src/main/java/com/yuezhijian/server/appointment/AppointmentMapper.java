@@ -190,4 +190,14 @@ public interface AppointmentMapper {
             @Param("reasonCode") String reasonCode,
             @Param("note") String note,
             @Param("operatorId") long operatorId);
+
+    @Update("""
+            UPDATE dbo.apt_appointment
+            SET bill_id = #{billId}, updated_at = sysdatetime(), updated_by = #{operatorId}
+            WHERE id = #{appointmentId} AND (bill_id IS NULL OR bill_id = #{billId})
+            """)
+    int linkBill(
+            @Param("appointmentId") long appointmentId,
+            @Param("billId") long billId,
+            @Param("operatorId") long operatorId);
 }

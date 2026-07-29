@@ -344,3 +344,113 @@ export interface AvailabilitySlot {
   available: boolean
   unavailableReason?: string
 }
+
+export type BillStatus = 'DRAFT' | 'PENDING_PAYMENT' | 'SETTLED' | 'VOIDED' | 'ADJUSTED' | 'REVERSED'
+
+export interface BillSummary {
+  id: number
+  billNo: string
+  appointmentId?: number
+  memberId?: number
+  customerName: string
+  maskedMobile?: string
+  storeId: number
+  storeName: string
+  sourceType: string
+  personCount: number
+  originalAmount: number
+  discountAmount: number
+  receivableAmount: number
+  receivedAmount: number
+  changeAmount: number
+  status: BillStatus
+  note?: string
+  settledAt?: string
+  createdAt: string
+  version: string
+}
+
+export interface BillLine {
+  id: number
+  lineNo: number
+  itemType: string
+  itemId: number
+  itemCode: string
+  itemName: string
+  unitPrice: number
+  quantity: number
+  originalAmount: number
+  discountAmount: number
+  receivableAmount: number
+  actualAmount: number
+  employeeId?: number
+  employeeName?: string
+  note?: string
+}
+
+export interface BillPayment {
+  id: number
+  paymentNo: string
+  paymentMethodId: number
+  paymentMethodName: string
+  amount: number
+  status: string
+  externalReference?: string
+  paidAt: string
+}
+
+export interface BillHistoryItem {
+  id: number
+  fromStatus?: BillStatus
+  toStatus: BillStatus
+  reasonCode?: string
+  note?: string
+  occurredAt: string
+  operatorId: number
+}
+
+export interface BillDetail {
+  bill: BillSummary
+  lines: BillLine[]
+  payments: BillPayment[]
+  history: BillHistoryItem[]
+}
+
+export interface CreatedBill {
+  id: number
+  billNo: string
+  status: BillStatus
+  version: string
+}
+
+export interface PaymentMethodOption {
+  id: number
+  code: string
+  name: string
+  type: string
+  electronic: boolean
+  includedInRevenue: boolean
+  needsExternalReference: boolean
+  sortNo: number
+}
+
+export interface QuotePayment {
+  paymentMethodId: number
+  paymentMethodCode: string
+  paymentMethodName: string
+  amount: number
+  externalReference?: string
+}
+
+export interface SettlementQuote {
+  quoteNo: string
+  billId: number
+  billVersion: string
+  receivableAmount: number
+  paymentTotal: number
+  changeAmount: number
+  differenceAmount: number
+  payments: QuotePayment[]
+  expiresAt: string
+  used: boolean
+}
