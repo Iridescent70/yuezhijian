@@ -77,6 +77,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '新建会员', permission: 'member:member:create' },
       },
       {
+        path: 'members/ownership',
+        name: 'member-ownership',
+        component: () => import('@/views/member/OwnershipAdjustmentView.vue'),
+        meta: { title: '归属调整', permission: 'member:ownership:view' },
+      },
+      {
         path: 'members/:memberId(\\d+)',
         name: 'member-detail',
         component: () => import('@/views/member/MemberDetailView.vue'),

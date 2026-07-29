@@ -22,4 +22,6 @@ public interface MemberRepository {
     List<MemberTagOption> tagOptions();
 
     MemberDetail updateTags(MemberTagUpdateCommand command);
+
+    boolean applyOwnership(long memberId, long oldStoreId, long newStoreId, long operatorId);
 }

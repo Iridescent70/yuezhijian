@@ -11,6 +11,7 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             "workbench:view", "org:store:view", "iam:role:view", "iam:user:view",
             "member:member:view", "member:member:create", "member:member:manage",
             "member:tag:view", "member:tag:manage",
+            "member:ownership:view", "member:ownership:manage", "member:ownership:approve",
             "member:asset:view", "member:asset:manage",
             "catalog:card:view", "catalog:card:manage", "member:card:view", "member:card:manage",
             "member:card:refund:view", "member:card:refund:manage", "member:card:refund:approve",
@@ -34,13 +35,18 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             new RoleSummary(1L, ROLE_ADMIN, "总部管理员", "ALL", "ACTIVE", ADMIN_PERMISSIONS),
             new RoleSummary(2L, "STORE_MANAGER", "店长", "STORE", "ACTIVE",
                     List.of("workbench:view", "org:store:view", "member:member:view", "member:member:manage",
-                            "member:tag:view", "member:tag:manage", "trade:bill:view")));
+                            "member:tag:view", "member:tag:manage", "member:ownership:view",
+                            "member:ownership:manage", "trade:bill:view")));
 
     private static final List<MenuItem> MENUS = List.of(
             new MenuItem(1L, "workbench", "工作台", "/app/workbench", "HomeFilled", 10,
                     "workbench:view", List.of()),
             new MenuItem(2L, "member", "会员管理", "/app/members", "User", 20,
-                    "member:member:view", List.of()),
+                    "member:member:view", List.of(
+                            new MenuItem(201L, "member-list", "会员列表", "/app/members", "List", 10,
+                                    "member:member:view", List.of()),
+                            new MenuItem(202L, "member-ownership", "归属调整", "/app/members/ownership", "Switch", 20,
+                                    "member:ownership:view", List.of()))),
             new MenuItem(3L, "appointment", "预约管理", "/app/appointments", "Calendar", 30,
                     "appointment:appointment:view", List.of()),
             new MenuItem(4L, "bill", "账单管理", "/app/bills", "Tickets", 40,

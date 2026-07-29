@@ -20,6 +20,10 @@ public class BusinessNumberGenerator {
         return next("C");
     }
 
+    public String nextOwnershipAdjustmentNo() {
+        return next("OA");
+    }
+
     private String next(String prefix) {
         long suffix = Math.floorMod(sequence.incrementAndGet(), 100_000);
         return prefix + LocalDateTime.now(clock).format(TIME_FORMAT) + String.format("%05d", suffix);

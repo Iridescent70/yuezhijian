@@ -172,6 +172,20 @@ public class MemoryMemberRepository implements MemberRepository {
         return toDetail(updated);
     }
 
+    @Override
+    public synchronized boolean applyOwnership(long memberId, long oldStoreId, long newStoreId, long operatorId) {
+        MemoryMember old = members.stream().filter(item -> item.id() == memberId).findFirst().orElse(null);
+        if (old == null || old.ownerStoreId() != oldStoreId) return false;
+        MemoryMember updated = new MemoryMember(
+                old.id(), old.memberNo(), old.membershipCardNo(), old.fullName(), old.nickname(), old.mobile(),
+                old.gender(), old.birthday(), old.email(), old.sourceType(), old.joinStoreId(), newStoreId,
+                null, old.levelName(), old.special(), old.status(), old.frozenAt(), old.freezeReason(),
+                old.lastVisitAt(), old.createdAt(), old.availableBalance(), old.frozenBalance(), old.totalRecharged(),
+                old.availablePoints(), old.lifetimePoints(), old.cardCount(), old.tags(), old.version() + 1);
+        replace(updated);
+        return true;
+    }
+
     private MemberSummary toSummary(MemoryMember member) {
         return new MemberSummary(
                 member.id(), member.memberNo(), member.fullName(), maskMobile(member.mobile()), member.gender(),

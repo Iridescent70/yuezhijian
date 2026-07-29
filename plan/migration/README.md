@@ -94,6 +94,7 @@ plan/migration/
 | `V202607291260` | 服务反馈、负责人、处理状态和历史 | `vis_feedback`、`vis_feedback_action` |
 | `V202607291270` | 回访时限参数、满意度规则、权限和菜单 | `sys_parameter`、`vis_satisfaction_rule` |
 | `V202607291280` | 会员资料维护、状态历史和手工标签权限 | `mem_member_status_log`、`iam_permission` |
+| `V202607291290` | 会员归属调整申请、审批、到期执行和菜单 | `mem_ownership_adjustment`、`iam_permission`、`iam_menu` |
 | `R__reporting_views` | 可重复构建的统计视图 | `rpt_*` 视图/函数 |
 
 表中未落地版本仍属于设计基线；实际脚本只能在当前最高版本之后追加，逐个建立同号说明并记录各环境执行结果，禁止为了补齐旧编号而开启Flyway乱序执行。

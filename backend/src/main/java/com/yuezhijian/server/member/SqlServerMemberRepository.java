@@ -103,6 +103,11 @@ public class SqlServerMemberRepository implements MemberRepository {
         return findById(command.memberId()).orElseThrow();
     }
 
+    @Override
+    public boolean applyOwnership(long memberId, long oldStoreId, long newStoreId, long operatorId) {
+        return mapper.applyOwnership(memberId, oldStoreId, newStoreId, operatorId) == 1;
+    }
+
     private MemberQuery withMobileHash(MemberQuery query) {
         String hash = query.keyword() != null && query.keyword().matches("1[3-9]\\d{9}")
                 ? codec.searchableHash(query.keyword())

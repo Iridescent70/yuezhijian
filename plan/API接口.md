@@ -168,8 +168,8 @@
 | API-MEM-008 | `GET/POST /members/{id}/notes` | 查询/类型、内容、负向标志 | 跟进记录/id | 会员管理-01、优化会员-03 |
 | API-MEM-009 | `GET/PUT /members/{id}/consultation-card` | 无/结构化咨询卡、version | 咨询卡 | 结算管理-05、移动端-03 |
 | API-MEM-010 | `GET/PUT /members/{id}/service-profile` | 无/偏好、禁忌、色号、照片 | 服务档案 | 优化会员-02 |
-| API-MEM-011 | `POST /members/{id}/ownership-adjustments` | 新门店、生效日、分润方式、原因 | adjustmentId | 优化会员-05 |
-| API-MEM-012 | `POST /ownership-adjustments/{id}/approve`、`/reject` | 意见 | 审批结果 | 优化会员-05 |
+| API-MEM-011 | `GET /ownership-adjustments`、`GET /ownership-adjustments/{id}`、`POST /members/{id}/ownership-adjustments` | 会员/审批/执行状态查询；新门店、生效日、分润规则JSON快照、原因、memberVersion | 列表/详情/申请；`member:ownership:view/manage`；已实现 | 优化会员-05 |
+| API-MEM-012 | `POST /ownership-adjustments/{id}/approve`、`/reject` | 意见、version；驳回意见必填 | 审批与执行结果；`member:ownership:approve`；已实现 | 优化会员-05 |
 | API-MEM-013 | `GET/POST /member-levels` | 查询/代码、名称、储值门槛、生日优惠 | 列表/id | 会员管理-02 |
 | API-MEM-014 | `GET/PUT /member-levels/{id}` | 详情/规则、状态、version | 详情/更新 | 会员管理-02 |
 | API-MEM-015 | `GET/POST /member-tags` | 类型/名称、规则、颜色、自动标志 | 已实现GET启用标签选项；POST配置接口待标签规则页迭代；`member:tag:view` | 优化会员-03 |
@@ -179,7 +179,9 @@
 | API-MEM-019 | `POST /member-segments/{id}/preview` | 无 | 命中数和样例 | 优化会员-01 |
 | API-MEM-020 | `POST /members/batch-assign-advisor` | memberIds、employeeId | 批量结果 | 优化会员-01 |
 
-`API-MEM-003~004、015(GET)、016`已落地。资料、状态和标签修改都要求提交会员`version`，过期版本返回冲突，避免多窗口覆盖。手机号留空表示不修改；填写新号码时重新加密并生成检索哈希，响应始终只返回尾号。冻结、解冻和停用都必须填写原因，当前状态写在会员主表，完整变更写入`mem_member_status_log`。标签分配采用追加与软移除，不覆盖原来源。批量冻结、标签定义配置和归属调整审批仍按各自接口继续开发。
+`API-MEM-003~004、011~012、015(GET)、016`已落地。资料、状态、归属申请和标签修改都要求提交版本，过期版本返回冲突，避免多窗口覆盖。手机号留空表示不修改；填写新号码时重新加密并生成检索哈希，响应始终只返回尾号。冻结、解冻和停用都必须填写原因，当前状态写在会员主表，完整变更写入`mem_member_status_log`。标签分配采用追加与软移除，不覆盖原来源。批量冻结、标签定义配置和批量顾问仍按各自接口继续开发。
+
+归属调整不允许填写历史日期，也不在普通会员编辑中直接改门店。同日申请审批通过后立即执行，未来日期保持`APPROVED/WAITING`并由运行档定时任务到期领取；执行只修改会员当前归属并清空原门店顾问，历史账单、提成和业绩快照不变。同一会员只允许一张`WAITING/PROCESSING`申请。`shareRule`仅保存甲方确认的JSON快照，当前不宣称已完成第三方分润计算。
 
 | API-AST-001 | `GET /members/{id}/balance-account` | 无 | 可用、冻结、累计储值 | 会员资产 |
 | API-AST-002 | `POST /members/{id}/recharges/quote` | 金额、赠送、支付方式 | 试算结果 | 结算管理-01、移动端-04 |

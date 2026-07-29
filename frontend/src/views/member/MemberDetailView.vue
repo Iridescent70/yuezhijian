@@ -190,12 +190,29 @@ onMounted(loadMember)
         </div>
         <p v-if="member">{{ member.memberNo }} · {{ member.maskedMobile }} · {{ member.ownerStoreName }}</p>
       </div>
-      <div v-if="member && auth.hasPermission('member:member:manage')" class="member-actions">
-        <el-button @click="openEdit">编辑档案</el-button>
-        <el-button v-if="member.status === 'ACTIVE'" type="warning" plain @click="openStatus('FROZEN')">
+      <div
+        v-if="member && (auth.hasPermission('member:member:manage') || auth.hasPermission('member:ownership:manage'))"
+        class="member-actions"
+      >
+        <el-button v-if="auth.hasPermission('member:member:manage')" @click="openEdit">编辑档案</el-button>
+        <el-button
+          v-if="auth.hasPermission('member:ownership:manage')"
+          @click="router.push(`/app/members/ownership?memberId=${member.id}`)"
+        >调整归属</el-button>
+        <el-button
+          v-if="auth.hasPermission('member:member:manage') && member.status === 'ACTIVE'"
+          type="warning"
+          plain
+          @click="openStatus('FROZEN')"
+        >
           冻结会员
         </el-button>
-        <el-button v-else type="success" plain @click="openStatus('ACTIVE')">恢复正常</el-button>
+        <el-button
+          v-else-if="auth.hasPermission('member:member:manage')"
+          type="success"
+          plain
+          @click="openStatus('ACTIVE')"
+        >恢复正常</el-button>
       </div>
     </div>
 

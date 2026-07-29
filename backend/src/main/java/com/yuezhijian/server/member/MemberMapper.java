@@ -269,4 +269,16 @@ public interface MemberMapper {
             @Param("memberId") long memberId,
             @Param("tagIds") List<Long> tagIds,
             @Param("operatorId") long operatorId);
+
+    @Update("""
+            UPDATE dbo.mem_member
+            SET owner_store_id = #{newStoreId}, advisor_employee_id = NULL,
+                updated_at = sysdatetime(), updated_by = #{operatorId}
+            WHERE id = #{memberId} AND owner_store_id = #{oldStoreId}
+            """)
+    int applyOwnership(
+            @Param("memberId") long memberId,
+            @Param("oldStoreId") long oldStoreId,
+            @Param("newStoreId") long newStoreId,
+            @Param("operatorId") long operatorId);
 }

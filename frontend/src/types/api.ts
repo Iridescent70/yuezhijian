@@ -161,6 +161,44 @@ export interface UpdateMemberTagsPayload {
   version: string
 }
 
+export interface OwnershipAdjustment {
+  id: number
+  adjustmentNo: string
+  memberId: number
+  memberNo: string
+  memberName: string
+  oldStoreId: number
+  oldStoreName: string
+  newStoreId: number
+  newStoreName: string
+  effectiveDate: string
+  shareRule: Record<string, unknown>
+  reason: string
+  approvalStatus: 'PENDING' | 'APPROVED' | 'REJECTED'
+  executionStatus: 'WAITING' | 'PROCESSING' | 'APPLIED' | 'FAILED' | 'CANCELLED'
+  requestedBy: number
+  requestedAt: string
+  reviewedBy?: number
+  reviewedAt?: string
+  reviewComment?: string
+  appliedAt?: string
+  executionMessage?: string
+  version: string
+}
+
+export interface CreateOwnershipAdjustmentPayload {
+  newStoreId: number
+  effectiveDate: string
+  shareRule: Record<string, unknown>
+  reason: string
+  memberVersion: string
+}
+
+export interface ReviewOwnershipAdjustmentPayload {
+  comment?: string
+  version: string
+}
+
 export interface BalanceAccount {
   memberId: number
   availableBalance: number
