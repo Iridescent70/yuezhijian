@@ -116,11 +116,11 @@
 
 | API 编号 | 方法与路径 | 用途及主要入参 | 主要返回/权限 | 需求来源 |
 | --- | --- | --- | --- | --- |
-| API-CAT-001 | `GET/POST /item-categories` | 类型、父级/分类资料 | 分类树/id | 系统管理-11、21 |
+| API-CAT-001 | `GET/POST /item-categories` | 当前支持按`PRODUCT/SERVICE`查询启用分类；分类维护待后续 | 分类列表；查询已实现 | 系统管理-11、21 |
 | API-CAT-002 | `PUT /item-categories/{id}` | 名称、排序、状态、version | 更新结果 | 系统管理-11、21 |
-| API-CAT-003 | `GET/POST /units` | 查询/编码、名称、精度 | 列表/id | 系统管理-12 |
-| API-CAT-004 | `GET/POST /products` | 多条件查询/产品、单位、成本、售价 | 分页/id | 系统管理-11 |
-| API-CAT-005 | `GET/PUT /products/{id}` | 详情/产品资料、version | 详情/更新结果 | 系统管理-11 |
+| API-CAT-003 | `GET/POST /units` | 当前支持查询启用单位；单位维护待后续 | 单位列表；查询已实现 | 系统管理-12 |
+| API-CAT-004 | `GET/POST /products` | 门店、分类、销售状态、关键词/产品、单位、成本、售价、门店配置 | 基础列表/id；`catalog:product:view/manage`；已实现 | 系统管理-11 |
+| API-CAT-005 | `GET/PUT /products/{id}` | 详情/产品资料、门店价格和状态、version | 详情/并发安全更新；已实现 | 系统管理-11 |
 | API-CAT-006 | `POST /products/batch-status` | ids、ON_SALE/OFF_SALE | 批量结果 | 优化系统管理-01 |
 | API-CAT-007 | `POST /products/import`、`POST /products/export` | 文件/筛选条件 | 异步任务 id | 系统管理-11 |
 | API-CAT-008 | `GET/POST /services` | 查询/项目、时长、售价、成本、分类 | 分页/id | 系统管理-21、优化系统管理-01 |

@@ -6,7 +6,9 @@ import java.util.Optional;
 public interface MasterDataRepository {
     List<PositionOption> positions();
 
-    List<CategoryOption> serviceCategories();
+    List<CategoryOption> categories(String type);
+
+    List<UnitOption> units();
 
     List<EmployeeSummary> employees(Long storeId, String keyword);
 

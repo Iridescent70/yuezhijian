@@ -103,6 +103,8 @@ plan/migration/
 | `V202607291350` | 异步任务租约、领取次数和调度索引 | `sys_async_job` |
 | `V202607291360` | 结果文件清理时间和到期扫描索引 | `sys_async_job` |
 | `V202607291370` | 服务项目独立导出权限 | `iam_permission`、`iam_role_permission` |
+| `V202607291380` | 异步导入任务私有输入文件引用 | `sys_async_job`、`sys_file_object` |
+| `V202607291390` | 产品主档、默认分类、权限和菜单 | `cat_product`、`cat_category`、`iam_*` |
 | `R__reporting_views` | 可重复构建的统计视图 | `rpt_*` 视图/函数 |
 
 表中未落地版本仍属于设计基线；实际脚本只能在当前最高版本之后追加，逐个建立同号说明并记录各环境执行结果，禁止为了补齐旧编号而开启Flyway乱序执行。

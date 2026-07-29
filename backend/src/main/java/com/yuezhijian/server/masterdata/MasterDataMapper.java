@@ -21,10 +21,18 @@ public interface MasterDataMapper {
     @Select("""
             SELECT id, category_code AS code, name, category_type AS type, status
             FROM dbo.cat_category
-            WHERE category_type = 'SERVICE' AND status = 'ACTIVE'
+            WHERE category_type = #{type} AND status = 'ACTIVE'
             ORDER BY sort_no, id
             """)
-    List<CategoryOption> findServiceCategories();
+    List<CategoryOption> findCategories(String type);
+
+    @Select("""
+            SELECT id, unit_code AS code, unit_name AS name, decimal_places AS decimalPlaces, status
+            FROM dbo.cat_unit
+            WHERE status = 'ACTIVE'
+            ORDER BY id
+            """)
+    List<UnitOption> findUnits();
 
     @Select("""
             <script>

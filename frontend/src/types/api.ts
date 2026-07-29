@@ -616,6 +616,86 @@ export interface CategoryOption {
   status: string
 }
 
+export interface UnitOption {
+  id: number
+  code: string
+  name: string
+  decimalPlaces: number
+  status: string
+}
+
+export interface ProductStoreConfig {
+  storeId: number
+  storeName: string
+  storePrice: number
+  saleStatus: string
+}
+
+export interface ProductSummary {
+  id: number
+  code: string
+  name: string
+  categoryId: number
+  categoryName: string
+  unitId: number
+  unitName: string
+  barcode?: string
+  costPrice: number
+  salePrice: number
+  storePrice: number
+  trackStock: boolean
+  saleStatus: string
+  status: string
+}
+
+export interface ProductDetail {
+  id: number
+  code: string
+  name: string
+  categoryId: number
+  categoryName: string
+  unitId: number
+  unitName: string
+  barcode?: string
+  costPrice: number
+  salePrice: number
+  trackStock: boolean
+  description?: string
+  status: string
+  stores: ProductStoreConfig[]
+  version: string
+}
+
+export interface CreateProductPayload {
+  code: string
+  name: string
+  categoryId: number
+  unitId: number
+  barcode?: string
+  costPrice: number
+  salePrice: number
+  storePrice: number
+  trackStock: boolean
+  storeIds: number[]
+  description?: string
+}
+
+export interface UpdateProductPayload {
+  name: string
+  categoryId: number
+  unitId: number
+  barcode?: string
+  costPrice: number
+  salePrice: number
+  trackStock: boolean
+  description?: string
+  status: string
+  storeId: number
+  storePrice: number
+  saleStatus: string
+  version: string
+}
+
 export interface EmployeeSummary {
   id: number
   employeeNo: string

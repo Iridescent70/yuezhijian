@@ -40,13 +40,16 @@ public class ServiceCatalogController {
     }
 
     @GetMapping("/item-categories")
-    @PreAuthorize("hasAuthority('catalog:service:view')")
+    @PreAuthorize("hasAnyAuthority('catalog:service:view', 'catalog:product:view')")
     public ApiResponse<List<CategoryOption>> categories(
             @RequestParam(defaultValue = "SERVICE") String type) {
-        if (!"SERVICE".equalsIgnoreCase(type)) {
-            throw new IllegalArgumentException("当前接口仅支持服务项目分类");
-        }
-        return ApiResponse.ok(service.serviceCategories());
+        return ApiResponse.ok(service.itemCategories(type));
+    }
+
+    @GetMapping("/units")
+    @PreAuthorize("hasAnyAuthority('catalog:service:view', 'catalog:product:view')")
+    public ApiResponse<List<UnitOption>> units() {
+        return ApiResponse.ok(service.units());
     }
 
     @GetMapping("/services")

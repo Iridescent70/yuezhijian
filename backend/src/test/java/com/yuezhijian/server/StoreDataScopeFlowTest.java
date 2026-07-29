@@ -100,6 +100,8 @@ class StoreDataScopeFlowTest {
         assertForbidden(get("/api/v1/workstations").param("storeId", "2"));
         assertForbidden(get("/api/v1/services").param("storeId", "2"));
         assertForbidden(get("/api/v1/services/301"));
+        assertForbidden(get("/api/v1/products").param("storeId", "2"));
+        assertForbidden(get("/api/v1/products/401"));
         assertForbidden(get("/api/v1/commission-ledgers").param("storeId", "2"));
         assertForbidden(get("/api/v1/visit-tasks").param("storeId", "2"));
         assertForbidden(get("/api/v1/service-feedback").param("storeId", "2"));
@@ -170,6 +172,7 @@ class StoreDataScopeFlowTest {
                 new SimpleGrantedAuthority("org:employee:manage"),
                 new SimpleGrantedAuthority("org:workstation:view"),
                 new SimpleGrantedAuthority("catalog:service:view"),
+                new SimpleGrantedAuthority("catalog:product:view"),
                 new SimpleGrantedAuthority("commission:plan:view"),
                 new SimpleGrantedAuthority("commission:plan:manage"),
                 new SimpleGrantedAuthority("commission:ledger:view"),

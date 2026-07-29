@@ -20,7 +20,12 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
             new PositionOption(2L, "STORE_MANAGER", "店长", "ACTIVE"),
             new PositionOption(3L, "RECEPTION", "前台/收银", "ACTIVE"));
     private final List<CategoryOption> categories = List.of(
-            new CategoryOption(1L, "NAIL_SERVICE", "美甲服务", "SERVICE", "ACTIVE"));
+            new CategoryOption(1L, "NAIL_SERVICE", "美甲服务", "SERVICE", "ACTIVE"),
+            new CategoryOption(2L, "RETAIL_PRODUCT", "零售产品", "PRODUCT", "ACTIVE"));
+    private final List<UnitOption> units = List.of(
+            new UnitOption(1L, "TIME", "次", 0, "ACTIVE"),
+            new UnitOption(2L, "PIECE", "件", 0, "ACTIVE"),
+            new UnitOption(3L, "BOTTLE", "瓶", 2, "ACTIVE"));
     private final List<EmployeeSummary> employees = new ArrayList<>(List.of(
             new EmployeeSummary(101L, "E001", "安然", "*******2101", 1L, "美甲技师", 2L,
                     "悦指间示范店", true, true, "ACTIVE"),
@@ -53,8 +58,13 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
     }
 
     @Override
-    public List<CategoryOption> serviceCategories() {
-        return categories;
+    public List<CategoryOption> categories(String type) {
+        return categories.stream().filter(category -> category.type().equals(type)).toList();
+    }
+
+    @Override
+    public List<UnitOption> units() {
+        return units;
     }
 
     @Override

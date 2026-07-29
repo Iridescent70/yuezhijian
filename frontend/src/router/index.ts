@@ -53,6 +53,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '工位管理', permission: 'org:workstation:view' },
       },
       {
+        path: 'catalog/products',
+        name: 'products',
+        component: () => import('@/views/catalog/ProductListView.vue'),
+        meta: { title: '产品管理', permission: 'catalog:product:view' },
+      },
+      {
         path: 'catalog/services',
         name: 'services',
         component: () => import('@/views/catalog/ServiceListView.vue'),

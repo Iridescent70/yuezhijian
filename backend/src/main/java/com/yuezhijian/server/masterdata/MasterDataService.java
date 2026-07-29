@@ -30,7 +30,16 @@ public class MasterDataService {
     }
 
     public List<CategoryOption> serviceCategories() {
-        return repository.serviceCategories();
+        return repository.categories("SERVICE");
+    }
+
+    public List<CategoryOption> itemCategories(String type) {
+        String normalized = normalize(type, Set.of("SERVICE", "PRODUCT"), "分类类型无效");
+        return repository.categories(normalized);
+    }
+
+    public List<UnitOption> units() {
+        return repository.units();
     }
 
     public List<EmployeeSummary> employees(Long storeId, String keyword) {
@@ -81,7 +90,7 @@ public class MasterDataService {
     }
 
     public CreatedResource createService(CreateServiceItemRequest request, String username) {
-        boolean categoryExists = repository.serviceCategories().stream()
+        boolean categoryExists = repository.categories("SERVICE").stream()
                 .anyMatch(category -> category.id() == request.categoryId() && "ACTIVE".equals(category.status()));
         if (!categoryExists) {
             throw new IllegalArgumentException("所选服务分类不存在或已停用");
@@ -108,7 +117,7 @@ public class MasterDataService {
         String code = required(row.code(), 64, "项目编号").toUpperCase(Locale.ROOT);
         String name = required(row.name(), 200, "项目名称");
         String categoryCode = required(row.categoryCode(), 64, "分类编号").toUpperCase(Locale.ROOT);
-        CategoryOption category = repository.serviceCategories().stream()
+        CategoryOption category = repository.categories("SERVICE").stream()
                 .filter(item -> item.code().equalsIgnoreCase(categoryCode) && "ACTIVE".equals(item.status()))
                 .findFirst().orElseThrow(() -> new IllegalArgumentException("分类编号不存在或已停用"));
         if (row.durationMinutes() < 5 || row.durationMinutes() > 1440) {
@@ -144,7 +153,7 @@ public class MasterDataService {
         if (current.stores().stream().noneMatch(store -> store.storeId() == request.storeId())) {
             throw new IllegalArgumentException("服务项目未配置到所选门店");
         }
-        boolean categoryExists = repository.serviceCategories().stream()
+        boolean categoryExists = repository.categories("SERVICE").stream()
                 .anyMatch(category -> category.id() == request.categoryId() && "ACTIVE".equals(category.status()));
         if (!categoryExists) throw new IllegalArgumentException("所选服务分类不存在或已停用");
         if (request.costAmount().compareTo(request.listPrice()) > 0) {

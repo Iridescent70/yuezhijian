@@ -24,8 +24,13 @@ public class SqlServerMasterDataRepository implements MasterDataRepository {
     }
 
     @Override
-    public List<CategoryOption> serviceCategories() {
-        return mapper.findServiceCategories();
+    public List<CategoryOption> categories(String type) {
+        return mapper.findCategories(type);
+    }
+
+    @Override
+    public List<UnitOption> units() {
+        return mapper.findUnits();
     }
 
     @Override
