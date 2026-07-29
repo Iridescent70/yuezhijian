@@ -39,3 +39,6 @@ playwright-report/
 .data/
 data/
 tmp/
+
+# Client legacy source used only for local reference
+ref/legacy-source/

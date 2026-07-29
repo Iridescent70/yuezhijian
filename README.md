@@ -1,14 +1,45 @@
 # 悦·指间管理系统
 
-悦·指间美甲及门店管理系统项目。本仓库当前保存项目需求、总计划、技术实施基线和后续迭代模板，业务代码将按照技术实施计划逐步初始化。
+基于甲方原系统重构的美甲及门店管理平台。后端代码统一放在 `backend/`，PC 前端代码统一放在 `frontend/`；旧源码仅保存在本地 `ref/legacy-source/` 供业务拆解，不进入 Git。
 
-## 项目文档
+## 本地启动
 
-- [项目总计划](./docs/项目总计划.md)
-- [技术实施计划](./plan/技术实施计划.md)
-- [计划索引](./plan/README.md)
-- [迭代计划模板](./plan/迭代计划模板.md)
+依赖：Java 21、Maven 3.9、Node.js 24、pnpm 10、Docker/Compose。
 
-## 当前状态
+```bash
+make doctor
+cp .env.example .env.local
+# 修改 .env.local 中所有 Replace-With... 值
+make bootstrap
+make infra-up
+make db-init
+make backend-dev-db
+```
 
-当前处于项目计划与工程基线阶段。推荐技术栈、架构、项目初始目录、质量标准和一个月执行计划详见技术实施计划。
+另开终端启动前端：
+
+```bash
+make frontend-dev
+```
+
+尚未启动 SQL Server 时，可用 `make backend-dev` 启动 memory profile，完成登录、权限、门店和工作台联调。前端访问 `http://localhost:5173`，后端健康检查为 `http://localhost:8080/actuator/health`，Swagger 为 `http://localhost:8080/swagger-ui.html`。
+
+## 开发与验证
+
+```bash
+make verify
+```
+
+数据库结构只能通过 `backend/src/main/resources/db/migration/` 下的 Flyway SQL 修改；同版本人工说明同步写入 `plan/migration/`。
+
+## 文档入口
+
+- [项目总计划](docs/项目总计划.md)
+- [技术实施计划](plan/技术实施计划.md)
+- [API 接口计划](plan/API接口.md)
+- [页面与路由计划](plan/页面ui.md)
+- [数据库计划](plan/数据库表.md)
+- [当前开发状态](memory/DEVELOPMENT_STATUS.md)
+- [下一步开发](memory/NEXT_ACTIONS.md)
+
+跨会话继续开发时，先阅读 [memory/README.md](memory/README.md)。

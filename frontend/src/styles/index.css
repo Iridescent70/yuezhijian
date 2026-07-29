@@ -1,0 +1,430 @@
+:root {
+  color: #31272b;
+  background: #f6f3f4;
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --brand: #8f5267;
+  --brand-dark: #67394a;
+  --brand-soft: #f4e8ec;
+  --surface: #ffffff;
+  --border: #eadfe3;
+  --muted: #8a7b80;
+  --sidebar: #2d2227;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  min-width: 1180px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.login-page {
+  display: grid;
+  grid-template-columns: minmax(520px, 1.2fr) minmax(480px, 0.8fr);
+  min-height: 100vh;
+  background: var(--surface);
+}
+
+.login-intro {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  padding: 88px;
+  overflow: hidden;
+  color: #fff;
+  background:
+    radial-gradient(circle at 18% 15%, rgb(255 255 255 / 18%), transparent 32%),
+    linear-gradient(145deg, #402b34 0%, #7c455a 52%, #c58da1 100%);
+}
+
+.login-intro::after {
+  position: absolute;
+  right: -120px;
+  bottom: -160px;
+  width: 520px;
+  height: 520px;
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 50%;
+  box-shadow: 0 0 0 56px rgb(255 255 255 / 5%), 0 0 0 116px rgb(255 255 255 / 4%);
+  content: '';
+}
+
+.intro-content {
+  position: relative;
+  z-index: 1;
+  max-width: 700px;
+}
+
+.eyebrow {
+  display: block;
+  margin-bottom: 28px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  opacity: 0.82;
+}
+
+.login-intro h1 {
+  margin: 0 0 24px;
+  font-family: "Noto Serif SC", "Songti SC", serif;
+  font-size: clamp(42px, 4vw, 68px);
+  font-weight: 600;
+  line-height: 1.24;
+}
+
+.login-intro p {
+  max-width: 600px;
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.8;
+  opacity: 0.86;
+}
+
+.login-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 64px;
+}
+
+.login-card {
+  width: 380px;
+}
+
+.login-logo,
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(145deg, #ae6c84, #6e3e50);
+}
+
+.login-logo {
+  width: 58px;
+  height: 58px;
+  margin-bottom: 30px;
+  border-radius: 18px;
+  font-family: "Songti SC", serif;
+  font-size: 28px;
+  box-shadow: 0 14px 32px rgb(118 64 84 / 25%);
+}
+
+.login-card h2 {
+  margin: 0 0 10px;
+  font-size: 30px;
+}
+
+.login-description,
+.login-help {
+  color: var(--muted);
+}
+
+.login-description {
+  margin: 0 0 34px;
+}
+
+.login-submit {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.login-help {
+  margin-top: 24px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.app-shell {
+  min-height: 100vh;
+  background: #f6f3f4;
+}
+
+.app-sidebar {
+  position: relative;
+  z-index: 2;
+  overflow: hidden;
+  background: var(--sidebar);
+  box-shadow: 8px 0 28px rgb(45 34 39 / 10%);
+  transition: width 0.22s ease;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  height: 72px;
+  padding: 0 18px;
+  gap: 12px;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+}
+
+.brand.collapsed {
+  justify-content: center;
+  padding: 0;
+}
+
+.brand-mark {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  font-family: "Songti SC", serif;
+  font-size: 20px;
+}
+
+.brand-name {
+  color: #fff;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.sidebar-menu {
+  border-right: none !important;
+  padding: 12px 8px;
+}
+
+.sidebar-menu .el-menu-item,
+.sidebar-menu .el-sub-menu__title {
+  height: 48px;
+  margin: 4px 0;
+  border-radius: 9px;
+}
+
+.sidebar-menu .el-menu-item.is-active {
+  background: linear-gradient(90deg, #8e5369, #734255) !important;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 72px;
+  padding: 0 28px;
+  background: rgb(255 255 255 / 92%);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+}
+
+.collapse-button,
+.user-button {
+  padding: 0;
+  color: #5a4a50;
+  background: transparent;
+  border: 0;
+}
+
+.header-actions,
+.user-button {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.store-selector {
+  width: 180px;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  color: #fff;
+  background: var(--brand);
+  border-radius: 50%;
+}
+
+.app-main {
+  padding: 0 28px 32px !important;
+}
+
+.page-heading {
+  display: flex;
+  align-items: center;
+  height: 58px;
+}
+
+.page-content {
+  min-height: calc(100vh - 158px);
+}
+
+.section-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.section-title-row h1 {
+  margin: 0 0 8px;
+  color: #35292e;
+  font-size: 26px;
+}
+
+.section-title-row p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.metric-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  min-height: 142px;
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 10px 28px rgb(82 57 67 / 5%);
+}
+
+.metric-card span {
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+
+.metric-card strong {
+  align-self: end;
+  font-size: 30px;
+}
+
+.metric-card small {
+  align-self: end;
+  padding-bottom: 5px;
+  color: var(--muted);
+}
+
+.metric-card.accent {
+  color: #fff;
+  background: linear-gradient(145deg, #a26379, #754357);
+  border-color: transparent;
+}
+
+.metric-card.accent span,
+.metric-card.accent small {
+  color: rgb(255 255 255 / 75%);
+}
+
+.shortcut-card {
+  border-color: var(--border) !important;
+  border-radius: 14px !important;
+}
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(110px, 1fr));
+  gap: 16px;
+}
+
+.shortcut-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 12px;
+  color: #5f4d54;
+  background: #fbf8f9;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.shortcut-item:hover {
+  border-color: #c798a9;
+  transform: translateY(-2px);
+}
+
+.shortcut-item span,
+.placeholder-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-dark);
+  background: var(--brand-soft);
+}
+
+.shortcut-item span {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.permission-tag {
+  margin: 3px 6px 3px 0;
+}
+
+.placeholder-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.placeholder-mark {
+  width: 72px;
+  height: 72px;
+  margin-bottom: 18px;
+  border-radius: 22px;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.placeholder-page h1 {
+  margin: 0 0 10px;
+}
+
+.placeholder-page p {
+  color: var(--muted);
+}
+
+.el-button--primary {
+  --el-button-bg-color: var(--brand);
+  --el-button-border-color: var(--brand);
+  --el-button-hover-bg-color: #a7677e;
+  --el-button-hover-border-color: #a7677e;
+}
+
+@media (max-width: 1280px) {
+  .login-intro {
+    padding: 64px;
+  }
+
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+
+  .shortcut-grid {
+    grid-template-columns: repeat(4, minmax(110px, 1fr));
+  }
+}
