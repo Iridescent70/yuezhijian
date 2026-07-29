@@ -82,13 +82,23 @@ class CardMapperSqlTest {
         Method reprice = CardMapper.class.getMethod("findConsumptionRepriceItems", long.class);
         Method freeze = CardMapper.class.getMethod("freezeCardForRefund", long.class, String.class, long.class);
         Method close = CardMapper.class.getMethod("markCardRefunded", long.class, String.class, long.class);
+        Method saleEmployee = CardMapper.class.getMethod("findCardSaleEmployeeId", long.class);
+        Method commissionStatus = CardMapper.class.getMethod(
+                "updateCardRefundCommissionStatus", long.class, String.class);
         String repriceSql = String.join(" ", reprice.getAnnotation(Select.class).value());
         String freezeSql = String.join(" ", freeze.getAnnotation(Update.class).value());
         String closeSql = String.join(" ", close.getAnnotation(Update.class).value());
+        String saleEmployeeSql = String.join(" ", saleEmployee.getAnnotation(Select.class).value());
+        String commissionStatusSql = String.join(" ", commissionStatus.getAnnotation(Update.class).value());
 
         assertThat(repriceSql).contains(
                 "line.original_amount AS originalAmount", "reversed.reversed_ledger_id = ledger.id");
         assertThat(freezeSql).contains("status = 'FROZEN'", "status = 'ACTIVE'", "row_version");
         assertThat(closeSql).contains("status = 'REFUNDED'", "status = 'FROZEN'", "row_version");
+        assertThat(saleEmployeeSql).contains("sale_employee_id", "id = #{memberCardId}");
+        assertThat(commissionStatusSql).contains(
+                "commission_adjustment_status = #{status}",
+                "status = 'EXECUTED'",
+                "commission_adjustment_status = 'PENDING_MODULE'");
     }
 }

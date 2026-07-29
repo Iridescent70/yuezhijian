@@ -112,6 +112,14 @@ async function execute() {
 }
 
 function dateTime(value?: string) { return value?.replace('T', ' ').slice(0, 19) ?? '—' }
+function commissionStatus(value: string) {
+  return ({
+    PENDING_MODULE: { label: '待补规则', type: 'warning' },
+    COMPLETED: { label: '已冲回', type: 'success' },
+    NOT_APPLICABLE: { label: '无需冲回', type: 'info' },
+  } as Record<string, { label: string; type: 'warning' | 'success' | 'info' }>)[value]
+    ?? { label: value, type: 'info' }
+}
 
 onMounted(load)
 </script>
@@ -138,7 +146,7 @@ onMounted(load)
         <el-table-column prop="cardTypeName" label="次卡" min-width="180" />
         <el-table-column prop="storeName" label="经办门店" min-width="150" />
         <el-table-column label="退款金额" width="130" align="right"><template #default="scope"><strong>{{ formatMoney(scope.row.refundAmount) }}</strong></template></el-table-column>
-        <el-table-column label="提成冲回" width="130"><template #default="scope"><el-tag type="warning">{{ scope.row.commissionAdjustmentStatus === 'PENDING_MODULE' ? '待提成模块处理' : scope.row.commissionAdjustmentStatus }}</el-tag></template></el-table-column>
+        <el-table-column label="提成冲回" width="110"><template #default="scope"><el-tag :type="commissionStatus(scope.row.commissionAdjustmentStatus).type">{{ commissionStatus(scope.row.commissionAdjustmentStatus).label }}</el-tag></template></el-table-column>
         <el-table-column label="状态" width="100"><template #default="scope"><el-tag :type="statusMap[scope.row.status as CardRefundStatus].type">{{ statusMap[scope.row.status as CardRefundStatus].label }}</el-tag></template></el-table-column>
       </el-table>
     </el-card>
@@ -157,7 +165,7 @@ onMounted(load)
           <el-descriptions-item label="手续费">{{ formatMoney(detail.request.feeAmount) }}</el-descriptions-item>
           <el-descriptions-item label="退款金额"><strong>{{ formatMoney(detail.request.refundAmount) }}</strong></el-descriptions-item>
           <el-descriptions-item label="退款方式">{{ detail.request.refundMethodName || '无需退款' }}</el-descriptions-item>
-          <el-descriptions-item label="提成冲回"><el-tag type="warning">{{ detail.request.commissionAdjustmentStatus === 'PENDING_MODULE' ? '待提成模块处理' : detail.request.commissionAdjustmentStatus }}</el-tag></el-descriptions-item>
+          <el-descriptions-item label="提成冲回"><el-tag :type="commissionStatus(detail.request.commissionAdjustmentStatus).type">{{ commissionStatus(detail.request.commissionAdjustmentStatus).label }}</el-tag></el-descriptions-item>
           <el-descriptions-item label="申请原因" :span="2">{{ detail.request.reason }}</el-descriptions-item>
           <el-descriptions-item v-if="detail.request.reviewedAt" label="审批时间">{{ dateTime(detail.request.reviewedAt) }}</el-descriptions-item>
           <el-descriptions-item v-if="detail.request.reviewedAt" label="审批意见">{{ detail.request.reviewComment || '同意' }}</el-descriptions-item>
@@ -181,7 +189,7 @@ onMounted(load)
           </el-descriptions>
         </template>
 
-        <el-alert v-if="detail.request.commissionAdjustmentStatus === 'PENDING_MODULE'" title="售卡技师和店长提成尚未冲回，当前记录会保留到提成模块完成后处理。" type="warning" :closable="false" style="margin-top: 20px" />
+        <el-alert v-if="detail.request.commissionAdjustmentStatus === 'PENDING_MODULE'" title="已保留退卡事实，但没有可结算的售卡提成规则或历史提成流水；补齐规则后需重新计算。" type="warning" :closable="false" style="margin-top: 20px" />
         <div class="drawer-actions">
           <template v-if="detail.request.status === 'SUBMITTED' && auth.hasPermission('member:card:refund:approve')">
             <el-button :loading="saving" @click="review(false)">驳回并恢复次卡</el-button>

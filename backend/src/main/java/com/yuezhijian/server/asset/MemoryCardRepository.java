@@ -19,6 +19,7 @@ import org.springframework.stereotype.Repository;
 public class MemoryCardRepository implements CardRepository {
     private final Map<Long, CardTypeDetail> cardTypes = new LinkedHashMap<>();
     private final Map<Long, MemberCardDetail> cards = new LinkedHashMap<>();
+    private final Map<Long, Long> saleEmployees = new LinkedHashMap<>();
     private final Map<String, CardSaleResult> sales = new LinkedHashMap<>();
     private final Map<String, CardExchangeQuote> exchangeQuotes = new LinkedHashMap<>();
     private final Map<String, CardExchangeResult> exchanges = new LinkedHashMap<>();
@@ -105,6 +106,11 @@ public class MemoryCardRepository implements CardRepository {
     }
 
     @Override
+    public synchronized Optional<Long> saleEmployeeId(long memberCardId) {
+        return Optional.ofNullable(saleEmployees.get(memberCardId));
+    }
+
+    @Override
     public synchronized Optional<CardSaleResult> findSaleByIdempotencyKey(String key) {
         return Optional.ofNullable(sales.get(key));
     }
@@ -141,6 +147,7 @@ public class MemoryCardRepository implements CardRepository {
                         "card-sale:" + orderId + ':' + cardId + ':' + ruleIndex, null, "售卡入账"));
             }
             cards.put(cardId, new MemberCardDetail(summary, List.copyOf(balances), List.copyOf(ledgers)));
+            if (draft.salesEmployeeId() != null) saleEmployees.put(cardId, draft.salesEmployeeId());
             purchased.add(summary);
         }
         CardSaleResult result = new CardSaleResult(
@@ -344,6 +351,7 @@ public class MemoryCardRepository implements CardRepository {
                     "card-exchange:" + exchangeId + ":in:" + rule.serviceId(), null, "换卡转入新卡次数"));
         }
         cards.put(newCardId, new MemberCardDetail(newCard, List.copyOf(newBalances), List.copyOf(newLedgers)));
+        if (command.employeeId() != null) saleEmployees.put(newCardId, command.employeeId());
         CardExchangeResult result = new CardExchangeResult(
                 exchangeId, command.exchangeNo(), exchangedOld, newCard, quote.oldRemainingValue(),
                 quote.newCardValue(), quote.differenceAmount(), command.payments(), LocalDateTime.now());
@@ -628,6 +636,27 @@ public class MemoryCardRepository implements CardRepository {
         CardRefundRequestDetail result = new CardRefundRequestDetail(executed, current.consumedItems(), payment);
         refundRequests.put(old.id(), result);
         refundExecutionKeys.put(command.idempotencyKey(), old.id());
+        return result;
+    }
+
+    @Override
+    public synchronized CardRefundRequestDetail updateRefundCommissionStatus(
+            long requestId, String status, long operatorId) {
+        CardRefundRequestDetail current = refundRequests.get(requestId);
+        if (current == null || !"EXECUTED".equals(current.request().status())) {
+            throw new DuplicateResourceException("退卡申请状态已发生变化，无法更新提成冲回状态");
+        }
+        if (status.equals(current.request().commissionAdjustmentStatus())) return current;
+        CardRefundRequestSummary old = current.request();
+        CardRefundRequestSummary updated = new CardRefundRequestSummary(
+                old.id(), old.quoteId(), old.requestNo(), old.memberCardId(), old.cardNo(), old.cardTypeName(),
+                old.memberId(), old.memberName(), old.storeName(), old.originalAmount(), old.consumedRepriceAmount(),
+                old.feeAmount(), old.refundAmount(), old.refundMethodId(), old.refundMethodName(),
+                old.refundMethodRequiresReference(), old.status(), status, old.reason(), old.requestedAt(),
+                old.requestedBy(), old.reviewedAt(), old.reviewedBy(), old.reviewComment(), old.executedAt(),
+                old.cardVersion(), nextVersion(old.version()));
+        CardRefundRequestDetail result = new CardRefundRequestDetail(updated, current.consumedItems(), current.payment());
+        refundRequests.put(requestId, result);
         return result;
     }
 

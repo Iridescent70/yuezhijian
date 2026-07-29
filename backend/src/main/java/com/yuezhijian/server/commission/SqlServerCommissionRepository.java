@@ -71,4 +71,9 @@ public class SqlServerCommissionRepository implements CommissionRepository {
     public List<CommissionLedgerItem> originalBillLedgers(long billId) {
         return mapper.findOriginalBillLedgers(billId);
     }
+
+    @Override
+    public List<CommissionLedgerItem> originalCardSaleLedgers(long memberCardId) {
+        return mapper.findOriginalCardSaleLedgers(memberCardId);
+    }
 }

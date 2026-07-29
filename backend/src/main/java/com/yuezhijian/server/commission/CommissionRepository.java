@@ -16,4 +16,5 @@ public interface CommissionRepository {
     Optional<CommissionLedgerItem> findLedgerByCorrelation(String correlationId);
     CommissionLedgerItem appendLedger(CommissionLedgerDraft draft);
     List<CommissionLedgerItem> originalBillLedgers(long billId);
+    List<CommissionLedgerItem> originalCardSaleLedgers(long memberCardId);
 }

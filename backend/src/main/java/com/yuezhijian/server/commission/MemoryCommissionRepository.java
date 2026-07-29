@@ -127,6 +127,15 @@ public class MemoryCommissionRepository implements CommissionRepository {
                 .toList();
     }
 
+    @Override
+    public synchronized List<CommissionLedgerItem> originalCardSaleLedgers(long memberCardId) {
+        return ledgers.stream()
+                .filter(item -> "CARD_SALE".equals(item.commissionType()))
+                .filter(item -> java.util.Objects.equals(item.sourceLineId(), memberCardId))
+                .filter(item -> item.reversedLedgerId() == null && item.commissionAmount().signum() >= 0)
+                .toList();
+    }
+
     private CommissionPlan copy(CommissionPlan plan, long id, int ruleVersion, String version) {
         return new CommissionPlan(id, plan.code(), plan.name(), plan.scene(), plan.calculationMode(), plan.rate(),
                 plan.fixedAmount(), plan.storeId(), storeNameOrNull(plan.storeId()), plan.positionId(),

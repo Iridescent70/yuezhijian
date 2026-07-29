@@ -41,11 +41,14 @@ class CommissionMapperSqlTest {
     void planInsertUsesNamedPlanParameterAndOriginalQueryUsesRawComparison() throws Exception {
         Method insert = CommissionMapper.class.getMethod("insertPlan", CommissionPlan.class, long.class);
         Method originals = CommissionMapper.class.getMethod("findOriginalBillLedgers", long.class);
+        Method cardOriginals = CommissionMapper.class.getMethod("findOriginalCardSaleLedgers", long.class);
 
         String insertSql = String.join(" ", insert.getAnnotation(Insert.class).value());
         String originalSql = String.join(" ", originals.getAnnotation(Select.class).value());
+        String cardOriginalSql = String.join(" ", cardOriginals.getAnnotation(Select.class).value());
 
         assertThat(insertSql).contains("#{plan.code}", "#{plan.effectiveFrom}");
         assertThat(originalSql).contains("l.commission_amount >= 0").doesNotContain("&gt;");
+        assertThat(cardOriginalSql).contains("l.commission_type = 'CARD_SALE'", "l.source_line_id = #{memberCardId}");
     }
 }

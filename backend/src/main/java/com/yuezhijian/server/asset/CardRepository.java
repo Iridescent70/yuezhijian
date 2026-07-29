@@ -10,6 +10,7 @@ public interface CardRepository {
     CardTypeDetail createCardType(CardTypeDraft draft);
     List<MemberCardSummary> memberCards(long memberId, String status);
     Optional<MemberCardDetail> findMemberCard(long id);
+    Optional<Long> saleEmployeeId(long memberCardId);
     Optional<CardSaleResult> findSaleByIdempotencyKey(String idempotencyKey);
     CardSaleResult purchase(PurchaseMemberCardDraft draft);
     void consumeCard(CardSettlementConsumption command);
@@ -38,4 +39,5 @@ public interface CardRepository {
     CardRefundRequestDetail submitRefundRequest(CardRefundSubmission submission);
     CardRefundRequestDetail reviewRefundRequest(CardRefundReviewCommand command);
     CardRefundRequestDetail executeRefund(CardRefundExecutionCommand command);
+    CardRefundRequestDetail updateRefundCommissionStatus(long requestId, String status, long operatorId);
 }

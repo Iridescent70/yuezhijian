@@ -144,4 +144,11 @@ public interface CommissionMapper {
             ORDER BY l.id
             """)
     List<CommissionLedgerItem> findOriginalBillLedgers(long billId);
+
+    @Select(LEDGER_SELECT + """
+            WHERE l.commission_type = 'CARD_SALE' AND l.source_line_id = #{memberCardId}
+              AND l.reversed_ledger_id IS NULL AND l.commission_amount >= 0
+            ORDER BY l.id
+            """)
+    List<CommissionLedgerItem> findOriginalCardSaleLedgers(long memberCardId);
 }

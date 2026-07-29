@@ -127,6 +127,9 @@ public interface CardMapper {
             """)
     CardSaleRow findSaleByIdempotencyKey(String key);
 
+    @Select("SELECT sale_employee_id FROM dbo.ast_member_card WHERE id = #{memberCardId}")
+    Long findCardSaleEmployeeId(long memberCardId);
+
     @Select(value = """
             INSERT INTO dbo.ast_card_sale_order (
                 order_no, member_id, card_type_id, store_id, quantity, unit_price, total_amount,
@@ -864,6 +867,16 @@ public interface CardMapper {
             @Param("version") String version,
             @Param("key") String key,
             @Param("operatorId") long operatorId);
+
+    @Update("""
+            UPDATE dbo.ast_card_refund_request
+            SET commission_adjustment_status = #{status}
+            WHERE id = #{requestId} AND status = 'EXECUTED'
+              AND commission_adjustment_status = 'PENDING_MODULE'
+            """)
+    int updateCardRefundCommissionStatus(
+            @Param("requestId") long requestId,
+            @Param("status") String status);
 
     @Insert("""
             INSERT INTO dbo.ast_member_card_ledger (

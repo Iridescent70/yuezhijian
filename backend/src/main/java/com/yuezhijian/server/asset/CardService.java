@@ -2,6 +2,8 @@ package com.yuezhijian.server.asset;
 
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
+import com.yuezhijian.server.commission.CommissionLedgerItem;
+import com.yuezhijian.server.commission.CommissionService;
 import com.yuezhijian.server.iam.AccessCatalogService;
 import com.yuezhijian.server.masterdata.EmployeeSummary;
 import com.yuezhijian.server.masterdata.MasterDataRepository;
@@ -28,6 +30,7 @@ public class CardService {
     private final MemberRepository members;
     private final MasterDataRepository masterData;
     private final TradeRepository trades;
+    private final CommissionService commissions;
     private final AccessCatalogService accessCatalog;
     private final AssetNumberGenerator numbers;
 
@@ -36,12 +39,14 @@ public class CardService {
             MemberRepository members,
             MasterDataRepository masterData,
             TradeRepository trades,
+            CommissionService commissions,
             AccessCatalogService accessCatalog,
             AssetNumberGenerator numbers) {
         this.repository = repository;
         this.members = members;
         this.masterData = masterData;
         this.trades = trades;
+        this.commissions = commissions;
         this.accessCatalog = accessCatalog;
         this.numbers = numbers;
     }
@@ -91,6 +96,7 @@ public class CardService {
         return repository.findMemberCard(id).orElseThrow(() -> new ResourceNotFoundException("会员次卡不存在"));
     }
 
+    @Transactional
     public CardSaleResult purchase(long memberId, PurchaseMemberCardRequest request, String username) {
         CardSaleResult existing = repository.findSaleByIdempotencyKey(request.idempotencyKey()).orElse(null);
         if (existing != null) {
@@ -118,10 +124,13 @@ public class CardService {
         if (startDate.isBefore(LocalDate.now().minusDays(30)) || startDate.isAfter(LocalDate.now().plusDays(30))) {
             throw new IllegalArgumentException("次卡生效日期只能在当前日期前后30天内");
         }
-        return repository.purchase(new PurchaseMemberCardDraft(
+        long operatorId = currentUserId(username);
+        CardSaleResult result = repository.purchase(new PurchaseMemberCardDraft(
                 numbers.cardSaleNo(), memberId, cardType, request.quantity(), request.storeId(),
                 storeName(request.storeId()), request.salesEmployeeId(), paymentMethod.id(), paymentMethod.name(),
-                externalReference, startDate.atStartOfDay(), request.idempotencyKey(), currentUserId(username)));
+                externalReference, startDate.atStartOfDay(), request.idempotencyKey(), operatorId));
+        commissions.recordCardSale(result, request.storeId(), request.salesEmployeeId(), LocalDateTime.now(), operatorId);
+        return result;
     }
 
     public CardExchangeQuote quoteExchange(
@@ -197,10 +206,13 @@ public class CardService {
         if (paymentTotal.compareTo(quote.differenceAmount()) != 0) {
             throw new IllegalArgumentException("补差支付合计必须等于换卡补差金额");
         }
-        return repository.exchange(new CardExchangeCommand(
+        long operatorId = currentUserId(username);
+        CardExchangeResult result = repository.exchange(new CardExchangeCommand(
                 numbers.cardExchangeNo(), quote, target, old.card().memberId(), request.storeId(),
                 storeName(request.storeId()), request.employeeId(), payments, LocalDateTime.now(),
-                request.idempotencyKey(), currentUserId(username)));
+                request.idempotencyKey(), operatorId));
+        commissions.recordCardExchange(result, request.storeId(), request.employeeId(), operatorId);
+        return result;
     }
 
     @Transactional
@@ -355,8 +367,23 @@ public class CardService {
                 && current.request().refundMethodRequiresReference() && externalReference == null) {
             throw new IllegalArgumentException(current.request().refundMethodName() + "必须填写外部退款凭证号");
         }
-        return repository.executeRefund(new CardRefundExecutionCommand(
-                current, request.version(), externalReference, request.idempotencyKey(), currentUserId(username)));
+        long operatorId = currentUserId(username);
+        Long saleEmployeeId = repository.saleEmployeeId(current.request().memberCardId()).orElse(null);
+        CardRefundRequestDetail executed = repository.executeRefund(new CardRefundExecutionCommand(
+                current, request.version(), externalReference, request.idempotencyKey(), operatorId));
+        List<CommissionLedgerItem> adjustments = commissions.reverseCardSale(
+                current.request().memberCardId(), "CARD_REFUND", current.request().id(),
+                current.request().requestNo(), operatorId);
+        String adjustmentStatus;
+        if (saleEmployeeId == null) {
+            adjustmentStatus = "NOT_APPLICABLE";
+        } else if (!adjustments.isEmpty()
+                && adjustments.stream().allMatch(item -> "CALCULATED".equals(item.calculationStatus()))) {
+            adjustmentStatus = "COMPLETED";
+        } else {
+            adjustmentStatus = "PENDING_MODULE";
+        }
+        return repository.updateRefundCommissionStatus(executed.request().id(), adjustmentStatus, operatorId);
     }
 
     private List<CardServiceRule> validateRules(List<CardServiceRuleRequest> requests, List<Long> storeIds) {

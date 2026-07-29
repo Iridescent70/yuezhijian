@@ -641,7 +641,7 @@ onMounted(load)
           <el-form-item v-if="refundQuote.refundAmount > 0 && selectedRefundMethod?.needsExternalReference" label="执行凭证"><span class="muted">审批执行时填写外部退款凭证</span></el-form-item>
           <el-form-item label="经办员工"><el-select v-model="refundForm.employeeId" clearable style="width: 100%"><el-option v-for="item in salesEmployees" :key="item.id" :label="item.name" :value="item.id" /></el-select></el-form-item>
           <el-form-item label="退卡原因" required><el-input v-model="refundForm.reason" type="textarea" maxlength="1000" show-word-limit /></el-form-item>
-          <el-alert title="售卡技师和店长提成冲回将在提成模块中处理；当前申请会明确标记为待处理。" type="info" :closable="false" />
+          <el-alert title="执行退卡时会自动冲回已计算的售卡员工提成；未配置规则或缺少历史流水时保留为待补规则。" type="info" :closable="false" />
         </template>
       </el-form>
       <template #footer><el-button @click="refundVisible = false">取消</el-button><el-button type="danger" :disabled="!refundQuote" :loading="submitting" @click="submitCardRefundRequest">提交退卡申请</el-button></template>

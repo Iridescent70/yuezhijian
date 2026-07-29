@@ -1,5 +1,8 @@
 package com.yuezhijian.server.commission;
 
+import com.yuezhijian.server.asset.CardExchangeResult;
+import com.yuezhijian.server.asset.CardSaleResult;
+import com.yuezhijian.server.asset.MemberCardSummary;
 import com.yuezhijian.server.common.DuplicateResourceException;
 import com.yuezhijian.server.common.ResourceNotFoundException;
 import com.yuezhijian.server.iam.AccessCatalogService;
@@ -18,6 +21,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -99,6 +103,9 @@ public class CommissionService {
     public List<CommissionLedgerItem> recordSettledBill(BillDetail bill, long operatorId) {
         if (!"SETTLED".equals(bill.bill().status())) throw new IllegalArgumentException("账单尚未结算");
         LocalDateTime occurredAt = bill.bill().settledAt() == null ? LocalDateTime.now() : bill.bill().settledAt();
+        Set<Long> cardConsumedLines = bill.assetUsages().stream()
+                .filter(item -> "CARD".equals(item.assetType()) && item.billLineId() != null)
+                .map(item -> item.billLineId()).collect(Collectors.toSet());
         List<CommissionLedgerItem> result = new ArrayList<>();
         for (BillLine line : bill.lines()) {
             if (!"SERVICE".equals(line.itemType()) || line.employeeId() == null) continue;
@@ -109,22 +116,80 @@ public class CommissionService {
                 continue;
             }
             EmployeeSummary employee = employee(line.employeeId(), bill.bill().storeId());
+            String scene = cardConsumedLines.contains(line.id()) ? "CARD_CONSUME" : "SERVICE";
             Optional<CommissionPlan> selected = repository.applicablePlan(
-                    "SERVICE", bill.bill().storeId(), employee.positionId(), occurredAt.toLocalDate());
+                    scene, bill.bill().storeId(), employee.positionId(), occurredAt.toLocalDate());
             BigDecimal base = money(line.receivableAmount());
             String calculationStatus = selected.isPresent() ? "CALCULATED" : "PENDING_RULE";
             BigDecimal rate = selected.map(CommissionPlan::rate).orElse(null);
             BigDecimal amount = selected.map(plan -> calculate(plan, base)).orElse(BigDecimal.ZERO.setScale(4));
-            String formula = selected.map(plan -> formula(plan, base, amount))
-                    .orElse("未找到生效方案；门店=" + bill.bill().storeId() + "，职务=" + employee.positionId()
+            String formula = selected.map(plan -> formula(plan, base, amount, "服务项目"))
+                    .orElse("未找到生效" + ("CARD_CONSUME".equals(scene) ? "次卡实耗" : "服务")
+                            + "方案；门店=" + bill.bill().storeId() + "，职务=" + employee.positionId()
                             + "，业务日期=" + occurredAt.toLocalDate());
             result.add(repository.appendLedger(new CommissionLedgerDraft(
-                    numbers.ledgerNo(), employee.id(), bill.bill().storeId(), "SERVICE", "BILL",
+                    numbers.ledgerNo(), employee.id(), bill.bill().storeId(), scene, "BILL",
                     bill.bill().id(), bill.bill().billNo(), line.id(), line.itemName(), base, rate, amount,
                     calculationStatus, selected.map(CommissionPlan::id).orElse(null),
                     selected.map(CommissionPlan::name).orElse(null),
                     selected.map(CommissionPlan::ruleVersion).orElse(null), formula, occurredAt, correlation,
                     null, operatorId)));
+        }
+        return List.copyOf(result);
+    }
+
+    @Transactional
+    public List<CommissionLedgerItem> recordCardSale(
+            CardSaleResult sale, long storeId, Long employeeId, LocalDateTime occurredAt, long operatorId) {
+        if (employeeId == null) return List.of();
+        EmployeeSummary employee = employee(employeeId, storeId);
+        List<CommissionLedgerItem> result = new ArrayList<>();
+        for (MemberCardSummary card : sale.cards()) {
+            result.add(recordCardSaleFact(
+                    employee, storeId, "CARD_SALE", sale.orderId(), sale.orderNo(), card.id(),
+                    card.cardTypeName(), card.purchasePrice(), occurredAt,
+                    "card-sale:order:" + sale.orderId() + ":card:" + card.id() + ":employee:" + employee.id(),
+                    operatorId));
+        }
+        return List.copyOf(result);
+    }
+
+    @Transactional
+    public List<CommissionLedgerItem> recordCardExchange(
+            CardExchangeResult exchange, long storeId, Long employeeId, long operatorId) {
+        List<CommissionLedgerItem> result = new ArrayList<>(reverseCardSale(
+                exchange.oldCard().id(), "CARD_EXCHANGE", exchange.exchangeId(), exchange.exchangeNo(), operatorId));
+        if (employeeId != null && exchange.differenceAmount().signum() > 0) {
+            EmployeeSummary employee = employee(employeeId, storeId);
+            result.add(recordCardSaleFact(
+                    employee, storeId, "CARD_EXCHANGE", exchange.exchangeId(), exchange.exchangeNo(),
+                    exchange.newCard().id(), exchange.newCard().cardTypeName(), exchange.differenceAmount(),
+                    exchange.executedAt(), "card-exchange:" + exchange.exchangeId() + ":card:"
+                            + exchange.newCard().id() + ":employee:" + employee.id(), operatorId));
+        }
+        return List.copyOf(result);
+    }
+
+    @Transactional
+    public List<CommissionLedgerItem> reverseCardSale(
+            long memberCardId, String sourceType, long sourceId, String sourceNo, long operatorId) {
+        List<CommissionLedgerItem> result = new ArrayList<>();
+        for (CommissionLedgerItem original : repository.originalCardSaleLedgers(memberCardId)) {
+            String correlation = sourceType.toLowerCase(Locale.ROOT) + ':' + sourceId
+                    + ":commission:" + original.id();
+            Optional<CommissionLedgerItem> existing = repository.findLedgerByCorrelation(correlation);
+            if (existing.isPresent()) {
+                result.add(existing.get());
+                continue;
+            }
+            result.add(repository.appendLedger(new CommissionLedgerDraft(
+                    numbers.ledgerNo(), original.employeeId(), original.storeId(), original.commissionType(),
+                    sourceType, sourceId, sourceNo, memberCardId, original.sourceLineName(),
+                    original.baseAmount().negate(), original.rate(), original.commissionAmount().negate(),
+                    original.calculationStatus(), original.planId(), original.planName(),
+                    original.planRuleVersion(), "冲回售卡提成流水 " + original.ledgerNo()
+                            + "；原公式：" + original.formulaSnapshot(), LocalDateTime.now(), correlation,
+                    original.id(), operatorId)));
         }
         return List.copyOf(result);
     }
@@ -192,11 +257,35 @@ public class CommissionService {
         };
     }
 
-    private String formula(CommissionPlan plan, BigDecimal base, BigDecimal amount) {
+    private CommissionLedgerItem recordCardSaleFact(
+            EmployeeSummary employee, long storeId, String sourceType, long sourceId, String sourceNo,
+            long memberCardId, String cardTypeName, BigDecimal baseValue, LocalDateTime occurredAt,
+            String correlation, long operatorId) {
+        Optional<CommissionLedgerItem> existing = repository.findLedgerByCorrelation(correlation);
+        if (existing.isPresent()) return existing.get();
+        Optional<CommissionPlan> selected = repository.applicablePlan(
+                "CARD_SALE", storeId, employee.positionId(), occurredAt.toLocalDate());
+        BigDecimal base = money(baseValue);
+        String calculationStatus = selected.isPresent() ? "CALCULATED" : "PENDING_RULE";
+        BigDecimal rate = selected.map(CommissionPlan::rate).orElse(null);
+        BigDecimal amount = selected.map(plan -> calculate(plan, base)).orElse(BigDecimal.ZERO.setScale(4));
+        String formula = selected.map(plan -> formula(plan, base, amount, "张卡"))
+                .orElse("未找到生效售卡方案；门店=" + storeId + "，职务=" + employee.positionId()
+                        + "，业务日期=" + occurredAt.toLocalDate());
+        return repository.appendLedger(new CommissionLedgerDraft(
+                numbers.ledgerNo(), employee.id(), storeId, "CARD_SALE", sourceType, sourceId, sourceNo,
+                memberCardId, cardTypeName, base, rate, amount, calculationStatus,
+                selected.map(CommissionPlan::id).orElse(null), selected.map(CommissionPlan::name).orElse(null),
+                selected.map(CommissionPlan::ruleVersion).orElse(null), formula, occurredAt, correlation,
+                null, operatorId));
+    }
+
+    private String formula(CommissionPlan plan, BigDecimal base, BigDecimal amount, String unitName) {
         return switch (plan.calculationMode()) {
             case "RATE" -> "方案=" + plan.name() + " v" + plan.ruleVersion() + "；提成=" + base
                     + "×" + plan.rate() + "=" + amount;
-            case "FIXED" -> "方案=" + plan.name() + " v" + plan.ruleVersion() + "；每服务项目固定提成=" + amount;
+            case "FIXED" -> "方案=" + plan.name() + " v" + plan.ruleVersion() + "；每" + unitName
+                    + "固定提成=" + amount;
             case "NONE" -> "方案=" + plan.name() + " v" + plan.ruleVersion() + "；本场景不计提成";
             default -> throw new IllegalArgumentException("不支持的提成计算方式");
         };

@@ -64,6 +64,11 @@ public class SqlServerCardRepository implements CardRepository {
     }
 
     @Override
+    public Optional<Long> saleEmployeeId(long memberCardId) {
+        return Optional.ofNullable(mapper.findCardSaleEmployeeId(memberCardId));
+    }
+
+    @Override
     public Optional<CardSaleResult> findSaleByIdempotencyKey(String key) {
         CardSaleRow order = mapper.findSaleByIdempotencyKey(key);
         if (order == null) return Optional.empty();
@@ -426,6 +431,16 @@ public class SqlServerCardRepository implements CardRepository {
                     command.idempotencyKey(), command.operatorId());
         }
         return findRefundRequest(request.id()).orElseThrow();
+    }
+
+    @Override
+    public CardRefundRequestDetail updateRefundCommissionStatus(long requestId, String status, long operatorId) {
+        CardRefundRequestDetail current = findRefundRequest(requestId).orElseThrow();
+        if (status.equals(current.request().commissionAdjustmentStatus())) return current;
+        if (mapper.updateCardRefundCommissionStatus(requestId, status) != 1) {
+            throw new DuplicateResourceException("退卡申请状态已发生变化，无法更新提成冲回状态");
+        }
+        return findRefundRequest(requestId).orElseThrow();
     }
 
     private Optional<CardRefundRequestDetail> detail(CardRefundRequestSummary summary) {
