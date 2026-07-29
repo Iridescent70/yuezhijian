@@ -5,11 +5,21 @@ import { ElMessage } from 'element-plus'
 import { getMember } from '@/api/member'
 import type { MemberDetail } from '@/types/api'
 import { formatMoney } from '@/utils/formatMoney'
+import MemberAssetsPanel from './MemberAssetsPanel.vue'
+import type { BalanceAccount, PointAccount } from '@/types/api'
 
 const route = useRoute()
 const router = useRouter()
 const loading = ref(true)
 const member = ref<MemberDetail>()
+const activeTab = ref('overview')
+const liveBalance = ref<BalanceAccount>()
+const livePoints = ref<PointAccount>()
+
+function updateAssets(payload: { balance: BalanceAccount; points: PointAccount }) {
+  liveBalance.value = payload.balance
+  livePoints.value = payload.points
+}
 
 const genderLabels: Record<string, string> = {
   UNKNOWN: '未填写',
@@ -53,13 +63,13 @@ onMounted(loadMember)
 
     <template v-if="member">
       <div class="member-asset-grid">
-        <article><span>可用储值</span><strong>{{ formatMoney(member.assets.availableBalance) }}</strong></article>
-        <article><span>可用积分</span><strong>{{ member.assets.availablePoints }}</strong></article>
+        <article><span>可用储值</span><strong>{{ formatMoney(liveBalance?.availableBalance ?? member.assets.availableBalance) }}</strong></article>
+        <article><span>可用积分</span><strong>{{ livePoints?.availablePoints ?? member.assets.availablePoints }}</strong></article>
         <article><span>有效次卡</span><strong>{{ member.assets.cardCount }}</strong></article>
-        <article><span>累计储值</span><strong>{{ formatMoney(member.assets.totalRecharged) }}</strong></article>
+        <article><span>累计储值</span><strong>{{ formatMoney(liveBalance?.totalRecharged ?? member.assets.totalRecharged) }}</strong></article>
       </div>
 
-      <el-tabs class="member-tabs" model-value="overview">
+      <el-tabs v-model="activeTab" class="member-tabs">
         <el-tab-pane label="概览" name="overview">
           <div class="member-detail-grid">
             <el-card shadow="never">
@@ -96,7 +106,14 @@ onMounted(loadMember)
             </el-card>
           </div>
         </el-tab-pane>
-        <el-tab-pane label="会员资产" name="assets" lazy><el-empty description="资产流水将在结算迭代接入" /></el-tab-pane>
+        <el-tab-pane label="会员资产" name="assets" lazy>
+          <MemberAssetsPanel
+            v-if="activeTab === 'assets'"
+            :member-id="member.id"
+            :store-id="member.ownerStoreId"
+            @changed="updateAssets"
+          />
+        </el-tab-pane>
         <el-tab-pane label="消费记录" name="transactions" lazy><el-empty description="暂无消费记录" /></el-tab-pane>
         <el-tab-pane label="服务档案" name="profile" lazy><el-empty description="服务档案将在后续迭代接入" /></el-tab-pane>
         <el-tab-pane label="预约与回访" name="visits" lazy><el-empty description="预约模块尚未产生记录" /></el-tab-pane>

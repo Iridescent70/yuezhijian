@@ -126,6 +126,93 @@ export interface MemberDetail {
   version: string
 }
 
+export interface BalanceAccount {
+  memberId: number
+  availableBalance: number
+  frozenBalance: number
+  totalRecharged: number
+  lastTransactionAt?: string
+  version: string
+}
+
+export interface PointAccount {
+  memberId: number
+  availablePoints: number
+  lifetimePoints: number
+  lastTransactionAt?: string
+  version: string
+}
+
+export interface BalanceLedgerItem {
+  id: number
+  memberId: number
+  ledgerNo: string
+  transactionType: string
+  beforeBalance: number
+  changeAmount: number
+  afterBalance: number
+  sourceType: string
+  sourceId: number
+  storeId: number
+  storeName: string
+  occurredAt: string
+  correlationId: string
+  reversedLedgerId?: number
+  note?: string
+}
+
+export interface PointLedgerItem {
+  id: number
+  memberId: number
+  ledgerNo: string
+  transactionType: string
+  beforePoints: number
+  changePoints: number
+  afterPoints: number
+  sourceType: string
+  sourceId: number
+  expiredAt?: string
+  occurredAt: string
+  correlationId: string
+  reversedLedgerId?: number
+  note?: string
+}
+
+export interface RechargeQuote {
+  id: number
+  quoteNo: string
+  memberId: number
+  rechargeAmount: number
+  giftAmount: number
+  creditAmount: number
+  paymentMethodId: number
+  paymentMethodName: string
+  expiresAt: string
+  used: boolean
+}
+
+export interface RechargeOrder {
+  id: number
+  rechargeNo: string
+  quoteNo: string
+  memberId: number
+  storeId: number
+  storeName: string
+  rechargeAmount: number
+  giftAmount: number
+  creditAmount: number
+  paymentMethodId: number
+  paymentMethodName: string
+  externalReference?: string
+  salesEmployeeId?: number
+  status: 'PENDING_CONFIRM' | 'CONFIRMED' | 'CANCELLED'
+  confirmedAt?: string
+  cancelledAt?: string
+  cancelReason?: string
+  createdAt: string
+  version: string
+}
+
 export interface CreateMemberPayload {
   fullName: string
   nickname?: string

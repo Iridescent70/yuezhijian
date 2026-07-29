@@ -10,6 +10,7 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
     private static final List<String> ADMIN_PERMISSIONS = List.of(
             "workbench:view", "org:store:view", "iam:role:view", "iam:user:view",
             "member:member:view", "member:member:create",
+            "member:asset:view", "member:asset:manage",
             "org:employee:view", "org:employee:manage",
             "org:workstation:view", "org:workstation:manage",
             "catalog:service:view", "catalog:service:manage",

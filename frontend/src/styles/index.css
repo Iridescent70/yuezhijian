@@ -773,6 +773,63 @@ button {
   gap: 10px;
 }
 
+.member-assets-panel {
+  min-height: 360px;
+  padding: 8px 2px;
+}
+
+.asset-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.asset-actions p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.asset-account-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.asset-account-grid .el-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.asset-account-grid span,
+.asset-account-grid small {
+  color: var(--muted);
+}
+
+.asset-account-grid strong {
+  color: var(--brand-dark);
+  font-size: 28px;
+}
+
+.asset-ledger-tabs {
+  padding: 0 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.asset-in {
+  color: #2e8b57;
+  font-weight: 600;
+}
+
+.asset-out {
+  color: #c44747;
+  font-weight: 600;
+}
+
 @media (max-width: 1280px) {
   .login-intro {
     padding: 64px;

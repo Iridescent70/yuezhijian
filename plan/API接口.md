@@ -195,6 +195,7 @@
 | API-AST-015 | `POST /card-refund-requests/{id}/approve`、`/reject` | 意见 | 审批结果 | 次卡管理-04 |
 | API-AST-016 | `POST /card-refund-requests/{id}/execute` | 支付退款确认 | 卡清零、退款和提成冲回 | 次卡管理-04 |
 | API-AST-017 | `GET /member-cards/{id}/ledgers` | 类型、日期 | 扣次、换卡、转赠、退卡流水 | 次卡管理-02~04 |
+| API-AST-018 | `POST /members/{id}/points/adjustments` | 正负积分、原因、幂等键 | 最新积分账户；`member:asset:manage` | 会员资产人工调账 |
 | API-BEN-001 | `POST /points/redemptions/quote` | memberId、giftLines | 积分和库存校验 | 快捷入口-07 |
 | API-BEN-002 | `POST /points/redemptions` | quoteId、门店 | 兑换单、积分/库存流水 | 系统管理-26、快捷入口-07 |
 | API-BEN-003 | `POST /point-redemptions/{id}/void`、`/reverse` | 原因 | 反向流水 | 系统管理-26 |

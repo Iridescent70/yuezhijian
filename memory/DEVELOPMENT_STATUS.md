@@ -27,21 +27,23 @@
 | 预约PC页面 | DONE | `/app/appointments`、`/calendar`、`/new`，含详情处理和可约时段 |
 | 开单结算闭环 | DONE | 手工/预约转账单、项目快照、混合支付试算、结算幂等和作废 |
 | 账单PC页面 | DONE | `/app/bills`、`/new`、`/:id`、`/:id/settle` 四个页面 |
+| 储值与积分资产 | DONE | 账户/流水查询、充值试算/确认/取消、积分调账、幂等和并发控制 |
+| 会员资产PC页面 | DONE | 会员详情资产总览、储值/积分流水、充值和积分调整弹窗 |
 | 敏感字段保护 | DONE | AES-256-GCM密文、带pepper检索哈希、手机号接口脱敏 |
-| 数据库版本 | DONE | 0900、0910、1030、1100、1110、1120、1130共7个Migration脚本及人工记录 |
+| 数据库版本 | DONE | 0900、0910、1030、1100、1110、1120、1130、1140共8个Migration脚本及人工记录 |
 | 前端按需加载 | DONE | Element Plus按需加载，最大公共JS约163 KB |
 
 ## 最近验证
 
 ```text
 ./mvnw test
-  21 tests，0 failure，0 error
+  25 tests，0 failure，0 error
 
 pnpm test
   1个测试文件、2个测试通过
 
 pnpm build
-  含类型检查并通过；最大公共JS约164.04 KB（原约1.06 MB）
+  含类型检查并通过；最大公共JS约166.28 KB（原约1.06 MB）
 
 docker compose --env-file .env.example -f infra/compose.yaml config --quiet
   通过
@@ -49,10 +51,10 @@ docker compose --env-file .env.example -f infra/compose.yaml config --quiet
 
 ## 当前限制
 
-- SQL Server镜像未就绪，7个Migration及数据库版Mapper尚未在真实空库执行。
+- SQL Server镜像未就绪，8个Migration及数据库版Mapper尚未在真实空库执行。
 - 甲方数据库备份、完整数据字典、齐总版和钇休版代码尚未进入工作区。
 - 数据中心5项、AI最终输出范围、支付/短信通道及部分计算口径仍需甲方确认。
-- 当前会员范围是API-MEM-001~003；编辑、冻结、标签、归属调整和资产流水尚未开发。
+- 当前会员主档范围是API-MEM-001~003；编辑、冻结、标签和归属调整尚未开发。
 - 当前主数据范围只覆盖预约所需查询和新建；编辑、停用、职务/分类维护及产品资料尚未开发。
 - 预约排班、候补队列和日/周拖拽视图尚未开发。
-- 预约到店转账单已完成；次卡、储值、积分、优惠券及结算后回访/提成尚未接入。
+- 预约到店转账单、独立充值和积分流水已完成；次卡、资产结算抵扣、优惠券及结算后回访/提成尚未接入。
