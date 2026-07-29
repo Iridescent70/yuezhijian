@@ -25,6 +25,8 @@ const fieldLabels: Record<string, string> = {
   city: '城市', district: '区域', address: '详细地址', longitude: '经度', latitude: '纬度',
   radiusKm: '服务半径（公里）', visitFee: '上门费',
   businessType: '适用业务', requiresNote: '必须填写说明',
+  positionCode: '展示位置', imageName: '图片文件', linkType: '跳转类型', linkValue: '跳转地址',
+  validFrom: '开始时间', validTo: '结束时间',
 }
 
 const detailChanges = computed(() => {

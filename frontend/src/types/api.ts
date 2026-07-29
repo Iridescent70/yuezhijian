@@ -1106,6 +1106,52 @@ export interface UpdateCancelReasonPayload {
   version: string
 }
 
+export type BannerPositionCode = 'PC_HOME' | 'HOME_SERVICE_HOME'
+export type BannerLinkType = 'NONE' | 'INTERNAL' | 'EXTERNAL'
+
+export interface Banner {
+  id: number
+  positionCode: BannerPositionCode
+  title: string
+  imageFileId: number
+  imageName: string
+  imageContentType: string
+  linkType: BannerLinkType
+  linkValue?: string
+  sortNo: number
+  validFrom?: string
+  validTo?: string
+  status: 'ACTIVE' | 'DISABLED'
+  updatedAt: string
+  updatedBy?: number
+  updatedByName: string
+  version: string
+}
+
+export interface ActiveBanner {
+  id: number
+  title: string
+  linkType: BannerLinkType
+  linkValue?: string
+  sortNo: number
+  version: string
+}
+
+export interface CreateBannerPayload {
+  positionCode: BannerPositionCode
+  title: string
+  linkType: BannerLinkType
+  linkValue?: string
+  sortNo: number
+  validFrom?: string
+  validTo?: string
+}
+
+export interface UpdateBannerPayload extends CreateBannerPayload {
+  status: 'ACTIVE' | 'DISABLED'
+  version: string
+}
+
 export interface AvailabilitySlot {
   startAt: string
   endAt: string

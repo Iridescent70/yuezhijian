@@ -78,7 +78,7 @@ public interface FileObjectMapper {
                 updated_at = sysdatetime(), updated_by = COALESCE(owner_user_id, created_by)
             WHERE id = #{fileId} AND purpose = #{purpose} AND status = 'ACTIVE'
             """)
-    int markJobFileDeleted(@Param("fileId") long fileId, @Param("purpose") String purpose);
+    int markFileDeleted(@Param("fileId") long fileId, @Param("purpose") String purpose);
 
     @Select(value = """
             INSERT INTO dbo.sys_file_object (

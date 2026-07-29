@@ -14,18 +14,25 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class FileObjectService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(FileObjectService.class);
     private static final Map<String, String> UPLOAD_EXTENSIONS = Map.of(
             "image/jpeg", ".jpg",
             "image/png", ".png",
             "image/webp", ".webp",
             "application/pdf", ".pdf");
     private static final Map<String, String> GENERATED_EXTENSIONS = Map.of("text/csv", ".csv");
+    private static final Set<String> MANAGED_IMAGE_PURPOSES = Set.of("BANNER_IMAGE");
 
     private final FileObjectRepository repository;
     private final ObjectStorage storage;
@@ -103,6 +110,32 @@ public class FileObjectService {
         }
     }
 
+    public FileObjectItem storeManagedImage(String purpose, MultipartFile upload, long operatorId) {
+        requireManagedImagePurpose(purpose);
+        byte[] content = read(upload);
+        String name = normalizeName(upload.getOriginalFilename());
+        String contentType = detectContentType(content);
+        if (!contentType.startsWith("image/")) {
+            throw new IllegalArgumentException("只允许上传JPG、PNG或WEBP图片");
+        }
+        validateExtension(name, contentType);
+        String objectKey = objectKey(purpose, contentType);
+        FileObjectDraft file = new FileObjectDraft(
+                objectKey, name, contentType, content.length, sha256(content), purpose, operatorId);
+        storage.put(objectKey, content, contentType);
+        registerRollbackCleanup(objectKey);
+        try {
+            return repository.create(file);
+        } catch (RuntimeException exception) {
+            try {
+                storage.delete(objectKey);
+            } catch (RuntimeException cleanupFailure) {
+                exception.addSuppressed(cleanupFailure);
+            }
+            throw exception;
+        }
+    }
+
     public FileObjectItem storeJobInput(MultipartFile upload, long operatorId) {
         byte[] content = read(upload);
         String name = normalizeName(upload.getOriginalFilename());
@@ -147,6 +180,35 @@ public class FileObjectService {
         return verifiedDownload(file);
     }
 
+    public StoredFileDownload downloadManagedImage(long fileId, String purpose) {
+        requireManagedImagePurpose(purpose);
+        StoredFileObject file = repository.findActiveFile(fileId)
+                .orElseThrow(() -> new ResourceNotFoundException("图片不存在或已停用"));
+        if (!purpose.equals(file.purpose()) || !file.contentType().startsWith("image/")) {
+            throw new ResourceNotFoundException("图片不存在或已停用");
+        }
+        return verifiedDownload(file);
+    }
+
+    public void retireManagedImage(long fileId, String purpose) {
+        requireManagedImagePurpose(purpose);
+        if (!repository.markFileDeleted(fileId, purpose)
+                && repository.findActiveFile(fileId).isPresent()) {
+            throw new FileStorageException("旧图片状态更新失败", null);
+        }
+    }
+
+    public void discardManagedImage(long fileId, String purpose) {
+        requireManagedImagePurpose(purpose);
+        StoredFileObject file = repository.findActiveFile(fileId).orElse(null);
+        if (file == null) return;
+        if (!purpose.equals(file.purpose())) throw new IllegalArgumentException("文件用途不匹配");
+        if (!repository.markFileDeleted(fileId, purpose)) {
+            throw new FileStorageException("图片状态更新失败", null);
+        }
+        storage.delete(file.objectKey());
+    }
+
     public void purgeGenerated(long fileId) {
         StoredFileObject file = repository.findActiveFile(fileId).orElse(null);
         if (file == null) return;
@@ -154,7 +216,7 @@ public class FileObjectService {
             throw new IllegalArgumentException("只允许清理任务结果文件");
         }
         storage.delete(file.objectKey());
-        if (!repository.markJobFileDeleted(fileId, "ASYNC_JOB_RESULT")
+        if (!repository.markFileDeleted(fileId, "ASYNC_JOB_RESULT")
                 && repository.findActiveFile(fileId).isPresent()) {
             throw new FileStorageException("任务结果文件状态更新失败", null);
         }
@@ -167,7 +229,7 @@ public class FileObjectService {
             throw new IllegalArgumentException("只允许清理任务输入文件");
         }
         storage.delete(file.objectKey());
-        if (!repository.markJobFileDeleted(fileId, "ASYNC_JOB_INPUT")
+        if (!repository.markFileDeleted(fileId, "ASYNC_JOB_INPUT")
                 && repository.findActiveFile(fileId).isPresent()) {
             throw new FileStorageException("任务输入文件状态更新失败", null);
         }
@@ -263,6 +325,27 @@ public class FileObjectService {
         for (byte value : content) {
             if (value == 0) throw new IllegalArgumentException("CSV内容无效");
         }
+    }
+
+    private static void requireManagedImagePurpose(String purpose) {
+        if (!MANAGED_IMAGE_PURPOSES.contains(purpose)) {
+            throw new IllegalArgumentException("不支持该图片用途");
+        }
+    }
+
+    private void registerRollbackCleanup(String objectKey) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) return;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != TransactionSynchronization.STATUS_ROLLED_BACK) return;
+                try {
+                    storage.delete(objectKey);
+                } catch (RuntimeException exception) {
+                    LOGGER.warn("事务回滚后清理对象失败: {}", objectKey, exception);
+                }
+            }
+        });
     }
 
     private StoredFileDownload verifiedDownload(StoredFileObject file) {

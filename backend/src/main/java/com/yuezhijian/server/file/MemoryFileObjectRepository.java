@@ -53,7 +53,7 @@ public class MemoryFileObjectRepository implements FileObjectRepository {
     }
 
     @Override
-    public synchronized boolean markJobFileDeleted(long fileId, String purpose) {
+    public synchronized boolean markFileDeleted(long fileId, String purpose) {
         FileEntry entry = files.get(fileId);
         if (entry == null || !entry.active() || !purpose.equals(entry.item().purpose())) return false;
         files.put(fileId, new FileEntry(entry.item(), entry.objectKey(), false));

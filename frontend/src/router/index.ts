@@ -83,6 +83,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '取消原因', permission: 'system:cancel-reason:view' },
       },
       {
+        path: 'system/banners',
+        name: 'banners',
+        component: () => import('@/views/system/BannerView.vue'),
+        meta: { title: '首页图片', permission: 'system:banner:view' },
+      },
+      {
         path: 'catalog/products',
         name: 'products',
         component: () => import('@/views/catalog/ProductListView.vue'),

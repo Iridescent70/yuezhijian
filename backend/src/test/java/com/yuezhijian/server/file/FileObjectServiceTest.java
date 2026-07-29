@@ -99,4 +99,27 @@ class FileObjectServiceTest {
                 new MockMultipartFile("file", "项目.xlsx", "application/octet-stream", content), 1))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("CSV");
     }
+
+    @Test
+    void managedImageRequiresAnImageAndCanBeRetired() {
+        byte[] png = new byte[] {(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1};
+        FileObjectItem image = service.storeManagedImage(
+                "BANNER_IMAGE", new MockMultipartFile("file", "首页.png", "image/png", png), 1);
+
+        assertThat(service.downloadManagedImage(image.id(), "BANNER_IMAGE").content()).isEqualTo(png);
+        service.retireManagedImage(image.id(), "BANNER_IMAGE");
+        assertThatThrownBy(() -> service.downloadManagedImage(image.id(), "BANNER_IMAGE"))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        byte[] pdf = "%PDF-1.7".getBytes(StandardCharsets.US_ASCII);
+        assertThatThrownBy(() -> service.storeManagedImage(
+                "BANNER_IMAGE", new MockMultipartFile("file", "说明.pdf", "application/pdf", pdf), 1))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("只允许上传");
+
+        byte[] oversized = new byte[1025];
+        System.arraycopy(png, 0, oversized, 0, png.length);
+        assertThatThrownBy(() -> service.storeManagedImage(
+                "BANNER_IMAGE", new MockMultipartFile("file", "过大.png", "image/png", oversized), 1))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("大小");
+    }
 }

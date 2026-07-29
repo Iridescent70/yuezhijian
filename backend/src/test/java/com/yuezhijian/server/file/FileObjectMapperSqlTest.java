@@ -37,7 +37,7 @@ class FileObjectMapperSqlTest {
         assertThat(fileSql).contains("status = 'DELETED'", "status = 'ACTIVE'")
                 .doesNotContain("DELETE FROM");
         Method generatedMethod = FileObjectMapper.class.getMethod(
-                "markJobFileDeleted", long.class, String.class);
+                "markFileDeleted", long.class, String.class);
         String generatedSql = String.join(" ", generatedMethod.getAnnotation(Update.class).value());
         assertThat(generatedSql).contains(
                 "purpose = #{purpose}", "status = 'DELETED'", "status = 'ACTIVE'")
