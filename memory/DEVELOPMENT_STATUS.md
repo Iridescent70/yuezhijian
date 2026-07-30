@@ -2,18 +2,19 @@
 
 更新时间：2026-07-30。
 
-> 重构分支说明：下方业务模块状态记录 `main@6cae2c8` 的后端能力和原前端基线。原前端页面已保存在 `ref/main-frontend-snapshot/`；只有迁入 `frontend/` 并通过新底座联调后，才算“芋道前端迁移完成”。
+> 重构分支说明：下方“已完成模块”全部记录 `main@6cae2c8` 的可迁移资产，不代表芋道新系统已经完成。原后端、前端分别保存在 `ref/main-backend-snapshot/backend/`、`ref/main-frontend-snapshot/`；只有功能迁入新的 `backend/`、`frontend/` 并通过联调和测试，状态才可转为新系统 DONE。
 
 ## 工程与环境
 
 | 内容 | 状态 | 当前结果 |
 | --- | --- | --- |
-| 工程目录 | IN_PROGRESS | 后端 `backend/` 保留；芋道 PC 前端位于 `frontend/`；原前端快照位于 `ref/main-frontend-snapshot/` |
+| 工程目录 | DONE | 芋道单体后端位于 `backend/`，芋道 PC 前端位于 `frontend/`；main 前后端位于 `ref/` 快照 |
 | 工具链 | DONE | Java 21.0.11、Maven 3.9.15、Node 24.18.0、pnpm 10.34.5 |
-| 本地基础设施配置 | DONE | SQL Server、MinIO及可选Redis Compose已建立 |
-| SQL Server镜像 | IN_PROGRESS | 2022镜像正在本机拉取；完成后立即执行空库Migration和API直查验收 |
-| 芋道前端底座 | IN_PROGRESS | 上游 `master@9445977` 已导入；品牌、Session/CSRF、菜单、工作台和顶部门店切换代码适配完成，等待真实环境联调 |
-| CI与工程命令 | DONE | Maven Wrapper、pnpm workspace、Makefile、GitHub Actions已切换到芋道脚本；锁定安装、类型检查、生产构建和后端测试通过 |
+| 本地基础设施配置 | DONE | SQL Server、Redis、MinIO Compose 已建立，Redis 为芋道 Token 必需依赖 |
+| 芋道后端底座 | IN_PROGRESS | 完整单体 `master-jdk17@ec3f7cb` 已导入；默认启用 system/infra/server，SQL Server profile 与 Flyway 入口已配置，待运行联调 |
+| 芋道前端底座 | IN_PROGRESS | `master@9445977` 已导入；已恢复 Token、动态菜单、字典和 `/admin-api` 原生协议，待运行联调 |
+| 数据库初始化 | IN_PROGRESS | 官方 SQL Server 基线和防重复导入标记已接入；容器空库初始化、Flyway baseline 和登录待验证 |
+| CI与工程命令 | DONE | Maven Wrapper、pnpm workspace、Makefile、GitHub Actions 已切换到芋道全栈命令；后端测试、前端类型检查和生产构建均已通过 |
 
 ## 已完成模块
 
@@ -89,30 +90,38 @@
 | 服务分析与档案 | TODO | 咨询卡、色号、赔付审批及主动消息提醒尚未开发；处理附件已完成 |
 | 完整薪酬规则 | TODO | 累计阶梯、多人分配、店长提成、跨月扣减、借调和工资计算尚未开发 |
 | 敏感字段保护 | DONE | AES-256-GCM密文、带pepper检索哈希、手机号接口脱敏 |
-| 数据库版本 | DONE | 0900、0910、1030、1100至1500共44个Migration脚本及人工记录 |
-| 芋道前端迁移 | IN_PROGRESS | 新底座已导入；原页面暂存于 `ref/main-frontend-snapshot/`，正按模块迁移 |
+| main 数据库版本资产 | DONE | 0900、0910、1030、1100至1500共44个旧 Migration 脚本及人工记录已归档，尚未映射到芋道表结构 |
+| 芋道业务迁移 | TODO | 全栈底座已导入，main 业务代码和页面尚未迁入新运行模块 |
 
 ## 当前重构分支验证
 
-以下结果来自 `refactor/yudao-foundation` 当前代码：
+以下结果属于本次芋道全栈底座；旧后端 167 项通过结果只属于 main 快照，不能作为芋道后端证据：
 
 ```text
-./mvnw test
-  167 tests，0 failure，0 error
+./mvnw -f backend/pom.xml test
+  PASS：21 个 Maven 模块成功，77 个测试套件、709 项测试，0 失败、0 错误、18 跳过
 
 pnpm install --frozen-lockfile
-  依赖按芋道上游锁文件安装成功
+  PASS：按锁文件安装完成
 
 pnpm typecheck
-  通过
+  PASS
 
 pnpm build
-  通过；存在上游全量模块的大分块告警，后续迁移时裁剪
+  PASS：仅保留上游 CSS 兼容和大包体积告警
+
+./mvnw -f backend/pom.xml -DskipTests package
+  PASS：21 个 Maven 模块全部构建成功
+
+docker compose --env-file .env.example -f infra/compose.yaml config --quiet
+  PASS
 ```
 
-## 当前限制
+未执行 `make db-init` 和真实登录：初始化脚本只允许全新空库，当前没有把本机数据库确认为可安全初始化的目标。该项继续保持 IN_PROGRESS，不能由静态构建结果替代。
 
-- 本地`.env.local`和Docker权限已经就绪，SQL Server 2022镜像正在拉取；44个Migration、数据库版Mapper、任务租约竞争/强杀恢复、到期结果清理及真实MinIO适配仍须在容器内联通验证。memory profile只用于隔离测试，不能作为功能完成或验收证据。
+## main 快照遗留限制（迁移时逐项核对）
+
+- 芋道 SQL Server 基线、Redis Token、Flyway baseline 和真实登录尚待本地容器联调；main 的 memory/SQL Server profile 不再是新系统运行入口。
 - 会话门店切换及现有核心营业、会员资产、提成、回访、反馈、归属审批和主数据接口范围已完成；后续新增模块必须在首次实现时接入统一范围。
 - 甲方数据库备份、完整数据字典、齐总版和钇休版代码尚未进入工作区。
 - 数据中心5项、AI最终输出范围、支付/短信通道及部分计算口径仍需甲方确认。

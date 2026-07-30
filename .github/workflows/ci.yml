@@ -27,6 +27,6 @@ jobs:
           node-version: "24.18.0"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: ./mvnw --batch-mode test
+      - run: ./mvnw -f backend/pom.xml --batch-mode test
       - run: pnpm typecheck
       - run: pnpm build

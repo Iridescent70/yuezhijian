@@ -2,7 +2,7 @@ import { store } from '@/store'
 import { defineStore } from 'pinia'
 import { getAccessToken, removeToken } from '@/utils/auth'
 import { CACHE_KEY, useCache, deleteUserCache } from '@/hooks/web/useCache'
-import { getInfo, loginOut, switchCurrentStore } from '@/api/login'
+import { getInfo, loginOut } from '@/api/login'
 
 const { wsCache } = useCache()
 
@@ -11,9 +11,6 @@ interface UserVO {
   avatar: string
   nickname: string
   deptId: number
-  currentStoreId?: number
-  currentStoreName?: string
-  stores?: Array<{ id: number; code: string; name: string; level: string; status: string }>
 }
 
 interface UserInfoVO {
@@ -71,16 +68,6 @@ export const useUserStore = defineStore('admin-user', {
       this.isSetUser = true
       wsCache.set(CACHE_KEY.USER, userInfo)
       wsCache.set(CACHE_KEY.ROLE_ROUTERS, userInfo.menus)
-    },
-    async switchStoreAction(storeId: number) {
-      const userInfo = await switchCurrentStore(storeId)
-      this.permissions = new Set(userInfo.permissions || [])
-      this.roles = userInfo.roles
-      this.user = userInfo.user
-      this.isSetUser = true
-      wsCache.set(CACHE_KEY.USER, userInfo)
-      wsCache.set(CACHE_KEY.ROLE_ROUTERS, userInfo.menus)
-      return userInfo
     },
     async setUserAvatarAction(avatar: string) {
       const userInfo = wsCache.get(CACHE_KEY.USER)

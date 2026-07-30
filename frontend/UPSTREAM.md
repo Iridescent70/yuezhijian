@@ -16,4 +16,4 @@ git fetch yudao-ui master
 git subtree pull --prefix=frontend yudao-ui master --squash
 ```
 
-同步后必须重新应用和验证悦指间的会话认证、CSRF、响应结构、动态菜单、品牌配置和业务页面适配，不能直接把上游接口地址切换到芋道演示服务。
+同步后必须重新验证悦指间品牌配置、业务页面和与同版本芋道单体后端的 Token、动态菜单、字典、文件及 WebSocket 协议，不能把接口地址切换到芋道演示服务。

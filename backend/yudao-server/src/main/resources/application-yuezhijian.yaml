@@ -1,0 +1,71 @@
+# 悦指间本地/集成环境。生产环境必须由部署平台注入同名环境变量，禁止在 Git 中写入真实口令。
+server:
+  port: ${SERVER_PORT:48080}
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.quartz.QuartzAutoConfiguration
+  datasource:
+    dynamic:
+      druid:
+        validation-query: SELECT 1
+      primary: master
+      datasource:
+        master:
+          name: ${DB_NAME:yuezhijian_dev}
+          url: ${DB_URL:jdbc:sqlserver://localhost:1433;databaseName=yuezhijian_dev;encrypt=true;trustServerCertificate=true}
+          username: ${DB_USERNAME:yuezhijian_app}
+          password: ${DB_PASSWORD:}
+          driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:0}
+      password: ${REDIS_PASSWORD:}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: '2026.06'
+    clean-disabled: true
+    validate-on-migrate: true
+  boot:
+    admin:
+      client:
+        enabled: false
+
+logging:
+  file:
+    name: ${LOG_FILE:./.data/logs/yudao-server.log}
+  level:
+    cn.iocoder.yudao.module.infra.dal.mysql: info
+    cn.iocoder.yudao.module.system.dal.mysql: info
+
+yudao:
+  web:
+    admin-ui:
+      url: ${ADMIN_UI_URL:http://localhost:5173}
+  captcha:
+    enable: false
+  security:
+    mock-enable: false
+  api-encrypt:
+    enable: false
+  access-log:
+    enable: true
+  demo: false
+  tenant:
+    enable: false
+  swagger:
+    title: 悦指间门店管理系统
+    description: 悦指间门店管理系统管理端 API
+    version: ${yudao.info.version}
+    url: ${yudao.web.admin-ui.url}
+    email: ''
+    license: MIT
+    license-url: https://github.com/YunaiV/ruoyi-vue-pro/blob/master/LICENSE
+
+justauth:
+  enabled: false

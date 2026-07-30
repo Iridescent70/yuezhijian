@@ -16,10 +16,8 @@ import errorCode from './errorCode'
 import { resetRouter } from '@/router'
 import { deleteUserCache } from '@/hooks/web/useCache'
 import { ApiEncrypt } from '@/utils/encrypt'
-import { getCsrfToken, resetCsrfToken } from './csrf'
 
 const tenantEnable = import.meta.env.VITE_APP_TENANT_ENABLE
-const sessionAuth = import.meta.env.VITE_APP_AUTH_MODE === 'session'
 const { result_code, base_url, request_timeout } = config
 
 // 需要忽略的提示。忽略后，自动 Promise.reject('error')
@@ -41,7 +39,7 @@ const whiteList: string[] = ['/login', '/refresh-token']
 const service: AxiosInstance = axios.create({
   baseURL: base_url, // api 的 base_url
   timeout: request_timeout, // 请求超时时间
-  withCredentials: sessionAuth,
+  withCredentials: false, // 禁用 Cookie 等信息
   // 自定义参数序列化函数
   paramsSerializer: (params) => {
     return qs.stringify(params, { allowDots: true })
@@ -50,19 +48,14 @@ const service: AxiosInstance = axios.create({
 
 // request拦截器
 service.interceptors.request.use(
-  async (config: InternalAxiosRequestConfig) => {
+  (config: InternalAxiosRequestConfig) => {
     // 是否需要设置 token；命中白名单的接口（如 /login）不带 token
     let isToken = (config!.headers || {}).isToken !== false
     if (isToken && whiteList.some((v) => config.url?.includes(v))) {
       isToken = false
     }
-    if (!sessionAuth && getAccessToken() && isToken) {
+    if (getAccessToken() && isToken) {
       config.headers.Authorization = 'Bearer ' + getAccessToken() // 让每个请求携带自定义 token
-    }
-    const method = config.method?.toUpperCase()
-    if (sessionAuth && method && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-      const csrf = await getCsrfToken()
-      config.headers[csrf.headerName] = csrf.token
     }
     // 设置租户
     if (tenantEnable && tenantEnable === 'true') {
@@ -74,6 +67,7 @@ service.interceptors.request.use(
         config.headers['visit-tenant-id'] = visitTenantId
       }
     }
+    const method = config.method?.toUpperCase()
     // 防止 GET 请求缓存
     if (method === 'GET') {
       config.headers['Cache-Control'] = 'no-cache'
@@ -151,7 +145,7 @@ service.interceptors.response.use(
     }
     const code = data.code ?? result_code
     // 获取错误信息
-    const msg = data.message || data.msg || errorCode[code] || errorCode['default']
+    const msg = data.msg || errorCode[code] || errorCode['default']
     if (ignoreMsgs.indexOf(msg) !== -1) {
       // 如果是忽略的错误码，直接返回 msg 异常
       return Promise.reject(msg)
@@ -215,7 +209,7 @@ service.interceptors.response.use(
           '<div>5 分钟搭建本地环境</div>'
       })
       return Promise.reject(new Error(msg))
-    } else if (!['0', '200'].includes(String(code))) {
+    } else if (code !== 0 && code !== 200) {
       if (msg === '无效的刷新令牌') {
         // hard coding：忽略这个提示，直接登出
         console.log(msg)
@@ -228,15 +222,9 @@ service.interceptors.response.use(
       return data
     }
   },
-  (error: AxiosError<any>) => {
+  (error: AxiosError) => {
     console.log('err' + error) // for debug
-    const status = error.response?.status
-    const requestUrl = error.config?.url || ''
-    if (sessionAuth && status === 401 && !requestUrl.includes('/auth/login')) {
-      resetCsrfToken()
-      return handleAuthorized()
-    }
-    let message = error.response?.data?.message || error.message
+    let { message } = error
     const { t } = useI18n()
     if (message === 'Network Error') {
       message = t('sys.api.errorMessage')
@@ -273,7 +261,6 @@ const handleAuthorized = () => {
       resetRouter() // 重置静态路由表
       deleteUserCache() // 删除用户缓存
       removeToken()
-      resetCsrfToken()
       isRelogin.show = false
       // 干掉token后再走一次路由让它过router.beforeEach的校验
       window.location.href = window.location.href

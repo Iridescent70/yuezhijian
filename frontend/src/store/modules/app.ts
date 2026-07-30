@@ -60,8 +60,8 @@ export const useAppStore = defineStore('app', {
       search: true, // 搜索图标
       size: true, // 尺寸图标
       locale: true, // 多语言图标
-      message: false, // 待接入现有站内信接口后开启
-      im: false, // 当前合同不启用芋道 IM
+      message: true, // 消息图标
+      im: true, //IM即时通讯图标
       tagsView: true, // 标签页
       tagsViewImmerse: false, // 标签页沉浸
       tagsViewIcon: true, // 是否显示标签图标

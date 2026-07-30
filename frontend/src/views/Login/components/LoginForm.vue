@@ -222,25 +222,3 @@ onMounted(() => {
   getTenantByWebsite()
 })
 </script>
-
-<style lang="scss" scoped>
-:deep(.anticon) {
-  &:hover {
-    color: var(--el-color-primary) !important;
-  }
-}
-
-.login-code {
-  float: right;
-  width: 100%;
-  height: 38px;
-
-  img {
-    width: 100%;
-    height: auto;
-    max-width: 100px;
-    vertical-align: middle;
-    cursor: pointer;
-  }
-}
-</style>

@@ -46,4 +46,44 @@ docker compose --env-file "${env_file}" -f "${project_root}/infra/compose.yaml" 
   -e SQLCMDPASSWORD="${MSSQL_SA_PASSWORD}" sqlserver \
   /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -d "${DB_NAME}" -C -b -Q "${database_sql}"
 
-echo "Local database ${DB_NAME} and login ${DB_USERNAME} are ready."
+schema_initialized="$(docker compose --env-file "${env_file}" -f "${project_root}/infra/compose.yaml" exec -T \
+  -e SQLCMDPASSWORD="${MSSQL_SA_PASSWORD}" sqlserver \
+  /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -d "${DB_NAME}" -C -b -h -1 -W \
+  -Q "SET NOCOUNT ON; SELECT CASE WHEN OBJECT_ID(N'dbo.yuezhijian_schema_baseline', N'U') IS NULL THEN 0 ELSE 1 END;" \
+  | tr -d '[:space:]')"
+
+if [[ "${schema_initialized}" == "0" ]]; then
+  user_table_count="$(docker compose --env-file "${env_file}" -f "${project_root}/infra/compose.yaml" exec -T \
+    -e SQLCMDPASSWORD="${MSSQL_SA_PASSWORD}" sqlserver \
+    /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -d "${DB_NAME}" -C -b -h -1 -W \
+    -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM sys.tables WHERE is_ms_shipped = 0;" \
+    | tr -d '[:space:]')"
+  if [[ "${user_table_count}" != "0" ]]; then
+    echo "Refusing to run the destructive Yudao baseline: ${DB_NAME} already contains ${user_table_count} user tables but has no baseline marker." >&2
+    echo "Use a new empty DB_NAME. Never point this command at the main or client legacy database." >&2
+    exit 1
+  fi
+
+  echo "Importing the Yudao SQL Server baseline into ${DB_NAME}..."
+  docker compose --env-file "${env_file}" -f "${project_root}/infra/compose.yaml" exec -T \
+    -e SQLCMDPASSWORD="${MSSQL_SA_PASSWORD}" sqlserver \
+    /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -d "${DB_NAME}" -C -b \
+    < "${project_root}/backend/sql/sqlserver/ruoyi-vue-pro.sql"
+
+  baseline_sql="CREATE TABLE dbo.yuezhijian_schema_baseline
+  (
+      id bigint NOT NULL PRIMARY KEY,
+      upstream_repository nvarchar(255) NOT NULL,
+      upstream_commit char(40) NOT NULL,
+      imported_at datetime2 NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  INSERT INTO dbo.yuezhijian_schema_baseline (id, upstream_repository, upstream_commit)
+  VALUES (1, N'https://github.com/YunaiV/ruoyi-vue-pro', N'ec3f7cbf73e88514a70a6b59d365092ee470603d');"
+  docker compose --env-file "${env_file}" -f "${project_root}/infra/compose.yaml" exec -T \
+    -e SQLCMDPASSWORD="${MSSQL_SA_PASSWORD}" sqlserver \
+    /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -d "${DB_NAME}" -C -b -Q "${baseline_sql}"
+else
+  echo "Yudao SQL Server baseline already exists; skipping the destructive upstream import."
+fi
+
+echo "Local database ${DB_NAME}, Yudao baseline and login ${DB_USERNAME} are ready."

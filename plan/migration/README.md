@@ -1,9 +1,11 @@
 # 数据库 Migration 变更记录
 
-本目录记录每次数据库结构和数据修复的人工说明，便于开发、测试、上线和审计查看。这里不存放实际执行 SQL；实际 SQL 必须放在：
+> 重构说明：本目录中 `V20260729*.md` 是 `main@6cae2c8` 已形成的业务数据模型与迁移记录，仍作为规则和字段资产保留；对应旧 SQL 已归档到 `ref/main-backend-snapshot/backend/src/main/resources/db/migration/`，不得直接在芋道数据库重放。新映射见[《芋道模块与数据迁移映射》](./芋道模块与数据迁移映射.md)。
+
+本目录记录每次数据库结构和数据修复的人工说明，便于开发、测试、上线和审计查看。这里不存放实际执行 SQL；当前芋道底座的实际增量 SQL 必须放在：
 
 ```text
-backend/src/main/resources/db/migration/
+backend/yudao-server/src/main/resources/db/migration/
 ```
 
 ## 使用方式
@@ -61,7 +63,7 @@ plan/migration/
 6. 数据库结构变化必须同步 `数据库表.md`、OpenAPI、测试数据工厂和迁移/回滚脚本。
 7. 手工临时 SQL 不得成为最终状态；即使线上应急，也要立即补成 Flyway 版本并记录原因。
 
-## 首版 Migration 批次
+## main 快照 Migration 批次
 
 | 版本 | 内容 | 主要表 |
 | --- | --- | --- |
