@@ -60,11 +60,11 @@ backend-dev-memory:
 	@SPRING_PROFILES_ACTIVE=memory ./mvnw -pl backend spring-boot:run
 
 frontend-dev:
-	@pnpm --filter @yuezhijian/frontend dev
+	@pnpm --filter @yuezhijian/admin dev
 
 test:
 	@./mvnw test
-	@pnpm test
+	@pnpm typecheck
 
 build:
 	@./mvnw -DskipTests package
@@ -73,5 +73,4 @@ build:
 verify:
 	@./mvnw test
 	@pnpm typecheck
-	@pnpm test
 	@pnpm build

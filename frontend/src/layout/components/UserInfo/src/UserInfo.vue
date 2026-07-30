@@ -13,7 +13,7 @@ defineOptions({ name: 'UserInfo' })
 
 const { t } = useI18n()
 
-const { push, replace } = useRouter()
+const { replace } = useRouter()
 
 const userStore = useUserStore()
 
@@ -25,6 +25,9 @@ const prefixCls = getPrefixCls('user-info')
 
 const avatar = computed(() => userStore.user.avatar || avatarImg)
 const userName = computed(() => userStore.user.nickname ?? 'Admin')
+const currentStoreName = computed(() => userStore.user.currentStoreName || '未选择门店')
+const stores = computed(() => userStore.user.stores || [])
+const storeSwitching = ref(false)
 
 // 锁定屏幕
 const lockStore = useLockStore()
@@ -46,11 +49,17 @@ const loginOut = async () => {
     replace('/login?redirect=/index')
   } catch {}
 }
-const toProfile = async () => {
-  push('/user/profile')
-}
-const toDocument = () => {
-  window.open('https://doc.iocoder.cn/')
+const switchStore = async (storeId: number) => {
+  if (storeSwitching.value || storeId === userStore.user.currentStoreId) return
+  storeSwitching.value = true
+  try {
+    await userStore.switchStoreAction(storeId)
+    ElMessage.success(`已切换到${userStore.user.currentStoreName}`)
+    await replace('/index')
+    window.location.reload()
+  } finally {
+    storeSwitching.value = false
+  }
 }
 </script>
 
@@ -59,20 +68,22 @@ const toDocument = () => {
     <div class="flex items-center">
       <ElAvatar :src="avatar" alt="" class="w-[calc(var(--logo-height)-25px)] rounded-[50%]" />
       <span class="pl-[5px] text-14px text-[var(--top-header-text-color)] <lg:hidden">
-        {{ userName }}
+        {{ userName }} · {{ currentStoreName }}
       </span>
     </div>
     <template #dropdown>
       <ElDropdownMenu>
-        <ElDropdownItem>
-          <Icon icon="ep:tools" />
-          <div @click="toProfile">{{ t('common.profile') }}</div>
+        <ElDropdownItem
+          v-for="store in stores"
+          :key="store.id"
+          :disabled="storeSwitching || store.id === userStore.user.currentStoreId"
+          @click="switchStore(store.id)"
+        >
+          <Icon icon="ep:shop" />
+          <div>{{ store.name }}</div>
+          <Icon v-if="store.id === userStore.user.currentStoreId" class="ml-auto" icon="ep:check" />
         </ElDropdownItem>
-        <ElDropdownItem>
-          <Icon icon="ep:menu" />
-          <div @click="toDocument">{{ t('common.document') }}</div>
-        </ElDropdownItem>
-        <ElDropdownItem divided>
+        <ElDropdownItem :divided="stores.length > 0">
           <Icon icon="ep:lock" />
           <div @click="lockScreen">{{ t('lock.lockScreen') }}</div>
         </ElDropdownItem>

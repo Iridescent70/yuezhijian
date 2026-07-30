@@ -1,5 +1,7 @@
 # 稳定项目上下文
 
+> 当前分支为 `refactor/yudao-foundation`。业务后端、数据库规则和已完成迭代继承自 `main@6cae2c8`；PC 管理端改为芋道 Vue3 底座。详细边界见 `docs/芋道底座重构迁移方案.md`。
+
 最后核对：2026-07-30。
 
 ## 项目目标
@@ -20,9 +22,9 @@
 
 ## 已冻结技术决定
 
-- 目录：后端统一在 `backend/`，PC前端统一在 `frontend/`；不得再增加 `server/`、`admin-web/` 等项目级嵌套目录。
+- 目录：后端统一在 `backend/`，芋道 PC 前端统一在 `frontend/`；`ref/main-frontend-snapshot/` 只作迁移对照，不作为运行入口。
 - 后端：Java 21、Spring Boot 3.5、Spring Security、Spring Session JDBC、MyBatis、Flyway。
-- PC前端：Vue 3、TypeScript、Vite、Element Plus、Pinia、Vue Router。
+- PC前端：基于 `yudao-ui-admin-vue3@9445977` 的 Vue 3、TypeScript、Vite、Element Plus、Pinia、Vue Router；保留上游 MIT 许可证和提交来源。
 - 数据库：SQL Server 2022；旧库只读，新库只允许Flyway修改。
 - 架构：单仓库、前后端分离、模块化单体；首月不拆微服务。
 - 金额：Java使用BigDecimal，数据库使用 `decimal(19,4)`，禁止float/double。

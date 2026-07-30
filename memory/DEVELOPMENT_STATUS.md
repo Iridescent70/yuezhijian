@@ -2,15 +2,18 @@
 
 更新时间：2026-07-30。
 
+> 重构分支说明：下方业务模块状态记录 `main@6cae2c8` 的后端能力和原前端基线。原前端页面已保存在 `ref/main-frontend-snapshot/`；只有迁入 `frontend/` 并通过新底座联调后，才算“芋道前端迁移完成”。
+
 ## 工程与环境
 
 | 内容 | 状态 | 当前结果 |
 | --- | --- | --- |
-| 工程目录 | DONE | 后端 `backend/`，PC前端 `frontend/` |
+| 工程目录 | IN_PROGRESS | 后端 `backend/` 保留；芋道 PC 前端位于 `frontend/`；原前端快照位于 `ref/main-frontend-snapshot/` |
 | 工具链 | DONE | Java 21.0.11、Maven 3.9.15、Node 24.18.0、pnpm 10.34.5 |
 | 本地基础设施配置 | DONE | SQL Server、MinIO及可选Redis Compose已建立 |
 | SQL Server镜像 | IN_PROGRESS | 2022镜像正在本机拉取；完成后立即执行空库Migration和API直查验收 |
-| CI与工程命令 | DONE | Maven Wrapper、pnpm workspace、Makefile、GitHub Actions可用 |
+| 芋道前端底座 | IN_PROGRESS | 上游 `master@9445977` 已导入；品牌、Session/CSRF、菜单、工作台和顶部门店切换代码适配完成，等待真实环境联调 |
+| CI与工程命令 | DONE | Maven Wrapper、pnpm workspace、Makefile、GitHub Actions已切换到芋道脚本；锁定安装、类型检查、生产构建和后端测试通过 |
 
 ## 已完成模块
 
@@ -87,22 +90,24 @@
 | 完整薪酬规则 | TODO | 累计阶梯、多人分配、店长提成、跨月扣减、借调和工资计算尚未开发 |
 | 敏感字段保护 | DONE | AES-256-GCM密文、带pepper检索哈希、手机号接口脱敏 |
 | 数据库版本 | DONE | 0900、0910、1030、1100至1500共44个Migration脚本及人工记录 |
-| 前端按需加载 | DONE | Element Plus按需加载，最大公共JS约179.98 KB |
+| 芋道前端迁移 | IN_PROGRESS | 新底座已导入；原页面暂存于 `ref/main-frontend-snapshot/`，正按模块迁移 |
 
-## 最近验证
+## 当前重构分支验证
+
+以下结果来自 `refactor/yudao-foundation` 当前代码：
 
 ```text
 ./mvnw test
-  165 tests，0 failure，0 error
+  167 tests，0 failure，0 error
 
-pnpm test
-  1个测试文件、2个测试通过
+pnpm install --frozen-lockfile
+  依赖按芋道上游锁文件安装成功
+
+pnpm typecheck
+  通过
 
 pnpm build
-  含类型检查并通过；最大公共JS约179.98 KB（原约1.06 MB）
-
-docker compose --env-file .env.example -f infra/compose.yaml config --quiet
-  通过
+  通过；存在上游全量模块的大分块告警，后续迁移时裁剪
 ```
 
 ## 当前限制

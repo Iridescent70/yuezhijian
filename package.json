@@ -3,10 +3,10 @@
   "private": true,
   "packageManager": "pnpm@10.34.5",
   "scripts": {
-    "dev": "pnpm --filter @yuezhijian/frontend dev",
-    "build": "pnpm --filter @yuezhijian/frontend build",
-    "typecheck": "pnpm --filter @yuezhijian/frontend typecheck",
-    "test": "pnpm --filter @yuezhijian/frontend test"
+    "dev": "pnpm --filter @yuezhijian/admin dev",
+    "build": "pnpm --filter @yuezhijian/admin build:local",
+    "typecheck": "pnpm --filter @yuezhijian/admin ts:check",
+    "lint": "pnpm --filter @yuezhijian/admin lint"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

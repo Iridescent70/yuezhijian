@@ -37,6 +37,9 @@ export function createVitePlugins(isBuild = false, env: Record<string, string> =
       imports: [
         'vue',
         'vue-router',
+        {
+          'element-plus': ['ElMessage', 'ElMessageBox']
+        },
         // 可额外添加需要 autoImport 的组件
         {
           '@/hooks/web/useI18n': ['useI18n'],
@@ -66,22 +69,26 @@ export function createVitePlugins(isBuild = false, env: Record<string, string> =
       iconDirs: [pathResolve('src/assets/svgs')],
       symbolId: 'icon-[dir]-[name]'
     }),
-    isBuild && compressTypes.includes('gzip') && viteCompression({
-      verbose: true, // 是否在控制台输出压缩结果
-      disable: false, // 是否禁用
-      threshold: 10240, // 体积大于 threshold 才会被压缩,单位 b
-      algorithm: 'gzip', // 压缩算法,可选 [ 'gzip' , 'brotliCompress' ,'deflate' , 'deflateRaw']
-      ext: '.gz', // 生成的压缩包后缀
-      deleteOriginFile: false //压缩后是否删除源文件
-    }),
-    isBuild && compressTypes.includes('brotli') && viteCompression({
-      verbose: true,
-      disable: false,
-      threshold: 10240,
-      algorithm: 'brotliCompress',
-      ext: '.br',
-      deleteOriginFile: false
-    })
+    isBuild &&
+      compressTypes.includes('gzip') &&
+      viteCompression({
+        verbose: true, // 是否在控制台输出压缩结果
+        disable: false, // 是否禁用
+        threshold: 10240, // 体积大于 threshold 才会被压缩,单位 b
+        algorithm: 'gzip', // 压缩算法,可选 [ 'gzip' , 'brotliCompress' ,'deflate' , 'deflateRaw']
+        ext: '.gz', // 生成的压缩包后缀
+        deleteOriginFile: false //压缩后是否删除源文件
+      }),
+    isBuild &&
+      compressTypes.includes('brotli') &&
+      viteCompression({
+        verbose: true,
+        disable: false,
+        threshold: 10240,
+        algorithm: 'brotliCompress',
+        ext: '.br',
+        deleteOriginFile: false
+      })
   ]
 
   return plugins.filter(Boolean)

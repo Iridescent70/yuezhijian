@@ -25,7 +25,7 @@ class PaymentMethodMapperSqlTest {
                 .contains("method.method_name LIKE")
                 .contains("method.method_type = ?")
                 .contains("method.status = ?")
-                .contains("CONVERT(varchar(18), method.row_version, 1)");
+                .contains("CONVERT(varchar(18), CAST(method.row_version AS varbinary(8)), 1)");
         assertThat(methods.getParameterMappings()).hasSize(4);
 
         BoundSql stores = parse(

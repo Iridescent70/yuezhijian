@@ -1,6 +1,8 @@
 # 悦·指间管理系统
 
-基于甲方原系统重构的美甲及门店管理平台。后端代码统一放在 `backend/`，PC 前端代码统一放在 `frontend/`；旧源码仅保存在本地 `ref/legacy-source/` 供业务拆解，不进入 Git。
+基于甲方原系统重构的美甲及门店管理平台。后端代码统一放在 `backend/`，PC 前端代码统一放在 `frontend/`。
+
+`refactor/yudao-foundation` 分支使用[芋道 Vue3 管理端](https://github.com/yudaocode/yudao-ui-admin-vue3)作为新前端底座。`main@6cae2c8` 的原前端保存在 `ref/main-frontend-snapshot/` 供页面与 API 迁移对照；甲方旧源码仅保存在本地 `ref/legacy-source/`，不进入 Git。
 
 ## 本地启动
 
@@ -39,11 +41,13 @@ make verify
 ## 文档入口
 
 - [项目总计划](docs/项目总计划.md)
+- [芋道底座重构迁移方案](docs/芋道底座重构迁移方案.md)
 - [技术实施计划](plan/技术实施计划.md)
 - [API 接口计划](plan/API接口.md)
 - [页面与路由计划](plan/页面ui.md)
 - [数据库计划](plan/数据库表.md)
 - [当前开发状态](memory/DEVELOPMENT_STATUS.md)
 - [下一步开发](memory/NEXT_ACTIONS.md)
+- [重构参考资料](ref/README.md)
 
 跨会话继续开发时，先阅读 [memory/README.md](memory/README.md)。

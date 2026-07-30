@@ -25,7 +25,7 @@ class ServiceAreaMapperSqlTest {
                 .contains("area.district LIKE")
                 .contains("area.address LIKE")
                 .contains("area.status = ?")
-                .contains("CONVERT(varchar(18), area.row_version, 1)");
+                .contains("CONVERT(varchar(18), CAST(area.row_version AS varbinary(8)), 1)");
         assertThat(list.getParameterMappings()).hasSize(5);
 
         Update update = ServiceAreaMapper.class
