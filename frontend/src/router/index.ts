@@ -35,6 +35,24 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '消息中心', permission: 'notification:view' },
       },
       {
+        path: 'inventory/gifts',
+        name: 'gift-inventory',
+        component: () => import('@/views/inventory/GiftInventoryView.vue'),
+        meta: { title: '礼品库存', permission: 'inventory:stock:view' },
+      },
+      {
+        path: 'inventory/transfers',
+        name: 'inventory-transfers',
+        component: () => import('@/views/inventory/InventoryTransferView.vue'),
+        meta: { title: '礼品调拨', permission: 'inventory:transfer:view' },
+      },
+      {
+        path: 'inventory/counts',
+        name: 'inventory-counts',
+        component: () => import('@/views/inventory/InventoryCountView.vue'),
+        meta: { title: '礼品盘点', permission: 'inventory:count:view' },
+      },
+      {
         path: 'system/stores',
         name: 'stores',
         component: () => import('@/views/system/StoreListView.vue'),

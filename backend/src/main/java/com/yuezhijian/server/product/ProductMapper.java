@@ -16,7 +16,7 @@ public interface ProductMapper {
                    product.unit_id AS unitId, unit.unit_name AS unitName, product.barcode,
                    product.cost_price AS costPrice, product.sale_price AS salePrice,
                    product.track_stock AS trackStock, product.description, product.status,
-                   CONVERT(varchar(18), product.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(product.row_version AS varbinary(8)), 1) AS version
             FROM dbo.cat_product product
             JOIN dbo.cat_category category ON category.id = product.category_id
             JOIN dbo.cat_unit unit ON unit.id = product.unit_id

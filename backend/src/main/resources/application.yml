@@ -2,7 +2,7 @@ spring:
   application:
     name: yuezhijian-server
   profiles:
-    default: memory
+    default: sqlserver
   jackson:
     default-property-inclusion: non_null
   mvc:

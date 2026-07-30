@@ -28,6 +28,9 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
             "notification:view",
             "system:announcement:view", "system:announcement:manage",
             "system:notification-template:view", "system:notification-template:manage",
+            "inventory:gift:view", "inventory:gift:manage", "inventory:stock:view",
+            "inventory:transfer:view", "inventory:transfer:manage",
+            "inventory:count:view", "inventory:count:manage",
             "system:job:view", "system:job:create", "system:job:cancel",
             "org:employee:view", "org:employee:manage",
             "org:position:view", "org:position:manage",
@@ -53,6 +56,8 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
                             "member:tag:view", "member:tag:manage", "member:ownership:view",
                             "member:ownership:manage", "trade:bill:view",
                             "notification:view",
+                            "inventory:gift:view", "inventory:stock:view", "inventory:transfer:view",
+                            "inventory:count:view", "inventory:count:manage",
                             "home:service-area:view", "home:service-area:manage",
                             "system:job:view", "system:job:create", "system:job:cancel")));
 
@@ -93,6 +98,14 @@ public class MemoryAccessCatalogService implements AccessCatalogService {
                                     "visit:satisfaction:view", List.of()))),
             new MenuItem(12L, "notifications", "消息中心", "/app/notifications", "Bell", 70,
                     "notification:view", List.of()),
+            new MenuItem(13L, "inventory", "礼品库存", "/app/inventory/gifts", "Box", 62, null,
+                    List.of(
+                            new MenuItem(131L, "gift-inventory", "礼品库存", "/app/inventory/gifts", "Goods", 10,
+                                    "inventory:stock:view", List.of()),
+                            new MenuItem(132L, "inventory-transfers", "礼品调拨", "/app/inventory/transfers", "Switch", 20,
+                                    "inventory:transfer:view", List.of()),
+                            new MenuItem(133L, "inventory-counts", "礼品盘点", "/app/inventory/counts", "Checked", 30,
+                                    "inventory:count:view", List.of()))),
             new MenuItem(5L, "system", "系统管理", "/app/system", "Setting", 90, null,
                     List.of(
                             new MenuItem(51L, "stores", "组织门店", "/app/system/stores", "Shop", 10,

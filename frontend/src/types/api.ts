@@ -147,6 +147,170 @@ export interface NotificationTemplatePayload {
   status: 'ACTIVE' | 'DISABLED'
 }
 
+export type GiftStatus = 'ACTIVE' | 'DISABLED'
+export type InventoryTransferStatus = 'DRAFT' | 'CONFIRMED' | 'VOIDED' | 'REVERSED'
+export type InventoryCountStatus = 'DRAFT' | 'READY_CONFIRM' | 'CONFIRMED' | 'VOIDED'
+
+export interface Gift {
+  id: number
+  code: string
+  name: string
+  categoryId: number
+  categoryName: string
+  unitId: number
+  unitName: string
+  unitDecimalPlaces: number
+  pointPrice: number
+  costPrice: number
+  lowStockThreshold: number
+  description?: string
+  status: GiftStatus
+  version: string
+}
+
+export interface GiftPayload {
+  code: string
+  name: string
+  categoryId: number
+  unitId: number
+  pointPrice: number
+  costPrice: number
+  lowStockThreshold: number
+  description?: string
+}
+
+export interface StockItem {
+  storeId: number
+  storeName: string
+  giftId: number
+  giftCode: string
+  giftName: string
+  unitName: string
+  unitDecimalPlaces: number
+  onHandQuantity: number
+  lowStockThreshold: number
+  lowStock: boolean
+  giftStatus: GiftStatus
+  version: string
+}
+
+export interface StockLedgerItem {
+  id: number
+  ledgerNo: string
+  storeId: number
+  storeName: string
+  giftId: number
+  giftCode: string
+  giftName: string
+  transactionType: string
+  beforeQuantity: number
+  changeQuantity: number
+  afterQuantity: number
+  sourceType: string
+  sourceId: number
+  sourceLineId?: number
+  occurredAt: string
+  reversedLedgerId?: number
+  note?: string
+  operatorName: string
+}
+
+export interface TransferLine {
+  id: number
+  giftId: number
+  giftCode: string
+  giftName: string
+  unitName: string
+  unitDecimalPlaces: number
+  quantity: number
+  note?: string
+  sourceLedgerId?: number
+  targetLedgerId?: number
+}
+
+export interface TransferSummary {
+  id: number
+  transferNo: string
+  sourceStoreId: number
+  sourceStoreName: string
+  targetStoreId: number
+  targetStoreName: string
+  transferDate: string
+  lineCount: number
+  totalQuantity: number
+  status: InventoryTransferStatus
+  createdAt: string
+  createdByName: string
+  version: string
+}
+
+export interface TransferDetail {
+  id: number
+  transferNo: string
+  sourceStoreId: number
+  sourceStoreName: string
+  targetStoreId: number
+  targetStoreName: string
+  transferDate: string
+  remarks?: string
+  status: InventoryTransferStatus
+  confirmedAt?: string
+  voidedAt?: string
+  reversedAt?: string
+  actionReason?: string
+  createdAt: string
+  createdByName: string
+  version: string
+  lines: TransferLine[]
+}
+
+export interface CountLine {
+  id: number
+  giftId: number
+  giftCode: string
+  giftName: string
+  unitName: string
+  unitDecimalPlaces: number
+  bookQuantity: number
+  actualQuantity?: number
+  differenceQuantity?: number
+  stockLedgerId?: number
+}
+
+export interface CountSummary {
+  id: number
+  countNo: string
+  name: string
+  storeId: number
+  storeName: string
+  countDate: string
+  lineCount: number
+  differenceLineCount: number
+  differenceQuantity: number
+  status: InventoryCountStatus
+  createdAt: string
+  createdByName: string
+  version: string
+}
+
+export interface CountDetail {
+  id: number
+  countNo: string
+  name: string
+  storeId: number
+  storeName: string
+  countDate: string
+  remarks?: string
+  status: InventoryCountStatus
+  confirmedAt?: string
+  voidedAt?: string
+  actionReason?: string
+  createdAt: string
+  createdByName: string
+  version: string
+  lines: CountLine[]
+}
+
 export interface OperationChange {
   field: string
   label: string

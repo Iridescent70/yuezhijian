@@ -23,7 +23,7 @@ public interface OwnershipAdjustmentMapper {
                    adjustment.reviewed_by AS reviewedBy, adjustment.reviewed_at AS reviewedAt,
                    adjustment.review_comment AS reviewComment,
                    adjustment.applied_at AS appliedAt, adjustment.execution_message AS executionMessage,
-                   CONVERT(varchar(18), adjustment.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(adjustment.row_version AS varbinary(8)), 1) AS version
             FROM dbo.mem_ownership_adjustment adjustment
             JOIN dbo.mem_member member ON member.id = adjustment.member_id
             JOIN dbo.org_store old_store ON old_store.id = adjustment.old_store_id

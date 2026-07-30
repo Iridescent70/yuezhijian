@@ -5,6 +5,7 @@ ALTER TABLE dbo.sys_async_job ADD
     job_name nvarchar(200) NULL,
     store_id bigint NULL,
     expires_at datetime2(3) NULL;
+GO
 
 UPDATE dbo.sys_async_job
 SET job_name = job_type,

@@ -18,7 +18,7 @@ public interface ReversalMapper {
                    reversal.requested_by AS requestedBy, reversal.reviewed_at AS reviewedAt,
                    reversal.reviewed_by AS reviewedBy, reversal.review_comment AS reviewComment,
                    reversal.executed_at AS executedAt,
-                   CONVERT(varchar(18), reversal.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(reversal.row_version AS varbinary(8)), 1) AS version
             FROM dbo.trd_reversal reversal
             JOIN dbo.trd_bill bill ON bill.id = reversal.bill_id
             LEFT JOIN dbo.mem_member member ON member.id = bill.member_id
@@ -62,7 +62,8 @@ public interface ReversalMapper {
     @Update("""
             UPDATE dbo.trd_reversal
             SET status = #{status}, reviewed_at = sysdatetime(), reviewed_by = #{operatorId},
-                review_comment = #{comment}
+                review_comment = #{comment},
+                active_flag = CASE WHEN #{status} = 'REJECTED' THEN 0 ELSE 1 END
             WHERE id = #{id} AND status = 'SUBMITTED'
               AND row_version = CONVERT(binary(8), #{version}, 1)
             """)

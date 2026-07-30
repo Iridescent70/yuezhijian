@@ -22,7 +22,7 @@ public interface TradeMapper {
                    bill.discount_amount AS discountAmount, bill.receivable_amount AS receivableAmount,
                    bill.received_amount AS receivedAmount, bill.change_amount AS changeAmount,
                    bill.status, bill.note, bill.settled_at AS settledAt, bill.created_at AS createdAt,
-                   CONVERT(varchar(18), bill.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(bill.row_version AS varbinary(8)), 1) AS version
             FROM dbo.trd_bill bill
             LEFT JOIN dbo.mem_member member ON member.id = bill.member_id
             LEFT JOIN dbo.apt_appointment appointment ON appointment.id = bill.appointment_id
@@ -329,7 +329,7 @@ public interface TradeMapper {
 
     @Select("""
             SELECT quote.id, quote.quote_no AS quoteNo, quote.bill_id AS billId,
-                   CONVERT(varchar(18), quote.bill_row_version, 1) AS billVersion,
+                   CONVERT(varchar(18), CAST(quote.bill_row_version AS varbinary(8)), 1) AS billVersion,
                    quote.receivable_amount AS receivableAmount, quote.payment_total AS paymentTotal,
                    quote.asset_amount AS assetAmount,
                    quote.external_payment_amount AS externalPaymentAmount,

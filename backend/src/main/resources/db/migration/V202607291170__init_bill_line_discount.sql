@@ -5,10 +5,12 @@ ALTER TABLE dbo.trd_bill_line ADD
     line_status varchar(16) NOT NULL CONSTRAINT df_trd_bill_line_status DEFAULT ('ACTIVE'),
     removed_at datetime2(3) NULL,
     removed_by bigint NULL;
+GO
 
 ALTER TABLE dbo.trd_bill_line ADD
     CONSTRAINT ck_trd_bill_line_status CHECK (line_status IN ('ACTIVE', 'REMOVED')),
     CONSTRAINT fk_trd_bill_line_removed_by FOREIGN KEY (removed_by) REFERENCES dbo.iam_user(id);
+GO
 
 CREATE INDEX ix_trd_bill_line_active
     ON dbo.trd_bill_line (bill_id, line_status, line_no) INCLUDE (original_amount, receivable_amount);

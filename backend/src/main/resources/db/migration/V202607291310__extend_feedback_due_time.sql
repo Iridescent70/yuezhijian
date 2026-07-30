@@ -12,6 +12,7 @@ VALUES (
 ALTER TABLE dbo.vis_feedback ADD
     due_hours int NOT NULL CONSTRAINT df_vis_feedback_due_hours DEFAULT (24),
     due_at datetime2(3) NULL;
+GO
 
 UPDATE dbo.vis_feedback
 SET due_at = DATEADD(HOUR, due_hours, created_at)

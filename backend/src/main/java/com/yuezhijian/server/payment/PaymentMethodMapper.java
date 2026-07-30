@@ -17,7 +17,7 @@ public interface PaymentMethodMapper {
                    method.included_in_revenue AS includedInRevenue,
                    method.needs_external_ref AS needsExternalReference, method.status,
                    method.updated_at AS updatedAt,
-                   CONVERT(varchar(18), method.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(method.row_version AS varbinary(8)), 1) AS version
             FROM dbo.cat_payment_method method
             """;
 
@@ -59,7 +59,7 @@ public interface PaymentMethodMapper {
             SELECT store.id AS storeId, store.store_code AS storeCode, store.store_name AS storeName,
                    CASE WHEN config.id IS NULL THEN CAST(0 AS bit) ELSE CAST(1 AS bit) END AS applicable,
                    COALESCE(config.enabled, 0) AS enabled, COALESCE(config.sort_no, 0) AS sortNo,
-                   CONVERT(varchar(18), config.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(config.row_version AS varbinary(8)), 1) AS version
             FROM dbo.org_store store
             LEFT JOIN dbo.cat_payment_method_store config
               ON config.store_id = store.id AND config.payment_method_id = #{paymentMethodId}
@@ -75,7 +75,7 @@ public interface PaymentMethodMapper {
     @Select("""
             SELECT store.id AS storeId, store.store_code AS storeCode, store.store_name AS storeName,
                    CAST(1 AS bit) AS applicable, config.enabled, config.sort_no AS sortNo,
-                   CONVERT(varchar(18), config.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(config.row_version AS varbinary(8)), 1) AS version
             FROM dbo.cat_payment_method_store config
             JOIN dbo.org_store store ON store.id = config.store_id
             WHERE config.payment_method_id = #{paymentMethodId} AND config.store_id = #{storeId}

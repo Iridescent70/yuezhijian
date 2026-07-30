@@ -54,7 +54,7 @@ public class MasterDataService {
     }
 
     public List<CategoryOption> itemCategories(String type, boolean activeOnly) {
-        String normalized = normalize(type, Set.of("SERVICE", "PRODUCT"), "分类类型无效");
+        String normalized = normalize(type, Set.of("SERVICE", "PRODUCT", "GIFT"), "分类类型无效");
         return repository.categories(normalized, activeOnly);
     }
 
@@ -125,7 +125,7 @@ public class MasterDataService {
     }
 
     public CreatedResource createCategory(CreateCategoryRequest request, String username) {
-        String type = normalize(request.type(), Set.of("SERVICE", "PRODUCT"), "分类类型无效");
+        String type = normalize(request.type(), Set.of("SERVICE", "PRODUCT", "GIFT"), "分类类型无效");
         String code = request.code().trim().toUpperCase(Locale.ROOT);
         return repository.createCategory(new NewCategory(
                 type, code, request.name().trim(), "/" + type + "/" + code + "/",

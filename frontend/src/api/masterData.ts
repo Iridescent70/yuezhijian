@@ -75,7 +75,7 @@ export function getServiceCategories(): Promise<CategoryOption[]> {
   return apiRequest<CategoryOption[]>({ method: 'GET', url: '/item-categories', params: { type: 'SERVICE' } })
 }
 
-export function getItemCategories(type: 'PRODUCT' | 'SERVICE', activeOnly = true): Promise<CategoryOption[]> {
+export function getItemCategories(type: 'PRODUCT' | 'SERVICE' | 'GIFT', activeOnly = true): Promise<CategoryOption[]> {
   return apiRequest<CategoryOption[]>({ method: 'GET', url: '/item-categories', params: { type, activeOnly } })
 }
 

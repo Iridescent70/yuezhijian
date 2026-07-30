@@ -21,7 +21,8 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
             new PositionOption(3L, "RECEPTION", "前台/收银", 5, BigDecimal.ZERO, BigDecimal.ZERO, "ACTIVE", "1")));
     private final List<CategoryOption> categories = new ArrayList<>(List.of(
             new CategoryOption(1L, "NAIL_SERVICE", "美甲服务", "SERVICE", 10, "ACTIVE", "1"),
-            new CategoryOption(2L, "RETAIL_PRODUCT", "零售产品", "PRODUCT", 10, "ACTIVE", "1")));
+            new CategoryOption(2L, "RETAIL_PRODUCT", "零售产品", "PRODUCT", 10, "ACTIVE", "1"),
+            new CategoryOption(3L, "POINT_GIFT", "积分礼品", "GIFT", 10, "ACTIVE", "1")));
     private final List<UnitOption> units = new ArrayList<>(List.of(
             new UnitOption(1L, "TIME", "次", 0, "ACTIVE", "1"),
             new UnitOption(2L, "PIECE", "件", 0, "ACTIVE", "1"),
@@ -39,7 +40,7 @@ public class MemoryMasterDataRepository implements MasterDataRepository {
     private final Map<Long, ServiceItemDetail> services = new LinkedHashMap<>();
     private final AtomicLong employeeIds = new AtomicLong(102);
     private final AtomicLong positionIds = new AtomicLong(3);
-    private final AtomicLong categoryIds = new AtomicLong(2);
+    private final AtomicLong categoryIds = new AtomicLong(3);
     private final AtomicLong unitIds = new AtomicLong(3);
     private final AtomicLong workstationIds = new AtomicLong(202);
     private final AtomicLong serviceIds = new AtomicLong(302);

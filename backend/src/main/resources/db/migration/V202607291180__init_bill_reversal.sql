@@ -17,7 +17,7 @@ CREATE TABLE dbo.trd_reversal (
     review_comment nvarchar(1000) NULL,
     executed_at datetime2(3) NULL,
     executed_by bigint NULL,
-    active_bill_id AS (CASE WHEN status = 'REJECTED' THEN NULL ELSE bill_id END) PERSISTED,
+    active_flag bit NOT NULL CONSTRAINT df_trd_reversal_active DEFAULT (1),
     row_version rowversion NOT NULL,
     CONSTRAINT uq_trd_reversal_no UNIQUE (reversal_no),
     CONSTRAINT uq_trd_reversal_request_key UNIQUE (request_idempotency_key),
@@ -27,11 +27,15 @@ CREATE TABLE dbo.trd_reversal (
     CONSTRAINT fk_trd_reversal_reviewer FOREIGN KEY (reviewed_by) REFERENCES dbo.iam_user(id),
     CONSTRAINT fk_trd_reversal_executor FOREIGN KEY (executed_by) REFERENCES dbo.iam_user(id),
     CONSTRAINT ck_trd_reversal_amount CHECK (refund_amount > 0),
-    CONSTRAINT ck_trd_reversal_status CHECK (status IN ('SUBMITTED', 'APPROVED', 'REJECTED', 'EXECUTED'))
+    CONSTRAINT ck_trd_reversal_status CHECK (status IN ('SUBMITTED', 'APPROVED', 'REJECTED', 'EXECUTED')),
+    CONSTRAINT ck_trd_reversal_active CHECK (
+        (status = 'REJECTED' AND active_flag = 0)
+        OR (status IN ('SUBMITTED', 'APPROVED', 'EXECUTED') AND active_flag = 1)
+    )
 );
 
 CREATE UNIQUE INDEX ux_trd_reversal_active_bill
-    ON dbo.trd_reversal (active_bill_id) WHERE active_bill_id IS NOT NULL;
+    ON dbo.trd_reversal (bill_id) WHERE active_flag = 1;
 CREATE INDEX ix_trd_reversal_status_time
     ON dbo.trd_reversal (status, requested_at DESC, id DESC);
 

@@ -17,7 +17,7 @@ public interface BannerMapper {
                    banner.valid_from AS validFrom, banner.valid_to AS validTo, banner.status,
                    banner.updated_at AS updatedAt, banner.updated_by AS updatedBy,
                    COALESCE(operator.full_name, operator.username, N'系统任务') AS updatedByName,
-                   CONVERT(varchar(18), banner.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(banner.row_version AS varbinary(8)), 1) AS version
             FROM dbo.cfg_banner banner
             JOIN dbo.sys_file_object image ON image.id = banner.image_file_id AND image.status = 'ACTIVE'
             LEFT JOIN dbo.iam_user operator ON operator.id = banner.updated_by

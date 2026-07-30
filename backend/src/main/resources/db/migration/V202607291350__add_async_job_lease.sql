@@ -5,6 +5,7 @@ ALTER TABLE dbo.sys_async_job ADD
     lease_token varchar(36) NULL,
     lease_expires_at datetime2(3) NULL,
     attempt_count int NOT NULL CONSTRAINT df_sys_async_job_attempt_count DEFAULT (0);
+GO
 
 ALTER TABLE dbo.sys_async_job ADD CONSTRAINT ck_sys_async_job_attempt_count
     CHECK (attempt_count BETWEEN 0 AND 10);

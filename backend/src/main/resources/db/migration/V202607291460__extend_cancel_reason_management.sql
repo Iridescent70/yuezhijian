@@ -3,6 +3,7 @@
 -- 恢复：共享环境执行后只通过更高版本Migration修复；不得删除已被历史业务引用的原因。
 
 ALTER TABLE dbo.sys_cancel_reason ADD created_by bigint NULL, updated_by bigint NULL;
+GO
 
 ALTER TABLE dbo.sys_cancel_reason ADD
     CONSTRAINT fk_sys_cancel_reason_created_by FOREIGN KEY (created_by) REFERENCES dbo.iam_user(id),

@@ -18,7 +18,7 @@ public interface ColorStyleMapper {
                    category.sort_no AS sortNo, category.status, category.updated_at AS updatedAt,
                    category.updated_by AS updatedBy,
                    COALESCE(operator.full_name, operator.username, N'系统任务') AS updatedByName,
-                   CONVERT(varchar(18), category.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(category.row_version AS varbinary(8)), 1) AS version
             FROM dbo.cat_color_style_category category
             LEFT JOIN dbo.sys_file_object image
               ON image.id = category.image_file_id AND image.status = 'ACTIVE'
@@ -30,7 +30,7 @@ public interface ColorStyleMapper {
                    style.description, style.sort_no AS sortNo, style.status,
                    style.updated_at AS updatedAt, style.updated_by AS updatedBy,
                    COALESCE(operator.full_name, operator.username, N'系统任务') AS updatedByName,
-                   CONVERT(varchar(18), style.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(style.row_version AS varbinary(8)), 1) AS version
             FROM dbo.cat_color_style style
             LEFT JOIN dbo.iam_user operator ON operator.id = style.updated_by
             """;
@@ -39,7 +39,7 @@ public interface ColorStyleMapper {
             SELECT asset.id, asset.color_style_id AS colorStyleId, asset.file_id AS fileId,
                    file_object.original_name AS fileName, file_object.content_type AS contentType,
                    asset.sort_no AS sortNo, asset.status, asset.updated_at AS updatedAt,
-                   CONVERT(varchar(18), asset.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(asset.row_version AS varbinary(8)), 1) AS version
             FROM dbo.cat_color_style_asset asset
             JOIN dbo.sys_file_object file_object
               ON file_object.id = asset.file_id AND file_object.status = 'ACTIVE'

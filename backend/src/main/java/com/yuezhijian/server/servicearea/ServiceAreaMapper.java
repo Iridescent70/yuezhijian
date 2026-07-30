@@ -14,7 +14,7 @@ public interface ServiceAreaMapper {
                    area.longitude, area.latitude, area.radius_km AS radiusKm,
                    area.visit_fee AS visitFee, area.status, area.updated_at AS updatedAt,
                    area.updated_by AS updatedBy, COALESCE(operator.full_name, N'系统任务') AS updatedByName,
-                   CONVERT(varchar(18), area.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(area.row_version AS varbinary(8)), 1) AS version
             FROM dbo.cfg_service_area area
             JOIN dbo.org_store store ON store.id = area.store_id
             LEFT JOIN dbo.iam_user operator ON operator.id = area.updated_by

@@ -425,12 +425,12 @@ public interface CardMapper {
                    old_card.card_type_name_snapshot AS oldCardTypeName,
                    quote.target_card_type_id AS targetCardTypeId,
                    target.card_type_name AS targetCardTypeName,
-                   CONVERT(varchar(18), quote.target_card_type_row_version, 1) AS targetCardTypeVersion,
+                   CONVERT(varchar(18), CAST(quote.target_card_type_row_version AS varbinary(8)), 1) AS targetCardTypeVersion,
                    quote.old_remaining_times AS oldRemainingTimes,
                    quote.old_remaining_value AS oldRemainingValue,
                    quote.new_card_value AS newCardValue,
                    quote.difference_amount AS differenceAmount,
-                   CONVERT(varchar(18), quote.old_card_row_version, 1) AS oldCardVersion,
+                   CONVERT(varchar(18), CAST(quote.old_card_row_version AS varbinary(8)), 1) AS oldCardVersion,
                    quote.expires_at AS expiresAt,
                    CASE WHEN quote.used_at IS NULL THEN CAST(0 AS bit) ELSE CAST(1 AS bit) END AS used
             FROM dbo.ast_card_exchange_quote quote
@@ -739,7 +739,7 @@ public interface CardMapper {
                    card.member_id AS memberId, quote.original_amount AS originalAmount,
                    quote.consumed_reprice_amount AS consumedRepriceAmount,
                    quote.fee_amount AS feeAmount, quote.refund_amount AS refundAmount,
-                   CONVERT(varchar(18), quote.card_row_version, 1) AS cardVersion,
+                   CONVERT(varchar(18), CAST(quote.card_row_version AS varbinary(8)), 1) AS cardVersion,
                    quote.expires_at AS expiresAt,
                    CASE WHEN quote.used_at IS NULL THEN CAST(0 AS bit) ELSE CAST(1 AS bit) END AS used
             FROM dbo.ast_card_refund_quote quote
@@ -818,8 +818,8 @@ public interface CardMapper {
                    request.reason, request.requested_at AS requestedAt, request.requested_by AS requestedBy,
                    request.reviewed_at AS reviewedAt, request.reviewed_by AS reviewedBy,
                    request.review_comment AS reviewComment, request.executed_at AS executedAt,
-                   CONVERT(varchar(18), request.card_row_version, 1) AS cardVersion,
-                   CONVERT(varchar(18), request.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(request.card_row_version AS varbinary(8)), 1) AS cardVersion,
+                   CONVERT(varchar(18), CAST(request.row_version AS varbinary(8)), 1) AS version
             FROM dbo.ast_card_refund_request request
             JOIN dbo.ast_member_card card ON card.id = request.member_card_id
             JOIN dbo.mem_member member ON member.id = request.member_id
@@ -863,7 +863,8 @@ public interface CardMapper {
     @Update("""
             UPDATE dbo.ast_card_refund_request
             SET status = #{status}, reviewed_at = sysdatetime(), reviewed_by = #{operatorId},
-                review_comment = #{comment}
+                review_comment = #{comment},
+                active_flag = CASE WHEN #{status} = 'REJECTED' THEN 0 ELSE 1 END
             WHERE id = #{id} AND status = 'SUBMITTED'
               AND row_version = CONVERT(binary(8), #{version}, 1)
             """)

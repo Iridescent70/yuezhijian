@@ -18,7 +18,7 @@ public interface NotificationMapper {
                    message.published_at AS publishedAt, message.created_at AS createdAt,
                    message.updated_at AS updatedAt, message.updated_by AS updatedBy,
                    COALESCE(operator.full_name, operator.username, N'系统任务') AS updatedByName,
-                   CONVERT(varchar(18), message.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(message.row_version AS varbinary(8)), 1) AS version
             FROM dbo.ntf_message message
             LEFT JOIN dbo.iam_user operator ON operator.id = message.updated_by
             """;
@@ -272,7 +272,7 @@ public interface NotificationMapper {
                    template.body_template AS bodyTemplate, template.variables_csv AS variablesCsv,
                    template.status, template.updated_at AS updatedAt, template.updated_by AS updatedBy,
                    COALESCE(operator.full_name, operator.username, N'系统初始化') AS updatedByName,
-                   CONVERT(varchar(18), template.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(template.row_version AS varbinary(8)), 1) AS version
             FROM dbo.ntf_template template
             LEFT JOIN dbo.iam_user operator ON operator.id = template.updated_by
             WHERE 1 = 1
@@ -293,7 +293,7 @@ public interface NotificationMapper {
                    template.body_template AS bodyTemplate, template.variables_csv AS variablesCsv,
                    template.status, template.updated_at AS updatedAt, template.updated_by AS updatedBy,
                    COALESCE(operator.full_name, operator.username, N'系统初始化') AS updatedByName,
-                   CONVERT(varchar(18), template.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(template.row_version AS varbinary(8)), 1) AS version
             FROM dbo.ntf_template template
             LEFT JOIN dbo.iam_user operator ON operator.id = template.updated_by
             WHERE template.id = #{id}
@@ -306,7 +306,7 @@ public interface NotificationMapper {
                    template.body_template AS bodyTemplate, template.variables_csv AS variablesCsv,
                    template.status, template.updated_at AS updatedAt, template.updated_by AS updatedBy,
                    COALESCE(operator.full_name, operator.username, N'系统初始化') AS updatedByName,
-                   CONVERT(varchar(18), template.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(template.row_version AS varbinary(8)), 1) AS version
             FROM dbo.ntf_template template
             LEFT JOIN dbo.iam_user operator ON operator.id = template.updated_by
             WHERE template.event_code = #{eventCode} AND template.status = 'ACTIVE'

@@ -123,6 +123,8 @@ CREATE UNIQUE INDEX ux_ben_voucher_ledger_reversed
     ON dbo.ben_voucher_ledger (reversed_ledger_id) WHERE reversed_ledger_id IS NOT NULL;
 
 ALTER TABLE dbo.trd_settlement_quote_asset ADD voucher_code_id bigint NULL;
+GO
+
 ALTER TABLE dbo.trd_settlement_quote_asset ADD CONSTRAINT fk_trd_quote_asset_voucher
     FOREIGN KEY (voucher_code_id) REFERENCES dbo.ben_voucher_code(id);
 ALTER TABLE dbo.trd_settlement_quote_asset DROP CONSTRAINT ck_trd_quote_asset_type;
@@ -139,6 +141,8 @@ ALTER TABLE dbo.trd_settlement_quote_asset ADD CONSTRAINT ck_trd_quote_asset_ref
 );
 
 ALTER TABLE dbo.trd_bill_asset_usage ADD voucher_code_id bigint NULL;
+GO
+
 ALTER TABLE dbo.trd_bill_asset_usage ADD CONSTRAINT fk_trd_asset_usage_voucher
     FOREIGN KEY (voucher_code_id) REFERENCES dbo.ben_voucher_code(id);
 ALTER TABLE dbo.trd_bill_asset_usage DROP CONSTRAINT ck_trd_asset_usage_type;

@@ -12,9 +12,29 @@ import org.apache.ibatis.mapping.BoundSql;
 import org.apache.ibatis.mapping.SqlSource;
 import org.apache.ibatis.scripting.xmltags.XMLLanguageDriver;
 import org.apache.ibatis.session.Configuration;
+import org.apache.ibatis.type.JdbcType;
 import org.junit.jupiter.api.Test;
 
 class MemberMapperSqlTest {
+    @Test
+    void nullableBirthdayIsBoundAsSqlDate() throws Exception {
+        Method insertMethod = MemberMapper.class.getMethod("insertMember", NewMemberRow.class);
+        String insertSql = String.join(" ", insertMethod.getAnnotation(Select.class).value());
+        Configuration configuration = new Configuration();
+        SqlSource insertSource = new XMLLanguageDriver().createSqlSource(
+                configuration, "<script>" + insertSql + "</script>", NewMemberRow.class);
+
+        BoundSql boundSql = insertSource.getBoundSql(new NewMemberRow(
+                "M001", "会员", null, "UNKNOWN", null, "ciphertext", "hash", "0000",
+                null, "MANUAL", 1L, 1L, null, 1L, 1L));
+
+        assertThat(boundSql.getParameterMappings())
+                .filteredOn(mapping -> mapping.getProperty().equals("birthday"))
+                .singleElement()
+                .extracting(mapping -> mapping.getJdbcType())
+                .isEqualTo(JdbcType.DATE);
+    }
+
     @Test
     void dynamicMemberSearchSqlCanBeParsedWithRecordParameters() throws Exception {
         Method method = MemberMapper.class.getMethod(

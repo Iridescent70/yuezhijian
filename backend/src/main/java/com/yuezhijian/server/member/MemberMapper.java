@@ -144,7 +144,7 @@ public interface MemberMapper {
             )
             OUTPUT INSERTED.id
             VALUES (
-                #{memberNo}, #{fullName}, #{nickname}, #{gender}, #{birthday},
+                #{memberNo}, #{fullName}, #{nickname}, #{gender}, #{birthday,jdbcType=DATE},
                 #{mobileCiphertext}, #{mobileHash}, #{mobileLast4}, #{email}, #{sourceType},
                 #{joinStoreId}, #{ownerStoreId}, #{advisorEmployeeId}, #{levelId},
                 #{createdBy}, #{createdBy}
@@ -181,7 +181,7 @@ public interface MemberMapper {
             <script>
             UPDATE dbo.mem_member
             SET full_name = #{command.fullName}, nickname = #{command.nickname},
-                gender = #{command.gender}, birthday = #{command.birthday}, email = #{command.email},
+                gender = #{command.gender}, birthday = #{command.birthday,jdbcType=DATE}, email = #{command.email},
                 advisor_employee_id = #{command.advisorEmployeeId}, special_flag = #{command.special},
                 <if test="mobileCiphertext != null">
                 mobile_ciphertext = #{mobileCiphertext}, mobile_hash = #{mobileHash}, mobile_last4 = #{mobileLast4},

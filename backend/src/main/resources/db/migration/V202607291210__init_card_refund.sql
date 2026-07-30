@@ -74,7 +74,7 @@ CREATE TABLE dbo.ast_card_refund_request (
     review_comment nvarchar(1000) NULL,
     executed_at datetime2(3) NULL,
     executed_by bigint NULL,
-    active_card_id AS (CASE WHEN status = 'REJECTED' THEN NULL ELSE member_card_id END) PERSISTED,
+    active_flag bit NOT NULL CONSTRAINT df_ast_card_refund_active DEFAULT (1),
     row_version rowversion NOT NULL,
     CONSTRAINT uq_ast_card_refund_request_no UNIQUE (request_no),
     CONSTRAINT uq_ast_card_refund_request_quote UNIQUE (quote_id),
@@ -90,6 +90,10 @@ CREATE TABLE dbo.ast_card_refund_request (
     CONSTRAINT fk_ast_card_refund_request_reviewer FOREIGN KEY (reviewed_by) REFERENCES dbo.iam_user(id),
     CONSTRAINT fk_ast_card_refund_request_executor FOREIGN KEY (executed_by) REFERENCES dbo.iam_user(id),
     CONSTRAINT ck_ast_card_refund_request_status CHECK (status IN ('SUBMITTED','APPROVED','REJECTED','EXECUTED')),
+    CONSTRAINT ck_ast_card_refund_active CHECK (
+        (status = 'REJECTED' AND active_flag = 0)
+        OR (status IN ('SUBMITTED','APPROVED','EXECUTED') AND active_flag = 1)
+    ),
     CONSTRAINT ck_ast_card_refund_commission_status CHECK (
         commission_adjustment_status IN ('PENDING_MODULE','COMPLETED','NOT_APPLICABLE')
     ),
@@ -97,7 +101,7 @@ CREATE TABLE dbo.ast_card_refund_request (
 );
 
 CREATE UNIQUE INDEX ux_ast_card_refund_active_card
-    ON dbo.ast_card_refund_request (active_card_id) WHERE active_card_id IS NOT NULL;
+    ON dbo.ast_card_refund_request (member_card_id) WHERE active_flag = 1;
 CREATE INDEX ix_ast_card_refund_status_time
     ON dbo.ast_card_refund_request (status, requested_at DESC, id DESC);
 

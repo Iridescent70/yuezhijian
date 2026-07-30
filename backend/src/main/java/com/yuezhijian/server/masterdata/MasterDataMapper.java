@@ -14,7 +14,7 @@ public interface MasterDataMapper {
             <script>
             SELECT id, position_code AS code, position_name AS name, position_level AS level,
                    default_service_rate AS defaultServiceRate, default_sales_rate AS defaultSalesRate,
-                   status, CONVERT(varchar(18), row_version, 1) AS version
+                   status, CONVERT(varchar(18), CAST(row_version AS varbinary(8)), 1) AS version
             FROM dbo.org_position
             <if test="activeOnly">
             WHERE status = 'ACTIVE'
@@ -27,7 +27,7 @@ public interface MasterDataMapper {
     @Select("""
             SELECT id, position_code AS code, position_name AS name, position_level AS level,
                    default_service_rate AS defaultServiceRate, default_sales_rate AS defaultSalesRate,
-                   status, CONVERT(varchar(18), row_version, 1) AS version
+                   status, CONVERT(varchar(18), CAST(row_version AS varbinary(8)), 1) AS version
             FROM dbo.org_position
             WHERE id = #{id}
             """)
@@ -36,7 +36,7 @@ public interface MasterDataMapper {
     @Select("""
             <script>
             SELECT id, category_code AS code, name, category_type AS type, sort_no AS sortNo, status,
-                   CONVERT(varchar(18), row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(row_version AS varbinary(8)), 1) AS version
             FROM dbo.cat_category
             WHERE category_type = #{type}
             <if test="activeOnly">
@@ -50,7 +50,7 @@ public interface MasterDataMapper {
 
     @Select("""
             SELECT id, category_code AS code, name, category_type AS type, sort_no AS sortNo, status,
-                   CONVERT(varchar(18), row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(row_version AS varbinary(8)), 1) AS version
             FROM dbo.cat_category
             WHERE id = #{id}
             """)
@@ -59,7 +59,7 @@ public interface MasterDataMapper {
     @Select("""
             <script>
             SELECT id, unit_code AS code, unit_name AS name, decimal_places AS decimalPlaces, status,
-                   CONVERT(varchar(18), row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(row_version AS varbinary(8)), 1) AS version
             FROM dbo.cat_unit
             <if test="activeOnly">
               WHERE status = 'ACTIVE'
@@ -71,7 +71,7 @@ public interface MasterDataMapper {
 
     @Select("""
             SELECT id, unit_code AS code, unit_name AS name, decimal_places AS decimalPlaces, status,
-                   CONVERT(varchar(18), row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(row_version AS varbinary(8)), 1) AS version
             FROM dbo.cat_unit
             WHERE id = #{id}
             """)
@@ -86,7 +86,7 @@ public interface MasterDataMapper {
                    e.primary_store_id AS storeId, s.store_name AS storeName,
                    e.hire_date AS hireDate, e.leave_date AS leaveDate,
                    e.can_service AS canService, e.can_sell AS canSell, e.status,
-                   CONVERT(varchar(18), e.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(e.row_version AS varbinary(8)), 1) AS version
             FROM dbo.org_employee e
             LEFT JOIN dbo.org_position p ON p.id = e.position_id
             LEFT JOIN dbo.org_store s ON s.id = e.primary_store_id
@@ -111,7 +111,7 @@ public interface MasterDataMapper {
                    e.primary_store_id AS storeId, s.store_name AS storeName,
                    e.hire_date AS hireDate, e.leave_date AS leaveDate,
                    e.can_service AS canService, e.can_sell AS canSell, e.status,
-                   CONVERT(varchar(18), e.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(e.row_version AS varbinary(8)), 1) AS version
             FROM dbo.org_employee e
             LEFT JOIN dbo.org_position p ON p.id = e.position_id
             LEFT JOIN dbo.org_store s ON s.id = e.primary_store_id
@@ -123,7 +123,7 @@ public interface MasterDataMapper {
             <script>
             SELECT w.id, w.store_id AS storeId, s.store_name AS storeName,
                    w.workstation_code AS code, w.name, w.capacity, w.sort_no AS sortNo, w.status,
-                   CONVERT(varchar(18), w.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(w.row_version AS varbinary(8)), 1) AS version
             FROM dbo.org_workstation w
             JOIN dbo.org_store s ON s.id = w.store_id
             WHERE 1 = 1
@@ -138,7 +138,7 @@ public interface MasterDataMapper {
     @Select("""
             SELECT w.id, w.store_id AS storeId, s.store_name AS storeName,
                    w.workstation_code AS code, w.name, w.capacity, w.sort_no AS sortNo, w.status,
-                   CONVERT(varchar(18), w.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(w.row_version AS varbinary(8)), 1) AS version
             FROM dbo.org_workstation w
             JOIN dbo.org_store s ON s.id = w.store_id
             WHERE w.id = #{id}
@@ -183,7 +183,7 @@ public interface MasterDataMapper {
                    service.category_id AS categoryId, category.name AS categoryName,
                    service.duration_minutes AS durationMinutes, service.cost_amount AS costAmount,
                    service.list_price AS listPrice, service.description, service.status,
-                   CONVERT(varchar(18), service.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(service.row_version AS varbinary(8)), 1) AS version
             FROM dbo.cat_service service
             JOIN dbo.cat_category category ON category.id = service.category_id
             WHERE service.id = #{id}
@@ -195,7 +195,7 @@ public interface MasterDataMapper {
                    service.category_id AS categoryId, category.name AS categoryName,
                    service.duration_minutes AS durationMinutes, service.cost_amount AS costAmount,
                    service.list_price AS listPrice, service.description, service.status,
-                   CONVERT(varchar(18), service.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(service.row_version AS varbinary(8)), 1) AS version
             FROM dbo.cat_service service
             JOIN dbo.cat_category category ON category.id = service.category_id
             WHERE service.service_code = #{code}

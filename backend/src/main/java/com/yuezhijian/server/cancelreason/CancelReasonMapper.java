@@ -14,7 +14,7 @@ public interface CancelReasonMapper {
                    reason.sort_no AS sortNo, reason.status, reason.updated_at AS updatedAt,
                    reason.updated_by AS updatedBy,
                    COALESCE(account.full_name, account.username, N'系统初始化') AS updatedByName,
-                   CONVERT(varchar(18), reason.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(reason.row_version AS varbinary(8)), 1) AS version
             FROM dbo.sys_cancel_reason reason
             LEFT JOIN dbo.iam_user account ON account.id = reason.updated_by
             """;

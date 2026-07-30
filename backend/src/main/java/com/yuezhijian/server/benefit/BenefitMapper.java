@@ -15,7 +15,7 @@ public interface BenefitMapper {
             id, voucher_code AS code, voucher_name AS name, benefit_type AS benefitType,
             face_amount AS faceAmount, discount_rate AS discountRate, min_spend AS minSpend,
             valid_days AS validDays, commission_rule AS commissionRule, status,
-            CONVERT(varchar(18), row_version, 1) AS version
+            CONVERT(varchar(18), CAST(row_version AS varbinary(8)), 1) AS version
             """;
 
     String CODE_SELECT = """
@@ -27,7 +27,7 @@ public interface BenefitMapper {
                    code.valid_from AS validFrom, code.valid_until AS validUntil, code.status,
                    code.bound_at AS boundAt, code.redeemed_at AS redeemedAt,
                    code.redeemed_bill_id AS redeemedBillId,
-                   CONVERT(varchar(18), code.row_version, 1) AS version
+                   CONVERT(varchar(18), CAST(code.row_version AS varbinary(8)), 1) AS version
             FROM dbo.ben_voucher_code code
             LEFT JOIN dbo.mem_member member ON member.id = code.member_id
             """;

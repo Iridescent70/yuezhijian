@@ -9,7 +9,7 @@
 | 工程目录 | DONE | 后端 `backend/`，PC前端 `frontend/` |
 | 工具链 | DONE | Java 21.0.11、Maven 3.9.15、Node 24.18.0、pnpm 10.34.5 |
 | 本地基础设施配置 | DONE | SQL Server、MinIO及可选Redis Compose已建立 |
-| SQL Server镜像 | BLOCKED | 本机尚无2022镜像，真实空库Migration验证待执行 |
+| SQL Server镜像 | IN_PROGRESS | 2022镜像正在本机拉取；完成后立即执行空库Migration和API直查验收 |
 | CI与工程命令 | DONE | Maven Wrapper、pnpm workspace、Makefile、GitHub Actions可用 |
 
 ## 已完成模块
@@ -45,6 +45,7 @@
 | 首页图片管理 | DONE | PC/到家展示位置、私有图片、站内或HTTPS跳转、排序、有效期、启停、rowversion、统一审计及PC工作台展示 |
 | 线上试色管理 | PARTIAL | 分层分类/分类图片、色号多分类、多张私有素材、排序、启停、rowversion、并发数量保护、审计及管理页已完成；合同导入格式待确认 |
 | 通知公告与站内消息 | PARTIAL | 公告门店范围/有效期/发布、用户阅读、未读角标、工作台展示、模板管理/测试和账单冲销通知已完成；其余自动事件及外部通道未接 |
+| 礼品库存、调拨与盘点 | PARTIAL | 礼品资料、门店余额、不可变流水、调拨确认/冲销、盘点快照/盈亏调整、权限和三个PC页面已编码并通过自动化测试；SQL Server真实落库验收进行中 |
 | 预约核心闭环 | DONE | 查询、可约时段、创建、改期、详情和7态状态机，支持冲突与幂等 |
 | 预约PC页面 | DONE | `/app/appointments`、`/calendar`、`/new`，含详情处理和可约时段 |
 | 开单结算闭环 | DONE | 手工/预约转账单、项目快照、混合支付试算、结算幂等和作废 |
@@ -85,20 +86,20 @@
 | 服务分析与档案 | TODO | 咨询卡、色号、赔付审批及主动消息提醒尚未开发；处理附件已完成 |
 | 完整薪酬规则 | TODO | 累计阶梯、多人分配、店长提成、跨月扣减、借调和工资计算尚未开发 |
 | 敏感字段保护 | DONE | AES-256-GCM密文、带pepper检索哈希、手机号接口脱敏 |
-| 数据库版本 | DONE | 0900、0910、1030、1100至1490共43个Migration脚本及人工记录 |
-| 前端按需加载 | DONE | Element Plus按需加载，最大公共JS约178.73 KB |
+| 数据库版本 | DONE | 0900、0910、1030、1100至1500共44个Migration脚本及人工记录 |
+| 前端按需加载 | DONE | Element Plus按需加载，最大公共JS约179.98 KB |
 
 ## 最近验证
 
 ```text
 ./mvnw test
-  159 tests，0 failure，0 error
+  165 tests，0 failure，0 error
 
 pnpm test
   1个测试文件、2个测试通过
 
 pnpm build
-  含类型检查并通过；最大公共JS约178.73 KB（原约1.06 MB）
+  含类型检查并通过；最大公共JS约179.98 KB（原约1.06 MB）
 
 docker compose --env-file .env.example -f infra/compose.yaml config --quiet
   通过
@@ -106,7 +107,7 @@ docker compose --env-file .env.example -f infra/compose.yaml config --quiet
 
 ## 当前限制
 
-- 本地缺少`.env.local`且当前用户无Docker socket权限，43个Migration、数据库版Mapper、任务租约竞争/强杀恢复、到期结果清理及真实MinIO适配尚未联通验证。
+- 本地`.env.local`和Docker权限已经就绪，SQL Server 2022镜像正在拉取；44个Migration、数据库版Mapper、任务租约竞争/强杀恢复、到期结果清理及真实MinIO适配仍须在容器内联通验证。memory profile只用于隔离测试，不能作为功能完成或验收证据。
 - 会话门店切换及现有核心营业、会员资产、提成、回访、反馈、归属审批和主数据接口范围已完成；后续新增模块必须在首次实现时接入统一范围。
 - 甲方数据库备份、完整数据字典、齐总版和钇休版代码尚未进入工作区。
 - 数据中心5项、AI最终输出范围、支付/短信通道及部分计算口径仍需甲方确认。
@@ -134,3 +135,4 @@ docker compose --env-file .env.example -f infra/compose.yaml config --quiet
 - 首页图片已完成总部管理和PC工作台展示；到家端尚无页面，不能把`HOME_SERVICE_HOME`标记为展示闭环；甲方未确认图片裁剪比例，因此当前保留原图并仅校验格式与10 MiB上限。替换图片会软删除旧文件元数据，物理对象仍待统一业务文件保留期清理。
 - 线上试色的分类、色号、多分类关系和多素材维护已完成；合同“导入”仍缺CSV/Excel字段、分类层级表达、图片压缩包/命名、重复编码覆盖策略和单批上限，当前不提供临时模板。会员收藏、客户WAP展示和旧数据搬运也不属于本轮已完成范围。
 - 通知公告、门店分发、有效期、置顶、用户阅读、模板维护/测试、顶部角标、工作台展示和账单冲销自动通知已完成；独立储值/次卡冲销状态机尚未实现，预约、到期、生日、余额、消费、日报、异常账单和对账自动通知也未接触发任务。短信和微信公众号通道未接，旧公告HTML迁移前必须清洗。
+- 礼品资料、库存余额/流水、调拨和盘点代码已完成自动化验证；积分兑换尚未扣积分和出库，旧库期初库存/成本/礼品编码映射仍需甲方备份，真实SQL Server验证完成前保持PARTIAL。

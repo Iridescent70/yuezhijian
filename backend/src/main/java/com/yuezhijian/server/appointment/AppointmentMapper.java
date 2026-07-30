@@ -21,7 +21,7 @@ public interface AppointmentMapper {
                    a.person_count AS personCount, employee_slot.employee_id AS employeeId,
                    employee_slot.employee_name AS employeeName, a.workstation_id AS workstationId,
                    workstation.name AS workstationName, service_names.names AS serviceNames,
-                   a.note, a.status, CONVERT(varchar(18), a.row_version, 1) AS version
+                   a.note, a.status, CONVERT(varchar(18), CAST(a.row_version AS varbinary(8)), 1) AS version
             FROM dbo.apt_appointment a
             LEFT JOIN dbo.mem_member member ON member.id = a.member_id
             JOIN dbo.org_store store ON store.id = a.store_id

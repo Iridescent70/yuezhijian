@@ -2,6 +2,7 @@
 -- 目的：将储值、积分和次卡接入结算试算，保存资产版本快照并在结算时原子扣减。
 
 ALTER TABLE dbo.trd_bill ADD settlement_idempotency_key varchar(128) NULL;
+GO
 CREATE UNIQUE INDEX ux_trd_bill_settlement_idempotency
     ON dbo.trd_bill (settlement_idempotency_key) WHERE settlement_idempotency_key IS NOT NULL;
 

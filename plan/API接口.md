@@ -138,13 +138,13 @@
 | API-CAT-020 | `PUT /payment-methods/{id}`、`PUT /payment-methods/{id}/stores/{storeId}`、`PUT /payment-methods/sort` | 全局定义/version；门店适用、启用、顺序、门店配置version；全量排序项 | 更新结果；全局维护仅总部，门店配置强制数据范围和rowversion；已实现 | 系统管理-29、优化系统管理-02 |
 | API-CAT-021 | `GET/POST /vouchers` | 关键词和状态查询；编码、名称、金额/折扣、门槛、有效天数和提成口径 | 定义列表/详情；`benefit:voucher:view/manage` | 系统管理-16 |
 | API-CAT-022 | `GET/PUT /vouchers/{id}` | 详情；规则、状态和`version` | 详情/并发安全更新结果；`benefit:voucher:view/manage` | 系统管理-16 |
-| API-CAT-023 | `GET/POST /gifts` | 查询/编码、名称、积分价、状态 | 分页/id | 系统管理-23~26 |
-| API-INV-001 | `GET /inventories` | 门店、物品、低库存 | 现存量分页 | 系统管理-25 |
-| API-INV-002 | `GET/POST /inventory-transfers` | 查询/调出入门店、明细 | 单据分页/id | 系统管理-23 |
-| API-INV-003 | `POST /inventory-transfers/{id}/confirm`、`/void`、`/reverse` | 原因 | 库存流水及状态 | 系统管理-23 |
-| API-INV-004 | `GET/POST /inventory-counts` | 查询/门店、盘点范围 | 盘点单分页/id | 系统管理-24 |
-| API-INV-005 | `PUT /inventory-counts/{id}/lines` | 实盘数、version | 差异汇总 | 系统管理-24 |
-| API-INV-006 | `POST /inventory-counts/{id}/confirm` | 确认说明 | 库存调整流水 | 系统管理-24 |
+| API-CAT-023 | `GET/POST /gifts`、`GET/PUT /gifts/{id}` | 按编号/名称/状态分页；新建或更新礼品编码、名称、礼品分类、单位、兑换积分、成本、预警线、说明、状态和version | 完整礼品资料；编码创建后固定、单位精度0~4、rowversion更新；`inventory:gift:view/manage`；已实现 | 系统管理-23~26 |
+| API-INV-001 | `GET /inventories`、`GET /inventories/{storeId}/gifts/{giftId}/ledgers` | 按门店、编号/名称、低库存查询余额；按门店和礼品查询不可变流水 | 余额分页/前值、变动、后值、来源单据和冲销关联；强制门店范围；`inventory:stock:view`；已实现 | 系统管理-25 |
+| API-INV-002 | `GET/POST /inventory-transfers`、`GET /inventory-transfers/{id}` | 查询涉及门店/单号/状态；新建调出店、调入店、日期、1~500条不重复礼品明细、备注和`idempotencyKey` | 调拨分页/详情；草稿不改库存，同一幂等键只建一单，调出和调入店必须不同；`inventory:transfer:view/manage`；已实现 | 系统管理-23 |
+| API-INV-003 | `POST /inventory-transfers/{id}/confirm`、`/void`、`/reverse` | version；确认说明或必填作废/冲销原因 | `DRAFT→CONFIRMED/VOIDED`、`CONFIRMED→REVERSED`；确认同事务写双店余额和双边流水，库存不足回滚；冲销追加反向流水且只能一次；已实现 | 系统管理-23 |
+| API-INV-004 | `GET/POST /inventory-counts`、`GET /inventory-counts/{id}` | 查询门店/单号或名称/状态；新建名称、门店、日期、1~500个不重复礼品、备注和`idempotencyKey` | 盘点分页/详情；创建时锁定每项账面数量快照，停用但有结存的礼品仍可清账；`inventory:count:view/manage`；已实现 | 系统管理-24 |
+| API-INV-005 | `PUT /inventory-counts/{id}/lines` | version及全部明细的`lineId/actualQuantity`，不允许漏行、重复或负数 | `DRAFT/READY_CONFIRM→READY_CONFIRM`，返回逐项账面、实盘和差异；单位小数位校验；已实现 | 系统管理-24 |
+| API-INV-006 | `POST /inventory-counts/{id}/confirm`、`/void` | version；确认说明或必填作废原因 | 确认前锁定库存并比对账面快照，期间库存变化则409拒绝；确认只为非零差异追加盘盈/盘亏流水，草稿/待确认可作废；已实现 | 系统管理-24 |
 | API-EQP-001 | `GET/POST /equipments` | 门店、状态/编号、型号、责任人 | 分页/id | 系统管理-27 |
 | API-EQP-002 | `GET/PUT /equipments/{id}` | 详情/资料、version | 详情/更新 | 系统管理-27 |
 | API-EQP-003 | `GET/POST /equipment-receipts` | 查询/设备、领取人、日期 | 领取记录/id | 系统管理-28 |

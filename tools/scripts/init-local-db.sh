@@ -29,11 +29,10 @@ if [[ ! "${DB_USERNAME}" =~ ^[A-Za-z0-9_]+$ ]]; then
 fi
 
 escaped_app_password=${DB_PASSWORD//\'/\'\'}
-setup_sql="IF DB_ID(N'${DB_NAME}') IS NULL CREATE DATABASE [${DB_NAME}];
+server_sql="IF DB_ID(N'${DB_NAME}') IS NULL CREATE DATABASE [${DB_NAME}];
 IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'${DB_USERNAME}')
-    CREATE LOGIN [${DB_USERNAME}] WITH PASSWORD = N'${escaped_app_password}', CHECK_POLICY = ON;
-USE [${DB_NAME}];
-IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'${DB_USERNAME}')
+    CREATE LOGIN [${DB_USERNAME}] WITH PASSWORD = N'${escaped_app_password}', CHECK_POLICY = ON;"
+database_sql="IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'${DB_USERNAME}')
     CREATE USER [${DB_USERNAME}] FOR LOGIN [${DB_USERNAME}];
 ALTER ROLE db_datareader ADD MEMBER [${DB_USERNAME}];
 ALTER ROLE db_datawriter ADD MEMBER [${DB_USERNAME}];
@@ -41,6 +40,10 @@ ALTER ROLE db_ddladmin ADD MEMBER [${DB_USERNAME}];"
 
 docker compose --env-file "${env_file}" -f "${project_root}/infra/compose.yaml" exec -T \
   -e SQLCMDPASSWORD="${MSSQL_SA_PASSWORD}" sqlserver \
-  /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -Q "${setup_sql}"
+  /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -Q "${server_sql}"
+
+docker compose --env-file "${env_file}" -f "${project_root}/infra/compose.yaml" exec -T \
+  -e SQLCMDPASSWORD="${MSSQL_SA_PASSWORD}" sqlserver \
+  /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -d "${DB_NAME}" -C -b -Q "${database_sql}"
 
 echo "Local database ${DB_NAME} and login ${DB_USERNAME} are ready."
