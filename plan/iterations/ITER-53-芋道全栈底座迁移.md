@@ -2,10 +2,10 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 迭代周期 | 2026-07-30—进行中 |
+| 迭代周期 | 2026-07-30 |
 | 执行/确认方式 | AI 开发，人工确认 |
 | 关联里程碑 | 全栈重构 P0 |
-| 计划状态 | 执行中 |
+| 计划状态 | 已完成 |
 
 ## 一、目标
 
@@ -18,9 +18,9 @@
 | REF-P0-01 | 保存 main 自研前端、后端、文档和旧源码边界 | `ref/README.md`、Git 历史 | DONE |
 | REF-P0-02 | 导入芋道 Vue3 前端 | `frontend/UPSTREAM.md`、subtree 提交 | DONE |
 | REF-P0-03 | 导入芋道完整单体后端 | `backend/UPSTREAM.md`、subtree 提交 | DONE |
-| REF-P0-04 | 使用芋道原生 Token、动态菜单和 `/admin-api` | 前端类型检查、运行联调 | DOING |
-| REF-P0-05 | 建立 SQL Server、Redis 和安全 profile | 配置检查、容器启动、登录验证 | DOING |
-| REF-P0-06 | 建立一次性芋道 SQL 基线和 Flyway 增量入口 | 空库初始化、二次执行不覆盖、Flyway 记录 | DOING |
+| REF-P0-04 | 使用芋道原生 Token、动态菜单和 `/admin-api` | 前端类型检查、运行联调 | DONE |
+| REF-P0-05 | 建立 SQL Server、Redis 和安全 profile | 配置检查、容器启动、登录验证 | DONE |
+| REF-P0-06 | 建立一次性芋道 SQL 基线和 Flyway 增量入口 | 空库初始化、二次执行不覆盖、Flyway 记录 | DONE |
 | REF-P0-07 | 建立 Maven、pnpm 和 CI 构建基线 | `make verify` | DONE |
 | REF-P0-08 | 更新迁移映射和跨会话状态 | docs/plan/memory 一致性检查 | DONE |
 
@@ -31,7 +31,7 @@
 | 类型 | 变更 |
 | --- | --- |
 | 前端 | `frontend/` 为 `yudao-ui-admin-vue3@9445977`，保留悦指间品牌和根 pnpm workspace |
-| 后端 | `backend/` 为 `ruoyi-vue-pro master-jdk17@ec3f7cb`，当前启用 system/infra/server |
+| 后端 | `backend/` 为 `ruoyi-vue-pro master-jdk17@ec3f7cb`；P0 完成 system/infra/server，P1 已追加 member 与悦指间模块 |
 | API | 从临时旧后端适配恢复为芋道 `/admin-api`、Bearer Token、刷新 Token、字典和动态菜单 |
 | 数据库 | SQL Server 官方全量脚本一次性导入；悦指间后续变化由 Flyway 管理 |
 | 环境 | 本地必需 SQL Server + Redis；MinIO 保留供文件模块接入 |
@@ -58,4 +58,4 @@
 
 ## 六、完成定义
 
-P0 只有在前后端构建、空库初始化、服务启动和原生登录链路全部通过后才能标记 DONE。之后进入 P1：建立悦指间业务模块，并迁移门店—员工—岗位—会员主档首个纵向样板。
+前后端构建、独立空库初始化、服务启动、原生登录、动态菜单和 Redis Token 链路均已通过，P0 已完成。后续执行记录见 `ITER-54`。

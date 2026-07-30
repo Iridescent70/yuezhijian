@@ -14,6 +14,12 @@ set -a
 source "${env_file}"
 set +a
 
+# 允许联调/CI 使用一次性的独立数据库，同时继续复用 .env.local 中的容器和登录口令。
+# 该覆盖只作用于当前进程，不修改 .env.local，也不允许绕过下方的空库保护。
+if [[ -n "${DB_NAME_OVERRIDE:-}" ]]; then
+  DB_NAME="${DB_NAME_OVERRIDE}"
+fi
+
 : "${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD is required}"
 : "${DB_NAME:?DB_NAME is required}"
 : "${DB_USERNAME:?DB_USERNAME is required}"

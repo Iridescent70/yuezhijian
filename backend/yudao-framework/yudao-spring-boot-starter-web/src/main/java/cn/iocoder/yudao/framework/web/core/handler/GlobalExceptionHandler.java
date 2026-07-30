@@ -136,8 +136,9 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public CommonResult<?> methodArgumentTypeMismatchExceptionHandler(MethodArgumentTypeMismatchException ex) {
-        log.warn("[methodArgumentTypeMismatchExceptionHandler]", ex);
-        return CommonResult.error(BAD_REQUEST.getCode(), String.format("请求参数类型错误:%s", ex.getMessage()));
+        log.warn("[methodArgumentTypeMismatchExceptionHandler][参数({}) 类型错误，目标类型({})]", ex.getName(),
+                ex.getRequiredType() != null ? ex.getRequiredType().getName() : "unknown");
+        return CommonResult.error(BAD_REQUEST.getCode(), String.format("请求参数类型错误:%s", ex.getName()));
     }
 
     /**
@@ -145,7 +146,6 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public CommonResult<?> methodArgumentNotValidExceptionExceptionHandler(MethodArgumentNotValidException ex) {
-        log.warn("[methodArgumentNotValidExceptionExceptionHandler]", ex);
         // 获取 errorMessage
         String errorMessage = null;
         FieldError fieldError = ex.getBindingResult().getFieldError();
@@ -158,6 +158,9 @@ public class GlobalExceptionHandler {
         } else {
             errorMessage = fieldError.getDefaultMessage();
         }
+        log.warn("[methodArgumentNotValidExceptionExceptionHandler][对象({}) 字段({}) 校验失败: {}]",
+                ex.getBindingResult().getObjectName(), fieldError != null ? fieldError.getField() : "object",
+                errorMessage);
         // 转换 CommonResult
         if (StrUtil.isEmpty(errorMessage)) {
             return CommonResult.error(BAD_REQUEST);
@@ -170,10 +173,11 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(BindException.class)
     public CommonResult<?> bindExceptionHandler(BindException ex) {
-        log.warn("[handleBindException]", ex);
         FieldError fieldError = ex.getFieldError();
-        assert fieldError != null; // 断言，避免告警
-        return CommonResult.error(BAD_REQUEST.getCode(), String.format("请求参数不正确:%s", fieldError.getDefaultMessage()));
+        String fieldName = fieldError != null ? fieldError.getField() : "object";
+        String errorMessage = fieldError != null ? fieldError.getDefaultMessage() : "参数绑定失败";
+        log.warn("[handleBindException][对象({}) 字段({}) 绑定失败: {}]", ex.getObjectName(), fieldName, errorMessage);
+        return CommonResult.error(BAD_REQUEST.getCode(), String.format("请求参数不正确:%s", errorMessage));
     }
 
     /**
@@ -184,15 +188,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @SuppressWarnings("PatternVariableCanBeUsed")
     public CommonResult<?> methodArgumentTypeInvalidFormatExceptionHandler(HttpMessageNotReadableException ex) {
-        log.warn("[methodArgumentTypeInvalidFormatExceptionHandler]", ex);
         if (ex.getCause() instanceof InvalidFormatException) {
             InvalidFormatException invalidFormatException = (InvalidFormatException) ex.getCause();
-            return CommonResult.error(BAD_REQUEST.getCode(), String.format("请求参数类型错误:%s", invalidFormatException.getValue()));
+            String fieldName = invalidFormatException.getPath().isEmpty() ? "unknown"
+                    : invalidFormatException.getPath().get(invalidFormatException.getPath().size() - 1).getFieldName();
+            log.warn("[methodArgumentTypeInvalidFormatExceptionHandler][字段({}) 类型错误，目标类型({})]", fieldName,
+                    invalidFormatException.getTargetType() != null
+                            ? invalidFormatException.getTargetType().getName() : "unknown");
+            return CommonResult.error(BAD_REQUEST.getCode(), String.format("请求参数类型错误:%s", fieldName));
         }
         if (StrUtil.startWith(ex.getMessage(), "Required request body is missing")) {
+            log.warn("[methodArgumentTypeInvalidFormatExceptionHandler][request body 缺失]");
             return CommonResult.error(BAD_REQUEST.getCode(), "请求参数类型错误: request body 缺失");
         }
-        return defaultExceptionHandler(ServletUtils.getRequest(), ex);
+        log.warn("[methodArgumentTypeInvalidFormatExceptionHandler][请求体无法解析: {}]", ex.getClass().getSimpleName());
+        return CommonResult.error(BAD_REQUEST.getCode(), "请求参数类型错误: request body 无法解析");
     }
 
     /**
@@ -200,8 +210,9 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(value = ConstraintViolationException.class)
     public CommonResult<?> constraintViolationExceptionHandler(ConstraintViolationException ex) {
-        log.warn("[constraintViolationExceptionHandler]", ex);
         ConstraintViolation<?> constraintViolation = ex.getConstraintViolations().iterator().next();
+        log.warn("[constraintViolationExceptionHandler][参数({}) 校验失败: {}]",
+                constraintViolation.getPropertyPath(), constraintViolation.getMessage());
         return CommonResult.error(BAD_REQUEST.getCode(), String.format("请求参数不正确:%s", constraintViolation.getMessage()));
     }
 
@@ -210,7 +221,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(value = ValidationException.class)
     public CommonResult<?> validationException(ValidationException ex) {
-        log.warn("[constraintViolationExceptionHandler]", ex);
+        log.warn("[validationException][参数校验失败: {}]", ex.getClass().getSimpleName());
         // 无法拼接明细的错误信息，因为 Dubbo Consumer 抛出 ValidationException 异常时，是直接的字符串信息，且人类不可读
         return CommonResult.error(BAD_REQUEST);
     }

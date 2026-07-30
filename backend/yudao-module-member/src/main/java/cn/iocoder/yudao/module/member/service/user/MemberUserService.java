@@ -7,6 +7,7 @@ import cn.iocoder.yudao.module.member.controller.admin.user.vo.MemberUserPageReq
 import cn.iocoder.yudao.module.member.controller.admin.user.vo.MemberUserUpdateReqVO;
 import cn.iocoder.yudao.module.member.controller.app.user.vo.*;
 import cn.iocoder.yudao.module.member.dal.dataobject.user.MemberUserDO;
+import cn.iocoder.yudao.module.member.api.user.dto.MemberUserCreateReqDTO;
 
 import jakarta.validation.Valid;
 import java.util.Collection;
@@ -18,6 +19,11 @@ import java.util.List;
  * @author 芋道源码
  */
 public interface MemberUserService {
+
+    /**
+     * 由管理端业务流程创建会员账号；手机号重复时失败，不复用已有账号。
+     */
+    MemberUserDO createUser(@Valid MemberUserCreateReqDTO reqDTO);
 
     /**
      * 通过手机查询用户

@@ -8,6 +8,7 @@ import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.framework.mybatis.core.util.MyBatisUtils;
 import cn.iocoder.yudao.module.member.controller.admin.user.vo.MemberUserPageReqVO;
 import cn.iocoder.yudao.module.member.dal.dataobject.user.MemberUserDO;
+import cn.iocoder.yudao.module.member.framework.security.MemberMobileProtectionUtils;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import org.apache.ibatis.annotations.Mapper;
 
@@ -24,7 +25,7 @@ import java.util.stream.IntStream;
 public interface MemberUserMapper extends BaseMapperX<MemberUserDO> {
 
     default MemberUserDO selectByMobile(String mobile) {
-        return selectOne(MemberUserDO::getMobile, mobile);
+        return selectOne(MemberUserDO::getMobileHash, MemberMobileProtectionUtils.searchableHash(mobile));
     }
 
     default MemberUserDO selectByEmail(String email) {
@@ -48,7 +49,8 @@ public interface MemberUserMapper extends BaseMapperX<MemberUserDO> {
         }
         // 分页查询
         return selectPage(reqVO, new LambdaQueryWrapperX<MemberUserDO>()
-                .likeIfPresent(MemberUserDO::getMobile, reqVO.getMobile())
+                .eqIfPresent(MemberUserDO::getMobileHash,
+                        MemberMobileProtectionUtils.searchableHashIfPresent(reqVO.getMobile()))
                 .likeIfPresent(MemberUserDO::getEmail, reqVO.getEmail())
                 .betweenIfPresent(MemberUserDO::getLoginDate, reqVO.getLoginDate())
                 .likeIfPresent(MemberUserDO::getNickname, reqVO.getNickname())

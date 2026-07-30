@@ -1,6 +1,7 @@
 package cn.iocoder.yudao.module.member.api.user;
 
 import cn.iocoder.yudao.module.member.api.user.dto.MemberUserRespDTO;
+import cn.iocoder.yudao.module.member.api.user.dto.MemberUserCreateReqDTO;
 import cn.iocoder.yudao.module.member.convert.user.MemberUserConvert;
 import cn.iocoder.yudao.module.member.dal.dataobject.user.MemberUserDO;
 import cn.iocoder.yudao.module.member.service.user.MemberUserService;
@@ -25,6 +26,11 @@ public class MemberUserApiImpl implements MemberUserApi {
 
     @Resource
     private MemberUserService userService;
+
+    @Override
+    public MemberUserRespDTO createUser(MemberUserCreateReqDTO reqDTO) {
+        return MemberUserConvert.INSTANCE.convert2(userService.createUser(reqDTO));
+    }
 
     @Override
     public MemberUserRespDTO getUser(Long id) {

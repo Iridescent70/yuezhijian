@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.member.controller.admin.user.vo;
 
+import cn.iocoder.yudao.framework.desensitize.core.slider.annotation.MobileDesensitize;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import org.hibernate.validator.constraints.URL;
@@ -22,6 +23,7 @@ public class MemberUserBaseVO {
 
     @Schema(description = "手机号", requiredMode = Schema.RequiredMode.REQUIRED, example = "15601691300")
     @NotNull(message = "手机号不能为空")
+    @MobileDesensitize(disable = "@ss.hasPermission('member:user:update')")
     private String mobile;
 
     @Schema(description = "状态", requiredMode = Schema.RequiredMode.REQUIRED, example = "2")

@@ -23,7 +23,7 @@ spring:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
       database: ${REDIS_DATABASE:0}
-      password: ${REDIS_PASSWORD:}
+      password: ${REDIS_PASSWORD}
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -40,6 +40,10 @@ logging:
   file:
     name: ${LOG_FILE:./.data/logs/yudao-server.log}
   level:
+    root: info
+    org.springframework.web: info
+    org.springframework.boot.autoconfigure: info
+    org.springframework.boot.context.properties: info
     cn.iocoder.yudao.module.infra.dal.mysql: info
     cn.iocoder.yudao.module.system.dal.mysql: info
 
@@ -54,7 +58,8 @@ yudao:
   api-encrypt:
     enable: false
   access-log:
-    enable: true
+    # 上游访问日志会记录登录请求体；在字段级脱敏完成前关闭，避免口令进入日志。
+    enable: false
   demo: false
   tenant:
     enable: false
@@ -69,3 +74,29 @@ yudao:
 
 justauth:
   enabled: false
+
+mybatis-plus:
+  encryptor:
+    # 仅用于敏感字段可逆加密，必须是 16/24/32 字节；生产环境由密钥管理服务注入。
+    password: ${FIELD_ENCRYPTION_KEY}
+
+yuezhijian:
+  data-protection:
+    # 检索哈希与密文使用不同密钥，禁止互相复用。
+    hash-pepper: ${DATA_HASH_PEPPER}
+
+# 系统模块当前仍会创建微信服务占位 Bean。仅选择项目已锁定的 HttpClient 5 实现，
+# AppID/Secret 后续接入时必须通过部署环境注入，禁止复用上游示例凭据。
+wx:
+  mp:
+    app-id: ${WX_MP_APP_ID:}
+    secret: ${WX_MP_SECRET:}
+    config-storage:
+      type: RedisTemplate
+      http-client-type: HttpComponents
+  miniapp:
+    appid: ${WX_MINIAPP_APP_ID:}
+    secret: ${WX_MINIAPP_SECRET:}
+    config-storage:
+      type: RedisTemplate
+      http-client-type: HttpComponents

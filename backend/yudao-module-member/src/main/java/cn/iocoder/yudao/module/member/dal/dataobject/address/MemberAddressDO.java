@@ -1,7 +1,9 @@
 package cn.iocoder.yudao.module.member.dal.dataobject.address;
 
 import cn.iocoder.yudao.framework.mybatis.core.dataobject.BaseDO;
+import cn.iocoder.yudao.module.member.framework.security.MemberMobileEncryptTypeHandler;
 import com.baomidou.mybatisplus.annotation.KeySequence;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.*;
@@ -11,7 +13,7 @@ import lombok.*;
  *
  * @author 芋道源码
  */
-@TableName("member_address")
+@TableName(value = "member_address", autoResultMap = true)
 @KeySequence("member_address_seq") // 用于 Oracle、PostgreSQL、Kingbase、DB2、H2 数据库的主键自增。如果是 MySQL 等数据库，可不写。
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -37,6 +39,7 @@ public class MemberAddressDO extends BaseDO {
     /**
      * 手机号
      */
+    @TableField(typeHandler = MemberMobileEncryptTypeHandler.class)
     private String mobile;
     /**
      * 地区编号

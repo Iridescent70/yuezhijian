@@ -48,8 +48,11 @@ public class ApiAccessLogInterceptor implements HandlerInterceptor {
             if (CollUtil.isEmpty(queryString) && StrUtil.isEmpty(requestBody)) {
                 log.info("[preHandle][开始请求 URL({}) 无参数]", request.getRequestURI());
             } else {
-                log.info("[preHandle][开始请求 URL({}) 参数({})]", request.getRequestURI(),
-                        StrUtil.blankToDefault(requestBody, queryString.toString()));
+                // 请求值可能包含口令、Token、手机号、卡号等敏感信息。开发日志只记录字段名和载荷类型，
+                // 具体业务审计由 ApiAccessLogFilter 在显式启用后按脱敏规则处理。
+                String parameterSummary = StrUtil.isNotEmpty(requestBody)
+                        ? "包含请求体" : "查询字段" + queryString.keySet();
+                log.info("[preHandle][开始请求 URL({}) {}]", request.getRequestURI(), parameterSummary);
             }
             // 计时
             StopWatch stopWatch = new StopWatch();

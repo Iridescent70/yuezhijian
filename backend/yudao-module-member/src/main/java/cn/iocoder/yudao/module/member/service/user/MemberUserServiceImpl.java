@@ -9,6 +9,7 @@ import cn.iocoder.yudao.framework.common.enums.UserTypeEnum;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
 import cn.iocoder.yudao.module.member.controller.admin.user.vo.MemberUserPageReqVO;
+import cn.iocoder.yudao.module.member.api.user.dto.MemberUserCreateReqDTO;
 import cn.iocoder.yudao.module.member.controller.admin.user.vo.MemberUserUpdateReqVO;
 import cn.iocoder.yudao.module.member.controller.app.user.vo.*;
 import cn.iocoder.yudao.module.member.convert.auth.AuthConvert;
@@ -16,6 +17,7 @@ import cn.iocoder.yudao.module.member.convert.user.MemberUserConvert;
 import cn.iocoder.yudao.module.member.dal.dataobject.user.MemberUserDO;
 import cn.iocoder.yudao.module.member.dal.mysql.user.MemberUserMapper;
 import cn.iocoder.yudao.module.member.mq.producer.user.MemberUserProducer;
+import cn.iocoder.yudao.module.member.framework.security.MemberMobileProtectionUtils;
 import cn.iocoder.yudao.module.system.api.sms.SmsCodeApi;
 import cn.iocoder.yudao.module.system.api.sms.dto.code.SmsCodeUseReqDTO;
 import cn.iocoder.yudao.module.system.api.social.SocialClientApi;
@@ -65,6 +67,30 @@ public class MemberUserServiceImpl implements MemberUserService {
     private MemberUserProducer memberUserProducer;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MemberUserDO createUser(MemberUserCreateReqDTO reqDTO) {
+        String mobile = MemberMobileProtectionUtils.normalize(reqDTO.getMobile());
+        validateMobileUnique(null, mobile);
+        validateEmailUnique(null, reqDTO.getEmail());
+
+        MemberUserDO user = new MemberUserDO();
+        applyProtectedMobile(user, mobile);
+        user.setStatus(CommonStatusEnum.ENABLE.getStatus());
+        user.setPassword(encodePassword(IdUtil.fastSimpleUUID()));
+        user.setRegisterIp(StrUtil.blankToDefault(reqDTO.getRegisterIp(), "127.0.0.1"));
+        user.setRegisterTerminal(ObjectUtil.defaultIfNull(reqDTO.getRegisterTerminal(), 0));
+        user.setNickname(reqDTO.getNickname().trim());
+        user.setName(StrUtil.trim(reqDTO.getName()));
+        user.setSex(reqDTO.getSex());
+        user.setBirthday(reqDTO.getBirthday());
+        user.setEmail(StrUtil.trim(reqDTO.getEmail()));
+        user.setAvatar("");
+        memberUserMapper.insert(user);
+        publishCreatedAfterCommit(user.getId());
+        return user;
+    }
+
+    @Override
     public MemberUserDO getUserByMobile(String mobile) {
         return memberUserMapper.selectByMobile(mobile);
     }
@@ -98,7 +124,7 @@ public class MemberUserServiceImpl implements MemberUserService {
         String password = IdUtil.fastSimpleUUID();
         // 插入用户
         MemberUserDO user = new MemberUserDO();
-        user.setMobile(mobile);
+        applyProtectedMobile(user, mobile);
         user.setStatus(CommonStatusEnum.ENABLE.getStatus()); // 默认开启
         user.setPassword(encodePassword(password)); // 加密密码
         user.setRegisterIp(registerIp).setRegisterTerminal(terminal);
@@ -109,16 +135,31 @@ public class MemberUserServiceImpl implements MemberUserService {
         }
         memberUserMapper.insert(user);
 
+        publishCreatedAfterCommit(user.getId());
+        return user;
+    }
+
+    private void publishCreatedAfterCommit(Long userId) {
         // 发送 MQ 消息：用户创建
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
 
             @Override
             public void afterCommit() {
-                memberUserProducer.sendUserCreateMessage(user.getId());
+                memberUserProducer.sendUserCreateMessage(userId);
             }
 
         });
-        return user;
+    }
+
+    private void applyProtectedMobile(MemberUserDO user, String mobile) {
+        if (mobile == null) {
+            user.setMobile(null).setMobileHash(null).setMobileLast4(null);
+            return;
+        }
+        String normalized = MemberMobileProtectionUtils.normalize(mobile);
+        user.setMobile(normalized)
+                .setMobileHash(MemberMobileProtectionUtils.searchableHash(normalized))
+                .setMobileLast4(MemberMobileProtectionUtils.last4(normalized));
     }
 
     @Override
@@ -171,7 +212,9 @@ public class MemberUserServiceImpl implements MemberUserService {
                 .setScene(SmsSceneEnum.MEMBER_UPDATE_MOBILE.getScene()).setUsedIp(getClientIP()));
 
         // 3. 更新用户手机
-        memberUserMapper.updateById(MemberUserDO.builder().id(userId).mobile(reqVO.getMobile()).build());
+        MemberUserDO updateObj = new MemberUserDO().setId(userId);
+        applyProtectedMobile(updateObj, reqVO.getMobile());
+        memberUserMapper.updateById(updateObj);
     }
 
     @Override
@@ -184,7 +227,9 @@ public class MemberUserServiceImpl implements MemberUserService {
         validateMobileUnique(userId, phoneNumberInfo.getPhoneNumber());
 
         // 2. 更新用户手机
-        memberUserMapper.updateById(MemberUserDO.builder().id(userId).mobile(phoneNumberInfo.getPhoneNumber()).build());
+        MemberUserDO updateObj = new MemberUserDO().setId(userId);
+        applyProtectedMobile(updateObj, phoneNumberInfo.getPhoneNumber());
+        memberUserMapper.updateById(updateObj);
     }
 
     @Override
@@ -249,6 +294,7 @@ public class MemberUserServiceImpl implements MemberUserService {
 
         // 更新
         MemberUserDO updateObj = MemberUserConvert.INSTANCE.convert(updateReqVO);
+        applyProtectedMobile(updateObj, updateReqVO.getMobile());
         memberUserMapper.updateById(updateObj);
     }
 

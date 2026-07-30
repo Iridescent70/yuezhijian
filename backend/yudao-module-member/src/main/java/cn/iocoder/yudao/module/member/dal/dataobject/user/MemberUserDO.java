@@ -5,6 +5,7 @@ import cn.iocoder.yudao.framework.common.enums.TerminalEnum;
 import cn.iocoder.yudao.framework.ip.core.Area;
 import cn.iocoder.yudao.framework.mybatis.core.type.LongListTypeHandler;
 import cn.iocoder.yudao.framework.tenant.core.db.TenantBaseDO;
+import cn.iocoder.yudao.module.member.framework.security.MemberMobileEncryptTypeHandler;
 import cn.iocoder.yudao.module.member.dal.dataobject.group.MemberGroupDO;
 import cn.iocoder.yudao.module.member.dal.dataobject.level.MemberLevelDO;
 import cn.iocoder.yudao.module.system.enums.common.SexEnum;
@@ -21,7 +22,7 @@ import java.util.List;
 /**
  * 会员用户 DO
  *
- * uk_mobile 索引：基于 {@link #mobile} 字段
+ * uk_member_user_mobile_hash 索引：基于 {@link #mobileHash} 字段
  *
  * @author 芋道源码
  */
@@ -44,7 +45,16 @@ public class MemberUserDO extends TenantBaseDO {
     /**
      * 手机
      */
+    @TableField(typeHandler = MemberMobileEncryptTypeHandler.class)
     private String mobile;
+    /**
+     * 手机号检索哈希。手机号正文使用随机认证加密，查询和唯一性使用该字段。
+     */
+    private String mobileHash;
+    /**
+     * 手机号尾号，只用于掩码展示和人工核对。
+     */
+    private String mobileLast4;
     /**
      * 邮箱
      */

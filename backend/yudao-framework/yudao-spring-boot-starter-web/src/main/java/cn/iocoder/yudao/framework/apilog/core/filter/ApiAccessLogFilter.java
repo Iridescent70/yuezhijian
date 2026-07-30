@@ -49,7 +49,10 @@ import static cn.iocoder.yudao.framework.common.util.json.JsonUtils.toJsonString
 @Slf4j
 public class ApiAccessLogFilter extends ApiRequestFilter {
 
-    private static final String[] SANITIZE_KEYS = new String[]{"password", "token", "accessToken", "refreshToken"};
+    private static final String[] SANITIZE_KEYS = new String[]{
+            "password", "token", "accessToken", "refreshToken",
+            "mobile", "phone", "email", "membershipCardNo", "cardNo"
+    };
 
     private final String applicationName;
 
@@ -203,8 +206,8 @@ public class ApiAccessLogFilter extends ApiRequestFilter {
             return JsonUtils.toJsonString(rootNode);
         } catch (Exception e) {
             // 脱敏失败的情况下，直接忽略异常，避免影响用户请求
-            log.error("[sanitizeJson][脱敏({}) 发生异常]", jsonString, e);
-            return jsonString;
+            log.error("[sanitizeJson][JSON 脱敏失败，已丢弃原始内容]", e);
+            return null;
         }
     }
 
@@ -219,8 +222,8 @@ public class ApiAccessLogFilter extends ApiRequestFilter {
             return JsonUtils.toJsonString(rootNode);
         } catch (Exception e) {
             // 脱敏失败的情况下，直接忽略异常，避免影响用户请求
-            log.error("[sanitizeJson][脱敏({}) 发生异常]", jsonString, e);
-            return jsonString;
+            log.error("[sanitizeJson][响应 JSON 脱敏失败，已丢弃原始内容]", e);
+            return null;
         }
     }
 

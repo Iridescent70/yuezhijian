@@ -16,6 +16,7 @@ doctor:
 	@java -version
 	@mvn --version
 	@node --version
+	@npm --version
 	@pnpm --version
 	@docker --version
 	@docker compose version
@@ -42,7 +43,7 @@ db-init:
 backend-dev:
 	@test -f .env.local || (echo "Missing .env.local; copy .env.example and set local secrets first." >&2; exit 1)
 	@./mvnw -f backend/pom.xml -pl yudao-server -am -DskipTests package
-	@set -a; source .env.local; set +a; java -jar backend/yudao-server/target/yudao-server.jar --spring.profiles.active=yuezhijian
+	@set -a; source .env.local; set +a; java -jar backend/yudao-server/target/yudao-server.jar --spring.profiles.active=yuezhijian --debug=false
 
 backend-dev-db:
 	@$(MAKE) backend-dev

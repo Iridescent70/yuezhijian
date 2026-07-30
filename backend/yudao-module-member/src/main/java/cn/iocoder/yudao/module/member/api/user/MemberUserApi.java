@@ -1,6 +1,9 @@
 package cn.iocoder.yudao.module.member.api.user;
 
 import cn.iocoder.yudao.module.member.api.user.dto.MemberUserRespDTO;
+import cn.iocoder.yudao.module.member.api.user.dto.MemberUserCreateReqDTO;
+
+import jakarta.validation.Valid;
 
 import java.util.Collection;
 import java.util.List;
@@ -14,6 +17,11 @@ import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.
  * @author 芋道源码
  */
 public interface MemberUserApi {
+
+    /**
+     * 由管理端业务流程创建会员账号。
+     */
+    MemberUserRespDTO createUser(@Valid MemberUserCreateReqDTO reqDTO);
 
     /**
      * 获得会员用户信息
